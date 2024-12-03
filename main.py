@@ -11,6 +11,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import signal
 import sys
+from file_ops import FileOps
 
 # Load environment variables
 load_dotenv()
@@ -44,6 +45,9 @@ def signal_handler(signum, frame):
 
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
+
+# Add after other global variables
+file_ops = FileOps()
 
 def send_telegram_message(message: str, reply_markup=None):
     """Send a message to Telegram"""
@@ -246,76 +250,50 @@ def format_messages_for_summary(messages: List[dict]) -> str:
     
     return "\n---\n".join(formatted_messages)
 
-def generate_summary(messages: List[dict]) -> str:
+def generate_summary(messages: List[dict], channel_name: str, requested_hours: int) -> str:
     """Generate a summary of the messages using Claude"""
     if not messages:
         return "No messages found in the specified timeframe."
         
-    # Calculate time difference between oldest and newest messages
+    # Calculate time period
     timestamps = [datetime.fromisoformat(msg['timestamp'].rstrip('Z')).replace(tzinfo=timezone.utc) 
                  for msg in messages]
-    oldest = min(timestamps)
-    newest = max(timestamps)
-    hours_diff = round((newest - oldest).total_seconds() / 3600, 1)
-        
+    period_start = min(timestamps)
+    period_end = max(timestamps)
+    
     formatted_text = format_messages_for_summary(messages)
+    
+    # Save formatted messages with deduplication
+    file_ops.append_formatted_messages(channel_name, formatted_text, period_start, period_end)
+    
+    # Get previous summary for context
+    previous_summary = file_ops.get_latest_summary(channel_name, f"{requested_hours}h")
+    context = ""
+    if previous_summary:
+        context = f"""<previous_report>
+        Time period: {previous_summary['period_start']} to {previous_summary['period_end']}
+        {previous_summary['content']}
+        </previous_report>
+        
+        Please consider this context when writing the new summary, maintaining consistency in how you describe ongoing situations."""
 
-    prompt = f"""You are a news analyst specializing in clear, structured summaries. Below are news updates from the last {hours_diff} hours. 
-    Please provide a summary in the following strict format:
+    prompt = f"""You are a news analyst specializing in clear, direct summaries. Below are news updates from the last {requested_hours} hours. 
+    
+    Write a focused overview with title "Topic/Region Update - Current Date" (replace Topic/Region with the actual topic/region and Current Date with the actual date), covering the most significant developments. If there are multiple unrelated but important developments, mention them all briefly. Do not repeat yourself. Keep it concise, executive summary style. DO NOT include any concluding text, including words like 'in summary' or 'to summarize'. DO NOT include any introductory text, just send the summary. DO include the rough timestamp for each update.
 
-    Main Topic/Region Update - Current Date
+    {context}
 
-    Overview:
-    Write a focused 5-7 sentence overview covering the most significant developments. If there are multiple unrelated but important developments, mention them all briefly.
-
-    Key Developments:
-
-    Primary Event/Topic:
-    - Detailed point with specific facts (numbers, names, locations)
-    - Another specific point with clear impact or significance
-    - Additional key detail with concrete information
-
-    Secondary Developments:
-    - Important but separate development with specific details
-    - Another significant but unrelated event
-    - Additional noteworthy development from different area/topic
-
-    Tertiary Developments:
-    - Additional development from different area/topic
-    - Another significant but unrelated event
-    - Additional noteworthy development from different area/topic
-
-    Additional Details/Impact:
-    - Clear, factual point with specific information
-    - Another detailed development
-    - Another detailed development
-    - Another detailed development
-
-    Guidelines:
-    - Primary category should cover the main event/crisis
-    - Secondary Developments category must include other significant events, even if unrelated
-    - Each bullet point must contain specific facts (numbers, names, locations)
-    - Include both major developments and significant tangential events
-    - Maintain clear cause-and-effect relationships
-    - Avoid vague language or speculation
-    - Keep a neutral, analytical tone
-
-    News Updates to Summarize:
+    <new_updates>
     {formatted_text}
+    </new_updates>
 
     Summary:"""
-
-    with open('formatted_text.txt', 'w') as f:
-        f.write(formatted_text)
     
-    # Set max_tokens to ensure response fits in Telegram message (4096 chars)
-    # Using 2000 tokens (~3000-3500 chars) to be safe
     try:
         response = claude_client.messages.create(
             model="claude-3-haiku-20240307",
-            max_tokens=2000,  # Reduced to ensure it fits in one Telegram message
-            system="""You are an expert news analyst that creates clear, structured summaries.
-            Focus on specific facts and concrete details.
+            max_tokens=2000,
+            system="""You are an expert news analyst that creates clear, executive summaries. Focus on specific facts and concrete details.
             Avoid vague language like 'multiple', 'various', or 'several'.
             Use precise numbers, names, and locations whenever possible.
             Include both primary events and significant secondary developments.
@@ -328,7 +306,20 @@ def generate_summary(messages: List[dict]) -> str:
                 }
             ]
         )
-        return response.content[0].text
+        
+        summary = response.content[0].text
+        
+        # Save the summary with requested timeframe
+        summary_data = {
+            "period_start": period_start.isoformat(),
+            "period_end": period_end.isoformat(),
+            "timeframe": f"{requested_hours}h",
+            "channel": channel_name,
+            "content": summary
+        }
+        file_ops.save_summary(channel_name, summary_data)
+        
+        return summary
     except Exception as e:
         logger.error(f"Error generating summary: {str(e)}")
         return "Error generating summary. Please try again."
@@ -373,8 +364,7 @@ def handle_callback_query(callback_query):
             if messages:
                 logger.info(f"Generating summary for {len(messages)} messages from {channel_name}")
                 send_telegram_message(f"Found {len(messages)} messages in #{channel_name}. Generating summary...")
-                summary = generate_summary(messages)
-                send_telegram_message(f"📊 Summary for #{channel_name} (last {hours} hours):")
+                summary = generate_summary(messages, channel_name, hours)
                 send_telegram_message(summary)
             else:
                 logger.info(f"No messages found in {channel_name} for the last {hours} hours")
