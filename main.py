@@ -7,6 +7,10 @@ from typing import List, Dict, Optional
 import time
 import anthropic
 import textwrap
+import logging
+from logging.handlers import RotatingFileHandler
+import signal
+import sys
 
 # Load environment variables
 load_dotenv()
@@ -16,6 +20,30 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+# Add logging configuration after imports
+logging.basicConfig(
+    handlers=[
+        RotatingFileHandler(
+            'bot.log',
+            maxBytes=10485760,  # 10MB
+            backupCount=5
+        ),
+        logging.StreamHandler()
+    ],
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+
+logger = logging.getLogger(__name__)
+
+# Add graceful shutdown handling
+def signal_handler(signum, frame):
+    logger.info("Received shutdown signal. Cleaning up...")
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
 
 def send_telegram_message(message: str, reply_markup=None):
     """Send a message to Telegram"""
@@ -69,18 +97,25 @@ def get_channel_messages(channel_id: str, hours: int = 24):
     last_message_id = None
     cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
     
+    logger.info(f"Fetching messages from channel {channel_id} for past {hours} hours")
+    
     while True:
         batch = get_batch_messages(channel_id, last_message_id)
         if not batch:
+            logger.warning(f"No messages received from channel {channel_id}")
             break
             
         # Process batch and get bot messages
+        batch_bot_messages = 0
         for msg in batch:
             msg_time = datetime.fromisoformat(msg['timestamp'].rstrip('Z')).replace(tzinfo=timezone.utc)
             if (msg['author'].get('username') == 'FaytuksBot' and 
                 msg['author'].get('discriminator') == '7032' and 
                 msg_time >= cutoff_time):
                 messages.append(msg)
+                batch_bot_messages += 1
+        
+        logger.info(f"Processed batch of {len(batch)} messages, found {batch_bot_messages} bot messages")
         
         # Check if we should stop
         last_msg_time = datetime.fromisoformat(batch[-1]['timestamp'].rstrip('Z')).replace(tzinfo=timezone.utc)
@@ -89,6 +124,7 @@ def get_channel_messages(channel_id: str, hours: int = 24):
             
         last_message_id = batch[-1]['id']
     
+    logger.info(f"Total bot messages found: {len(messages)}")
     return messages
 
 def get_batch_messages(channel_id: str, last_message_id: str = None):
@@ -123,15 +159,16 @@ def create_timeframe_keyboard(channel_id: str):
     return {
         "inline_keyboard": [
             [
-                {"text": "6 hours", "callback_data": f"report_{channel_id}_6"},
-                {"text": "12 hours", "callback_data": f"report_{channel_id}_12"}
+                {"text": "1 hour", "callback_data": f"report_{channel_id}_1"},
+                {"text": "2 hours", "callback_data": f"report_{channel_id}_2"}
             ],
             [
-                {"text": "24 hours", "callback_data": f"report_{channel_id}_24"},
-                {"text": "48 hours", "callback_data": f"report_{channel_id}_48"}
+                {"text": "4 hours", "callback_data": f"report_{channel_id}_4"},
+                {"text": "8 hours", "callback_data": f"report_{channel_id}_8"}
             ],
             [
-                {"text": "72 hours", "callback_data": f"report_{channel_id}_72"}
+                {"text": "12 hours", "callback_data": f"report_{channel_id}_12"},
+                {"text": "24 hours", "callback_data": f"report_{channel_id}_24"}
             ]
         ]
     }
@@ -179,9 +216,33 @@ def format_messages_for_summary(messages: List[dict]) -> str:
     formatted_messages = []
     
     for msg in messages:
+        print(msg)
+        # Extract timestamp
         timestamp = datetime.fromisoformat(msg['timestamp'].rstrip('Z')).strftime('%Y-%m-%d %H:%M UTC')
+        
+        # Extract content and embeds
         content = msg.get('content', '')
-        formatted_messages.append(f"[{timestamp}]\n{content}\n")
+        embeds = msg.get('embeds', [])
+        
+        # Format embed information
+        embed_text = []
+        for embed in embeds:
+            if embed.get('title'):
+                embed_text.append(f"Title: {embed['title']}")
+            if embed.get('description'):
+                embed_text.append(f"Description: {embed['description']}")
+            for field in embed.get('fields', []):
+                if field['name'].lower() != 'source':  # Skip source fields
+                    embed_text.append(f"{field['name']}: {field['value']}")
+        
+        # Combine all information
+        message_text = f"[{timestamp}]\n"
+        if content:
+            message_text += f"{content}\n"
+        if embed_text:
+            message_text += "\n".join(embed_text) + "\n"
+        
+        formatted_messages.append(message_text)
     
     return "\n---\n".join(formatted_messages)
 
@@ -198,7 +259,7 @@ def generate_summary(messages: List[dict]) -> str:
     hours_diff = round((newest - oldest).total_seconds() / 3600, 1)
         
     formatted_text = format_messages_for_summary(messages)
-    
+
     prompt = f"""You are a news analyst specializing in clear, structured summaries. Below are news updates from the last {hours_diff} hours. 
     Please provide a summary in the following strict format:
 
@@ -243,20 +304,23 @@ def generate_summary(messages: List[dict]) -> str:
     {formatted_text}
 
     Summary:"""
-    
-    system="""You are an expert news analyst that creates clear, structured summaries.
-    Focus on specific facts and concrete details.
-    Avoid vague language like 'multiple', 'various', or 'several'.
-    Use precise numbers, names, and locations whenever possible.
-    Include both primary events and significant secondary developments.
-    Ensure no important information is omitted, even if it seems tangential.
-    Maintain consistent formatting and professional tone."""
 
+    with open('formatted_text.txt', 'w') as f:
+        f.write(formatted_text)
+    
+    # Set max_tokens to ensure response fits in Telegram message (4096 chars)
+    # Using 2000 tokens (~3000-3500 chars) to be safe
     try:
         response = claude_client.messages.create(
             model="claude-3-haiku-20240307",
-            max_tokens=500,
-            system=system,
+            max_tokens=2000,  # Reduced to ensure it fits in one Telegram message
+            system="""You are an expert news analyst that creates clear, structured summaries.
+            Focus on specific facts and concrete details.
+            Avoid vague language like 'multiple', 'various', or 'several'.
+            Use precise numbers, names, and locations whenever possible.
+            Include both primary events and significant secondary developments.
+            Ensure no important information is omitted, even if it seems tangential.
+            Maintain consistent formatting and professional tone.""",
             messages=[
                 {
                     "role": "user",
@@ -266,7 +330,7 @@ def generate_summary(messages: List[dict]) -> str:
         )
         return response.content[0].text
     except Exception as e:
-        print(f"Error generating summary: {str(e)}")
+        logger.error(f"Error generating summary: {str(e)}")
         return "Error generating summary. Please try again."
 
 def send_long_message(text: str):
@@ -290,6 +354,7 @@ def handle_callback_query(callback_query):
     if data.startswith('channel_'):
         # User selected a channel, show timeframe options
         channel_id = data.split('_')[1]
+        logger.info(f"User selected channel: {channel_id}")
         message = "Select timeframe for the report:"
         reply_markup = create_timeframe_keyboard(channel_id)
         send_telegram_message(message, reply_markup)
@@ -299,18 +364,24 @@ def handle_callback_query(callback_query):
         _, channel_id, hours = data.split('_')
         try:
             hours = int(hours)
+            logger.info(f"Generating report for channel {channel_id} for past {hours} hours")
+            
             messages = get_channel_messages(channel_id, hours)
             channels = get_guild_channels(GUILD_ID)
             channel_name = next((c['name'] for c in channels if c['id'] == channel_id), 'unknown-channel')
             
             if messages:
-                # Only generate and send the summary
+                logger.info(f"Generating summary for {len(messages)} messages from {channel_name}")
+                send_telegram_message(f"Found {len(messages)} messages in #{channel_name}. Generating summary...")
                 summary = generate_summary(messages)
-                send_telegram_message(f"📊 Summary for #{channel_name} (last {hours} hours):\n\n{summary}")
+                send_telegram_message(f"📊 Summary for #{channel_name} (last {hours} hours):")
+                send_telegram_message(summary)
             else:
+                logger.info(f"No messages found in {channel_name} for the last {hours} hours")
                 send_telegram_message(f"No messages found in #{channel_name} for the last {hours} hours.")
             
         except Exception as e:
+            logger.error(f"Error generating report: {str(e)}", exc_info=True)
             send_telegram_message(f"Error generating report: {str(e)}")
 
 def handle_telegram_command(message: str):
@@ -341,17 +412,19 @@ def handle_incoming_messages():
     """Handle incoming Telegram messages"""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
     last_update_id = None
+    consecutive_errors = 0
     
-    print("Bot started and listening for messages...")
+    logger.info("Bot started and listening for messages...")
     
     while True:
         try:
             params = {'timeout': 100, 'offset': last_update_id}
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=120)  # Add timeout
+            response.raise_for_status()  # Raise exception for bad status codes
             updates = response.json().get('result', [])
             
             if updates:
-                print(f"Found {len(updates)} new updates")
+                logger.info(f"Found {len(updates)} new updates")
             
             for update in updates:
                 last_update_id = update['update_id'] + 1
@@ -364,38 +437,66 @@ def handle_incoming_messages():
                 # Handle regular messages
                 message = update.get('message', {}).get('text', '')
                 if message and message.startswith('/'):
-                    print(f"Processing command: {message}")
+                    logger.info(f"Processing command: {message}")
                     handle_telegram_command(message)
-                    
+            
+            # Reset error counter on successful iteration
+            consecutive_errors = 0
             time.sleep(1)
+            
+        except requests.exceptions.RequestException as e:
+            consecutive_errors += 1
+            logger.error(f"Network error: {e}")
+            
+            # Exponential backoff with max delay of 5 minutes
+            delay = min(300, 2 ** consecutive_errors)
+            logger.info(f"Retrying in {delay} seconds...")
+            time.sleep(delay)
+            
         except Exception as e:
-            print(f"Error handling incoming messages: {e}")
+            consecutive_errors += 1
+            logger.error(f"Unexpected error: {e}", exc_info=True)
+            
+            # Exponential backoff with max delay of 5 minutes
+            delay = min(300, 2 ** consecutive_errors)
+            logger.info(f"Retrying in {delay} seconds...")
+            time.sleep(delay)
 
 def main():
-    print("Starting Discord Report Bot...")
+    logger.info("Starting Discord Report Bot...")
     
-    if not all([DISCORD_TOKEN, GUILD_ID, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID]):
-        print("Error: Missing required environment variables!")
-        print(f"DISCORD_TOKEN: {'✓' if DISCORD_TOKEN else '✗'}")
-        print(f"GUILD_ID: {'✓' if GUILD_ID else '✗'}")
-        print(f"TELEGRAM_BOT_TOKEN: {'✓' if TELEGRAM_BOT_TOKEN else '✗'}")
-        print(f"TELEGRAM_CHAT_ID: {'✓' if TELEGRAM_CHAT_ID else '✗'}")
-        return
+    # Validate environment variables
+    required_vars = {
+        'DISCORD_TOKEN': DISCORD_TOKEN,
+        'GUILD_ID': GUILD_ID,
+        'TELEGRAM_BOT_TOKEN': TELEGRAM_BOT_TOKEN,
+        'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID,
+        'ANTHROPIC_API_KEY': ANTHROPIC_API_KEY
+    }
+    
+    missing_vars = [k for k, v in required_vars.items() if not v]
+    
+    if missing_vars:
+        logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+        sys.exit(1)
 
-    welcome_message = """
+    try:
+        welcome_message = """
 Bot is running!
 
 Commands:
 /channels - List channels
-/report <channel_id> <hours> - Get report
 /help - Show help
 
 Type /help for more info."""
 
-    print("Sending welcome message...")
-    send_telegram_message(welcome_message)
-    print("Starting message handler...")
-    handle_incoming_messages()
+        logger.info("Sending welcome message...")
+        send_telegram_message(welcome_message)
+        logger.info("Starting message handler...")
+        handle_incoming_messages()
+    except Exception as e:
+        logger.error(f"Fatal error: {e}", exc_info=True)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
