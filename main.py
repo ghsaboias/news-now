@@ -200,21 +200,49 @@ def generate_summary(messages: List[dict]) -> str:
     formatted_text = format_messages_for_summary(messages)
     
     prompt = f"""You are a news analyst specializing in clear, structured summaries. Below are news updates from the last {hours_diff} hours. 
-Please provide a summary with the following title:
+    Please provide a summary in the following strict format:
 
-Main Topic/Region Update - Current Date
+    Main Topic/Region Update - Current Date
 
-Guidelines are:
-- Each point must contain specific facts (numbers, names, locations)
-- Include both major developments and significant tangential events
-- Maintain clear cause-and-effect relationships
-- Avoid vague language or speculation
-- Keep a neutral, analytical tone
+    Overview:
+    Write a focused 5-7 sentence overview covering the most significant developments. If there are multiple unrelated but important developments, mention them all briefly.
 
-News Updates to Summarize:
-{formatted_text}
+    Key Developments:
 
-Summary:"""
+    Primary Event/Topic:
+    - Detailed point with specific facts (numbers, names, locations)
+    - Another specific point with clear impact or significance
+    - Additional key detail with concrete information
+
+    Secondary Developments:
+    - Important but separate development with specific details
+    - Another significant but unrelated event
+    - Additional noteworthy development from different area/topic
+
+    Tertiary Developments:
+    - Additional development from different area/topic
+    - Another significant but unrelated event
+    - Additional noteworthy development from different area/topic
+
+    Additional Details/Impact:
+    - Clear, factual point with specific information
+    - Another detailed development
+    - Another detailed development
+    - Another detailed development
+
+    Guidelines:
+    - Primary category should cover the main event/crisis
+    - Secondary Developments category must include other significant events, even if unrelated
+    - Each bullet point must contain specific facts (numbers, names, locations)
+    - Include both major developments and significant tangential events
+    - Maintain clear cause-and-effect relationships
+    - Avoid vague language or speculation
+    - Keep a neutral, analytical tone
+
+    News Updates to Summarize:
+    {formatted_text}
+
+    Summary:"""
     
     system="""You are an expert news analyst that creates clear, structured summaries.
     Focus on specific facts and concrete details.
@@ -292,12 +320,12 @@ def handle_telegram_command(message: str):
     
     if command == '/help':
         help_text = """
-Available commands:
-/channels - List all available Discord channels
-/help - Show this help message
+        Available commands:
+        /channels - List all available Discord channels
+        /help - Show this help message
 
-Click on channel buttons to select timeframe and generate reports.
-"""
+        Click on channel buttons to select timeframe and generate reports.
+        """
         send_telegram_message(help_text)
         
     elif command == '/channels':
