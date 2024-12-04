@@ -12,6 +12,7 @@ from logging.handlers import RotatingFileHandler
 import signal
 import sys
 from file_ops import FileOps
+from collections import deque
 
 # Load environment variables
 load_dotenv()
@@ -49,24 +50,68 @@ signal.signal(signal.SIGINT, signal_handler)
 # Add after other global variables
 file_ops = FileOps()
 
-def send_telegram_message(message: str, reply_markup=None):
-    """Send a message to Telegram"""
+class MessageTracker:
+    def __init__(self, max_size=1000):
+        self.sent_messages = deque(maxlen=max_size)
+        self.message_timestamps = deque(maxlen=max_size)
+        self.cleanup_interval = 3600  # 1 hour
+        self.last_cleanup = time.time()
+
+    def is_duplicate(self, message: str) -> bool:
+        current_time = time.time()
+        
+        # Cleanup old messages
+        if current_time - self.last_cleanup > self.cleanup_interval:
+            self._cleanup_old_messages()
+            self.last_cleanup = current_time
+
+        # Check if message was sent in the last hour
+        message_hash = hash(message)
+        return message_hash in self.sent_messages
+
+    def mark_sent(self, message: str):
+        message_hash = hash(message)
+        current_time = time.time()
+        self.sent_messages.append(message_hash)
+        self.message_timestamps.append(current_time)
+
+    def _cleanup_old_messages(self):
+        current_time = time.time()
+        while self.message_timestamps and current_time - self.message_timestamps[0] > 3600:
+            self.sent_messages.popleft()
+            self.message_timestamps.popleft()
+
+message_tracker = MessageTracker()
+
+def send_telegram_message(message: str, reply_markup=None) -> Optional[dict]:
+    """Send a message to Telegram with duplicate prevention"""
+    if message_tracker.is_duplicate(message):
+        logger.debug(f"Skipping duplicate message: {message[:100]}...")
+        return None
+        
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
-        "text": message
+        "text": message,
+        "parse_mode": "Markdown"
     }
     if reply_markup:
         payload["reply_markup"] = reply_markup
         
     try:
-        print(f"Sending message to Telegram...")
+        logger.debug(f"Sending message to Telegram: {message[:100]}...")
         response = requests.post(url, json=payload)
         result = response.json()
-        print(f"Telegram API response: {result}")
+        
+        if response.status_code == 200:
+            message_tracker.mark_sent(message)
+            logger.debug("Message sent successfully")
+        else:
+            logger.error(f"Failed to send message. Status code: {response.status_code}, Response: {result}")
+            
         return result
     except Exception as e:
-        print(f"Error sending Telegram message: {e}")
+        logger.error(f"Error sending Telegram message: {e}")
         return None
 
 def get_guild_channels(guild_id: str):
@@ -220,7 +265,6 @@ def format_messages_for_summary(messages: List[dict]) -> str:
     formatted_messages = []
     
     for msg in messages:
-        print(msg)
         # Extract timestamp
         timestamp = datetime.fromisoformat(msg['timestamp'].rstrip('Z')).strftime('%Y-%m-%d %H:%M UTC')
         
@@ -254,51 +298,77 @@ def generate_summary(messages: List[dict], channel_name: str, requested_hours: i
     """Generate a summary of the messages using Claude"""
     if not messages:
         return "No messages found in the specified timeframe."
-        
-    # Calculate time period
+    
+    # Calculate time period from timestamps
     timestamps = [datetime.fromisoformat(msg['timestamp'].rstrip('Z')).replace(tzinfo=timezone.utc) 
                  for msg in messages]
-    period_start = min(timestamps)
-    period_end = max(timestamps)
     
+    period_start = min(timestamps)  # Keep as datetime object
+    period_end = max(timestamps)    # Keep as datetime object
+
     formatted_text = format_messages_for_summary(messages)
-    
+
     # Save formatted messages with deduplication
     file_ops.append_formatted_messages(channel_name, formatted_text, period_start, period_end)
-    
+        
     # Get previous summary for context
     previous_summary = file_ops.get_latest_summary(channel_name, f"{requested_hours}h")
     context = ""
     if previous_summary:
-        context = f"""<previous_report>
+        context = f"""Previous report context:
         Time period: {previous_summary['period_start']} to {previous_summary['period_end']}
         {previous_summary['content']}
-        </previous_report>
         
-        Please consider this context when writing the new summary, maintaining consistency in how you describe ongoing situations."""
+        Use this for context and continuity, but focus on new developments."""
 
-    prompt = f"""You are a news analyst specializing in clear, direct summaries. Below are news updates from the last {requested_hours} hours. 
-    
-    Write a focused overview with title "Topic/Region Update - Current Date" (replace Topic/Region with the actual topic/region and Current Date with the actual date), covering the most significant developments. If there are multiple unrelated but important developments, mention them all briefly. Do not repeat yourself. Keep it concise, executive summary style. DO NOT include any concluding text, including words like 'in summary' or 'to summarize'. DO NOT include any introductory text, just send the summary. DO include the rough timestamp for each update.
+    prompt = f"""Analyze and summarize these military/conflict updates from the last {requested_hours} hours. 
 
-    {context}
-
-    <new_updates>
+    New updates to analyze:
     {formatted_text}
-    </new_updates>
 
-    Summary:"""
+    Requirements:
+    1. LENGTH: Maximum 3500 characters
+    2. STRUCTURE: 
+       - Start with "Topic/Region - Current Date" as title
+       - Make sure you include the country name in the title
+       - Group by time period (Early Morning/Mid-Morning/Afternoon)
+       - Use location/front as subheadings WITHOUT repeating the main title
+       - Report each event ONCE in its most relevant section
+       - Merge related events into single, clear statements
+    3. CONTENT:
+       - Focus on concrete events and verified information
+       - Include specific details: locations, numbers, names
+       - If multiple sources confirm an event, mention once with "confirmed by multiple sources"
+       - Exclude redundant updates about the same event
+    4. FORMAT:
+       - Start directly with title
+       - Use short subheadings
+       - Be extremely concise - no repetition
+       - Each event should be reported only once
+       - Merge similar/related updates into single points
+       - NO introductory or concluding phrases
+       - NO analysis or commentary
+
+    Context:
+    {context}
+    """
     
     try:
         response = claude_client.messages.create(
             model="claude-3-haiku-20240307",
-            max_tokens=2000,
-            system="""You are an expert news analyst that creates clear, executive summaries. Focus on specific facts and concrete details.
-            Avoid vague language like 'multiple', 'various', or 'several'.
-            Use precise numbers, names, and locations whenever possible.
-            Include both primary events and significant secondary developments.
-            Ensure no important information is omitted, even if it seems tangential.
-            Maintain consistent formatting and professional tone.""",
+            max_tokens=1000,
+            system="""You are an expert military intelligence analyst creating precise situation reports.
+            Your summaries must:
+            - Start with "Topic/Region - Current Date" format
+            - Report each event ONCE in its most relevant section
+            - Merge related information into single, clear statements
+            - Eliminate all redundancy and repetition
+            - Include specific facts without duplicating information
+            - Stay under 3500 characters
+            - Be extremely concise
+            - Never repeat information
+            - Include essential details without bloat
+            - Never add commentary or analysis""",
             messages=[
                 {
                     "role": "user",
@@ -309,10 +379,9 @@ def generate_summary(messages: List[dict], channel_name: str, requested_hours: i
         
         summary = response.content[0].text
         
-        # Save the summary with requested timeframe
         summary_data = {
-            "period_start": period_start.isoformat(),
-            "period_end": period_end.isoformat(),
+            "period_start": period_start.isoformat(),  # Convert to ISO string when saving
+            "period_end": period_end.isoformat(),      # Convert to ISO string when saving
             "timeframe": f"{requested_hours}h",
             "channel": channel_name,
             "content": summary
@@ -320,30 +389,16 @@ def generate_summary(messages: List[dict], channel_name: str, requested_hours: i
         file_ops.save_summary(channel_name, summary_data)
         
         return summary
+        
     except Exception as e:
         logger.error(f"Error generating summary: {str(e)}")
         return "Error generating summary. Please try again."
-
-def send_long_message(text: str):
-    """Split and send long messages"""
-    # Maximum length for a single Telegram message
-    MAX_LENGTH = 4096
-    
-    # Split text into chunks
-    chunks = textwrap.wrap(text, MAX_LENGTH, replace_whitespace=False, break_long_words=True)
-    
-    # Send each chunk
-    for i, chunk in enumerate(chunks, 1):
-        if len(chunks) > 1:
-            chunk = f"Part {i}/{len(chunks)}:\n\n{chunk}"
-        send_telegram_message(chunk)
 
 def handle_callback_query(callback_query):
     """Handle callback queries from inline keyboards"""
     data = callback_query.get('data', '')
     
     if data.startswith('channel_'):
-        # User selected a channel, show timeframe options
         channel_id = data.split('_')[1]
         logger.info(f"User selected channel: {channel_id}")
         message = "Select timeframe for the report:"
@@ -351,28 +406,33 @@ def handle_callback_query(callback_query):
         send_telegram_message(message, reply_markup)
         
     elif data.startswith('report_'):
-        # User selected a timeframe, generate report
         _, channel_id, hours = data.split('_')
         try:
             hours = int(hours)
             logger.info(f"Generating report for channel {channel_id} for past {hours} hours")
             
-            messages = get_channel_messages(channel_id, hours)
             channels = get_guild_channels(GUILD_ID)
             channel_name = next((c['name'] for c in channels if c['id'] == channel_id), 'unknown-channel')
             
-            if messages:
-                logger.info(f"Generating summary for {len(messages)} messages from {channel_name}")
-                send_telegram_message(f"Found {len(messages)} messages in #{channel_name}. Generating summary...")
-                summary = generate_summary(messages, channel_name, hours)
-                send_telegram_message(summary)
-            else:
+            # Get messages and generate summary
+            messages = get_channel_messages(channel_id, hours)
+
+            send_telegram_message(f"Found {len(messages)} messages in #{channel_name}. Generating summary...")
+            
+            if not messages:
                 logger.info(f"No messages found in {channel_name} for the last {hours} hours")
                 send_telegram_message(f"No messages found in #{channel_name} for the last {hours} hours.")
+                return
+                
+            # Generate and send summary
+            summary = generate_summary(messages, channel_name, hours)
+            if summary:
+                send_telegram_message(summary)
             
         except Exception as e:
-            logger.error(f"Error generating report: {str(e)}", exc_info=True)
-            send_telegram_message(f"Error generating report: {str(e)}")
+            error_msg = f"Error generating report: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            send_telegram_message(error_msg)
 
 def handle_telegram_command(message: str):
     """Handle incoming Telegram commands"""
