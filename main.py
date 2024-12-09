@@ -12,7 +12,6 @@ from logging.handlers import RotatingFileHandler
 import signal
 import sys
 from file_ops import FileOps
-from collections import deque
 
 # Load environment variables
 load_dotenv()
@@ -38,6 +37,7 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 # Add graceful shutdown handling
 def signal_handler(signum, frame):
@@ -50,45 +50,8 @@ signal.signal(signal.SIGINT, signal_handler)
 # Add after other global variables
 file_ops = FileOps()
 
-class MessageTracker:
-    def __init__(self, max_size=1000):
-        self.sent_messages = deque(maxlen=max_size)
-        self.message_timestamps = deque(maxlen=max_size)
-        self.cleanup_interval = 3600  # 1 hour
-        self.last_cleanup = time.time()
-
-    def is_duplicate(self, message: str) -> bool:
-        current_time = time.time()
-        
-        # Cleanup old messages
-        if current_time - self.last_cleanup > self.cleanup_interval:
-            self._cleanup_old_messages()
-            self.last_cleanup = current_time
-
-        # Check if message was sent in the last hour
-        message_hash = hash(message)
-        return message_hash in self.sent_messages
-
-    def mark_sent(self, message: str):
-        message_hash = hash(message)
-        current_time = time.time()
-        self.sent_messages.append(message_hash)
-        self.message_timestamps.append(current_time)
-
-    def _cleanup_old_messages(self):
-        current_time = time.time()
-        while self.message_timestamps and current_time - self.message_timestamps[0] > 3600:
-            self.sent_messages.popleft()
-            self.message_timestamps.popleft()
-
-message_tracker = MessageTracker()
-
 def send_telegram_message(message: str, reply_markup=None) -> Optional[dict]:
-    """Send a message to Telegram with duplicate prevention"""
-    if message_tracker.is_duplicate(message):
-        logger.debug(f"Skipping duplicate message: {message[:100]}...")
-        return None
-        
+    """Send a message to Telegram"""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
@@ -100,18 +63,20 @@ def send_telegram_message(message: str, reply_markup=None) -> Optional[dict]:
         
     try:
         logger.debug(f"Sending message to Telegram: {message[:100]}...")
+        logger.debug(f"Payload: {json.dumps(payload, indent=2)}")
         response = requests.post(url, json=payload)
         result = response.json()
         
         if response.status_code == 200:
-            message_tracker.mark_sent(message)
             logger.debug("Message sent successfully")
         else:
-            logger.error(f"Failed to send message. Status code: {response.status_code}, Response: {result}")
+            logger.error(f"Failed to send message. Status code: {response.status_code}")
+            logger.error(f"Response: {json.dumps(result, indent=2)}")
             
         return result
     except Exception as e:
         logger.error(f"Error sending Telegram message: {e}")
+        logger.error(f"Full exception: {str(e)}", exc_info=True)
         return None
 
 def get_guild_channels(guild_id: str):
@@ -121,6 +86,7 @@ def get_guild_channels(guild_id: str):
     
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
+        send_telegram_message(f"Error fetching channels: {response.status_code}")
         return None
         
     channels = json.loads(response.text)
@@ -417,7 +383,7 @@ def handle_callback_query(callback_query):
             # Get messages and generate summary
             messages = get_channel_messages(channel_id, hours)
 
-            send_telegram_message(f"Found {len(messages)} messages in #{channel_name}. Generating summary...")
+            send_telegram_message(f"Found {len(messages)} messages in #{channel_name} for the last {hours} hour(s).")
             
             if not messages:
                 logger.info(f"No messages found in {channel_name} for the last {hours} hours")
@@ -450,12 +416,19 @@ def handle_telegram_command(message: str):
         send_telegram_message(help_text)
         
     elif command == '/channels':
+        logger.info("Fetching channels from Discord...")
         channels = get_guild_channels(GUILD_ID)
         if channels:
+            logger.info(f"Successfully fetched {len(channels)} channels")
             message = "Select a channel to generate report:"
             reply_markup = create_channels_keyboard(channels)
-            send_telegram_message(message, reply_markup)
+            response = send_telegram_message(message, reply_markup)
+            if response:
+                logger.info("Successfully sent channels message with keyboard")
+            else:
+                logger.error("Failed to send channels message")
         else:
+            logger.error("Failed to fetch channels from Discord")
             send_telegram_message("Error: Could not fetch channels")
 
 def handle_incoming_messages():
@@ -468,27 +441,36 @@ def handle_incoming_messages():
     
     while True:
         try:
-            params = {'timeout': 100, 'offset': last_update_id}
-            response = requests.get(url, params=params, timeout=120)  # Add timeout
-            response.raise_for_status()  # Raise exception for bad status codes
+            params = {'timeout': 100}
+            if last_update_id is not None:
+                params['offset'] = last_update_id
+                
+            response = requests.get(url, params=params, timeout=120)
+            response.raise_for_status()
             updates = response.json().get('result', [])
             
             if updates:
                 logger.info(f"Found {len(updates)} new updates")
             
             for update in updates:
-                last_update_id = update['update_id'] + 1
-                
-                # Handle callback queries (button clicks)
-                if 'callback_query' in update:
-                    handle_callback_query(update['callback_query'])
-                    continue
-                
-                # Handle regular messages
-                message = update.get('message', {}).get('text', '')
-                if message and message.startswith('/'):
-                    logger.info(f"Processing command: {message}")
-                    handle_telegram_command(message)
+                try:
+                    # Handle callback queries (button clicks)
+                    if 'callback_query' in update:
+                        handle_callback_query(update['callback_query'])
+                    
+                    # Handle regular messages
+                    message = update.get('message', {}).get('text', '')
+                    if message and message.startswith('/'):
+                        logger.info(f"Processing command: {message}")
+                        handle_telegram_command(message)
+                        
+                    # Only update the offset after successfully processing the message
+                    last_update_id = update['update_id'] + 1
+                    
+                except Exception as e:
+                    logger.error(f"Error processing update {update['update_id']}: {e}", exc_info=True)
+                    # Still update offset to avoid getting stuck on a problematic message
+                    last_update_id = update['update_id'] + 1
             
             # Reset error counter on successful iteration
             consecutive_errors = 0
