@@ -287,35 +287,41 @@ def generate_summary(messages: List[dict], channel_name: str, requested_hours: i
         
         Use this for context and continuity, but focus on new developments."""
 
-    prompt = f"""Analyze and summarize these military/conflict updates from the last {requested_hours} hours. 
+    prompt = f"""Create a concise, journalistic news summary of these military/conflict updates from the last {requested_hours} hours.
 
     New updates to analyze:
     {formatted_text}
 
     Requirements:
-    1. LENGTH: Maximum 3500 characters
-    2. STRUCTURE: 
-       - Start with "Topic/Region - Current Date" as title
-       - Make sure you include the country name in the title
-       - Group by time period (Early Morning/Mid-Morning/Afternoon)
-       - Use location/front as subheadings WITHOUT repeating the main title
-       - Report each event ONCE in its most relevant section
-       - Merge related events into single, clear statements
-    3. CONTENT:
-       - Focus on concrete events and verified information
-       - Include specific details: locations, numbers, names
-       - If multiple sources confirm an event, mention once with "confirmed by multiple sources"
-       - Exclude redundant updates about the same event
-    4. FORMAT:
-       - Start directly with title
-       - Use short subheadings
-       - Be extremely concise - no repetition
-       - Each event should be reported only once
-       - Merge similar/related updates into single points
-       - NO introductory or concluding phrases
+    1. FORMAT:
+       - Start with a clear, single-line headline
+       - Follow with location dash date in the first line of the article
+       - First paragraph must be a strong lead summarizing the most important development
+       - Write 3-4 concise paragraphs of supporting details
+       - Maximum 1500 characters total
+       
+    2. STYLE:
+       - Write in clear, professional news style
+       - Use short, impactful sentences
+       - Include specific numbers, locations, and names
+       - Prioritize newest and most significant developments
+       - Follow Associated Press style
+       
+    3. STRUCTURE:
+       - Headline
+       - Dateline (LOCATION - Full date)
+       - Lead paragraph with key information
+       - Supporting paragraphs with context and details
+       - Final paragraph with future implications
+       
+    4. CONTENT:
+       - Focus on verified facts and official statements
+       - Include clear attribution
+       - Present information in order of importance
+       - Maintain neutral, factual tone
        - NO analysis or commentary
 
-    Context:
+    Previous context:
     {context}
     """
     
@@ -323,18 +329,15 @@ def generate_summary(messages: List[dict], channel_name: str, requested_hours: i
         response = claude_client.messages.create(
             model="claude-3-haiku-20240307",
             max_tokens=1000,
-            system="""You are an expert military intelligence analyst creating precise situation reports.
+            system="""You are an experienced news wire journalist creating concise, clear updates.
             Your summaries must:
-            - Start with "Topic/Region - Current Date" format
-            - Report each event ONCE in its most relevant section
-            - Merge related information into single, clear statements
-            - Eliminate all redundancy and repetition
-            - Include specific facts without duplicating information
-            - Stay under 3500 characters
-            - Be extremely concise
-            - Never repeat information
-            - Include essential details without bloat
-            - Never add commentary or analysis""",
+            - Lead with the most important information
+            - Follow Associated Press style
+            - Be extremely concise and factual
+            - Include specific details and attribution
+            - Avoid commentary or analysis
+            - Stay under 1500 characters
+            - Focus on verified information""",
             messages=[
                 {
                     "role": "user",
@@ -346,8 +349,8 @@ def generate_summary(messages: List[dict], channel_name: str, requested_hours: i
         summary = response.content[0].text
         
         summary_data = {
-            "period_start": period_start.isoformat(),  # Convert to ISO string when saving
-            "period_end": period_end.isoformat(),      # Convert to ISO string when saving
+            "period_start": period_start.isoformat(), 
+            "period_end": period_end.isoformat(),     
             "timeframe": f"{requested_hours}h",
             "channel": channel_name,
             "content": summary
