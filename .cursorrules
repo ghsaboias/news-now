@@ -1,0 +1,43 @@
+{
+    "projectContext": {
+        "description": "Discord Report Bot that fetches messages from Discord channels and generates summaries using Claude AI",
+        "mainComponents": [
+            "Discord API integration",
+            "Telegram Bot interface",
+            "Claude AI integration",
+            "Message processing and summarization",
+            "File operations for storing summaries"
+        ],
+        "keyDependencies": [
+            "anthropic",
+            "python-dotenv",
+            "requests"
+        ]
+    },
+    "codeStyle": {
+        "language": "python",
+        "conventions": {
+            "functionNaming": "snake_case",
+            "classNaming": "PascalCase",
+            "docstrings": "Use clear, concise docstrings for all functions",
+            "logging": "Use the logging module for all debug/info/error messages"
+        }
+    },
+    "architecture": {
+        "mainComponents": {
+            "main.py": "Core bot logic and API integrations",
+            "file_ops.py": "File operations for storing and retrieving summaries",
+            "watchdog_service.py": "Service monitoring"
+        },
+        "dataFlow": [
+            "Discord messages → Message processing → Claude summarization → Telegram output",
+            "Summaries stored using file_ops.py for context in future summaries"
+        ]
+    },
+    "bestPractices": {
+        "errorHandling": "Use try-except blocks with specific exceptions",
+        "logging": "Include detailed logging for debugging and monitoring",
+        "configManagement": "Use environment variables for sensitive data",
+        "apiCalls": "Include proper error handling and rate limiting"
+    }
+}
