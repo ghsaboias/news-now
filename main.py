@@ -294,7 +294,7 @@ def generate_summary(messages: List[dict], channel_name: str, requested_hours: i
 
     Requirements:
     1. FORMAT:
-       - Start with a clear, single-line headline
+       - Start with a clear, single-line headline in all caps
        - Follow with location dash date in the first line of the article
        - First paragraph must be a strong lead summarizing the most important development
        - Write 3-4 concise paragraphs of supporting details
