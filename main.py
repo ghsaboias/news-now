@@ -308,7 +308,7 @@ def generate_summary(messages: List[dict], channel_name: str, requested_hours: i
        - Follow Associated Press style
        
     3. STRUCTURE:
-       - Headline
+       - Headline (in all caps)
        - Dateline (LOCATION - Full date)
        - Lead paragraph with key information
        - Supporting paragraphs with context and details
