@@ -289,55 +289,24 @@ def generate_summary(messages: List[dict], channel_name: str, requested_hours: i
 
     prompt = f"""Create a concise, journalistic news summary of these military/conflict updates from the last {requested_hours} hours.
 
-    New updates to analyze:
+    Updates to analyze:
     {formatted_text}
 
     Requirements:
-    1. FORMAT:
-       - Start with a clear, single-line headline in all caps
-       - Follow with location dash date in the first line of the article
-       - First paragraph must be a strong lead summarizing the most important development
-       - Write 3-4 concise paragraphs of supporting details
-       - Maximum 1500 characters total
-       
-    2. STYLE:
-       - Write in clear, professional news style
-       - Use short, impactful sentences
-       - Include specific numbers, locations, and names
-       - Prioritize newest and most significant developments
-       - Follow Associated Press style
-       
-    3. STRUCTURE:
-       - Headline (in all caps)
-       - Dateline (LOCATION - Full date)
-       - Lead paragraph with key information
-       - Supporting paragraphs with context and details
-       - Final paragraph with future implications
-       
-    4. CONTENT:
-       - Focus on verified facts and official statements
-       - Include clear attribution
-       - Present information in order of importance
-       - Maintain neutral, factual tone
-       - NO analysis or commentary
-
-    Previous context:
-    {context}
-    """
+    - Start with a clear headline in all caps
+    - Follow with location and date
+    - First paragraph must summarize the most important development
+    - Write 2-3 concise paragraphs of supporting details
+    - Maximum 1500 characters
+    - Focus on verified facts and official statements
+    - Maintain neutral, factual tone
+    - NO analysis or commentary"""
     
     try:
         response = claude_client.messages.create(
             model="claude-3-haiku-20240307",
             max_tokens=1000,
-            system="""You are an experienced news wire journalist creating concise, clear updates.
-            Your summaries must:
-            - Lead with the most important information
-            - Follow Associated Press style
-            - Be extremely concise and factual
-            - Include specific details and attribution
-            - Avoid commentary or analysis
-            - Stay under 1500 characters
-            - Focus on verified information""",
+            system="""You are an experienced news wire journalist creating concise, clear updates.""",
             messages=[
                 {
                     "role": "user",
@@ -392,10 +361,10 @@ def handle_callback_query(callback_query):
                 send_telegram_message(f"No messages found in #{channel_name} for the last {hours} hours.")
                 return
                 
-            # Generate and send summary
-            summary = generate_summary(messages, channel_name, hours)
-            if summary:
-                send_telegram_message(summary)
+            # Generate and send summaries from both models
+            claude_summary = generate_summary(messages, channel_name, hours)
+            if claude_summary:
+                send_telegram_message("*Claude Summary:*\n" + claude_summary)
             
         except Exception as e:
             error_msg = f"Error generating report: {str(e)}"
