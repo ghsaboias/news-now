@@ -383,7 +383,6 @@ def handle_callback_query(callback_query):
             channels = get_guild_channels(GUILD_ID)
             channel_name = next((c['name'] for c in channels if c['id'] == channel_id), 'unknown-channel')
             
-            # Get messages and generate summary
             messages = get_channel_messages(channel_id, hours)
 
             send_telegram_message(f"Found {len(messages)} messages in #{channel_name} for the last {hours} hour(s).")
