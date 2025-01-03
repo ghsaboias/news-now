@@ -12,6 +12,8 @@ from logging.handlers import RotatingFileHandler
 import signal
 import sys
 from file_ops import FileOps
+from collections import Counter
+from operator import itemgetter
 
 # Load environment variables
 load_dotenv()
@@ -296,8 +298,8 @@ def generate_summary(messages: List[dict], channel_name: str, requested_hours: i
     - Start with a clear headline in all caps
     - Follow with location and date
     - First paragraph must summarize the most important development
-    - Write 2-3 concise paragraphs of supporting details
-    - Maximum 1500 characters
+    - Write an appropriate number of paragraphs of supporting details
+    - Maximum 5000 characters, average 2500 characters
     - Focus on verified facts and official statements
     - Maintain neutral, factual tone
     - NO analysis or commentary"""
@@ -465,6 +467,68 @@ def handle_incoming_messages():
             logger.info(f"Retrying in {delay} seconds...")
             time.sleep(delay)
 
+def get_channel_message_counts(hours: int = 24) -> List[tuple]:
+    """Get message counts for all channels in the specified timeframe"""
+    channels = get_guild_channels(GUILD_ID)
+    if not channels:
+        logger.error("Failed to fetch channels")
+        return []
+    
+    channel_counts = []
+    for channel in channels:
+        messages = get_channel_messages(channel['id'], hours)
+        if messages:
+            channel_counts.append((channel['id'], channel['name'], len(messages)))
+    
+    # Sort by message count in descending order
+    return sorted(channel_counts, key=itemgetter(2), reverse=True)
+
+def auto_generate_reports(top_n: int = 3, hours: int = 8):
+    """
+    Automatically generate reports for the top N most active channels
+    
+    Args:
+        top_n: Number of top channels to report on
+        hours: Timeframe to analyze in hours
+    """
+    logger.info(f"Starting automated report generation for top {top_n} channels")
+    
+    try:
+        # Get the most active channels
+        channel_counts = get_channel_message_counts(hours)
+        
+        if not channel_counts:
+            logger.error("No channel activity found")
+            send_telegram_message("❌ No channel activity found during automated report generation")
+            return
+        
+        # Send overview message
+        overview = "*🤖 Automated Report Generation*\n\n"
+        overview += f"Analyzing top {top_n} channels from the last {hours} hours:\n"
+        for channel_id, channel_name, count in channel_counts[:top_n]:
+            overview += f"• #{channel_name}: {count} messages\n"
+        
+        send_telegram_message(overview)
+        
+        # Generate reports for top channels
+        for channel_id, channel_name, count in channel_counts[:top_n]:
+            logger.info(f"Generating report for #{channel_name}")
+            messages = get_channel_messages(channel_id, hours)
+            
+            if messages:
+                claude_summary = generate_summary(messages, channel_name, hours)
+                if claude_summary:
+                    header = f"*📊 Automated Report: #{channel_name}*\n\n"
+                    send_telegram_message(header + claude_summary)
+            
+            # Add delay between reports to avoid rate limiting
+            time.sleep(5)
+            
+    except Exception as e:
+        error_msg = f"Error in automated report generation: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        send_telegram_message(f"❌ {error_msg}")
+
 def main():
     logger.info("Starting Discord Report Bot...")
     
@@ -502,4 +566,10 @@ Type /help for more info."""
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "--auto-report":
+        # When called with --auto-report, generate reports and exit
+        auto_generate_reports()
+        sys.exit(0)
+    else:
+        # Normal bot operation
+        main()
