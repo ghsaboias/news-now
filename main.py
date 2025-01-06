@@ -6,13 +6,11 @@ import json
 from typing import List, Dict, Optional
 import time
 import anthropic
-import textwrap
 import logging
 from logging.handlers import RotatingFileHandler
 import signal
 import sys
 from file_ops import FileOps
-from collections import Counter
 from operator import itemgetter
 
 # Load environment variables
@@ -295,14 +293,20 @@ def generate_summary(messages: List[dict], channel_name: str, requested_hours: i
     {formatted_text}
 
     Requirements:
-    - Start with a clear headline in all caps
-    - Follow with location and date
+    - First line must be a clear headline in ALL CAPS
+    - Second line must be in format: [City/Region], [Month Day, Year]
     - First paragraph must summarize the most important development
     - Write an appropriate number of paragraphs of supporting details
     - Maximum 5000 characters, average 2500 characters
     - Focus on verified facts and official statements
     - Maintain neutral, factual tone
-    - NO analysis or commentary"""
+    - NO analysis or commentary
+    
+    Example format:
+    MAJOR EVENT HAPPENS IN REGION
+    Tel Aviv, March 20, 2024 
+    
+    First paragraph with main development..."""
     
     try:
         response = claude_client.messages.create(
@@ -373,20 +377,37 @@ def handle_callback_query(callback_query):
             logger.error(error_msg, exc_info=True)
             send_telegram_message(error_msg)
 
+def setup_bot_commands():
+    """Set up the bot's command menu in Telegram"""
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setMyCommands"
+    commands = [
+        {"command": "channels", "description": "📊 List available Discord channels"},
+        {"command": "inform", "description": "🔄 Create reports for 3 most active channels in last hour"},
+        {"command": "help", "description": "❓ Show available commands"}
+    ]
+    
+    try:
+        response = requests.post(url, json={"commands": commands})
+        if response.status_code == 200:
+            logger.info("Successfully set up bot commands menu")
+        else:
+            logger.error(f"Failed to set up commands menu: {response.status_code}")
+    except Exception as e:
+        logger.error(f"Error setting up commands menu: {e}")
+
 def handle_telegram_command(message: str):
     """Handle incoming Telegram commands"""
     parts = message.lower().split()
     command = parts[0]
     
     if command == '/help':
-        help_text = """
-        Available commands:
-        /channels - List all available Discord channels
-        /inform - Check most active channels in last hour and generate reports
-        /help - Show this help message
+        help_text = """*📋 Available Commands*
 
-        Click on channel buttons to select timeframe and generate reports.
-        """
+• /channels - List all available Discord channels
+• /active - Check most active channels in last hour
+• /help - Show this help message
+
+Select a channel and timeframe using the buttons to generate reports."""
         send_telegram_message(help_text)
         
     elif command == '/channels':
@@ -404,7 +425,7 @@ def handle_telegram_command(message: str):
         else:
             logger.error("Failed to fetch channels from Discord")
             send_telegram_message("Error: Could not fetch channels")
-    elif command == '/inform':
+    elif command == '/active':
         logger.info("Running inform command for most active channels in last hour...")
         auto_generate_reports(top_n=3, hours=1)
 
@@ -501,21 +522,24 @@ def auto_generate_reports(top_n: int = 3, hours: int = 8):
         # Get the most active channels
         channel_counts = get_channel_message_counts(hours)
         
-        if not channel_counts:
-            logger.error("No channel activity found")
-            send_telegram_message("❌ No channel activity found during automated report generation")
+        # Filter out channels with 3 or fewer messages
+        active_channels = [(cid, name, count) for cid, name, count in channel_counts if count > 3]
+        
+        if not active_channels:
+            logger.info("No channels with more than 3 messages found")
+            send_telegram_message("ℹ️ No channels have significant activity (>3 messages) in the last hour")
             return
         
         # Send overview message
         overview = "*🤖 Automated Report Generation*\n\n"
-        overview += f"Analyzing top {top_n} channels from the last {hours} hours:\n"
-        for channel_id, channel_name, count in channel_counts[:top_n]:
+        overview += f"Analyzing active channels from the last {hours} hours:\n"
+        for channel_id, channel_name, count in active_channels[:top_n]:
             overview += f"• #{channel_name}: {count} messages\n"
         
         send_telegram_message(overview)
         
         # Generate reports for top channels
-        for channel_id, channel_name, count in channel_counts[:top_n]:
+        for channel_id, channel_name, count in active_channels[:top_n]:
             logger.info(f"Generating report for #{channel_name}")
             messages = get_channel_messages(channel_id, hours)
             
@@ -552,15 +576,17 @@ def main():
         sys.exit(1)
 
     try:
-        welcome_message = """
-Bot is running!
+        # Set up bot commands menu
+        setup_bot_commands()
+        
+        welcome_message = """*🤖 Discord Report Bot*
 
-Commands:
-/channels - List channels
-/inform - Check active channels
-/help - Show help
+Available commands:
+• /channels - List channels
+• /active - Check active channels
+• /help - Show help
 
-Type /help for more info."""
+Type /help for more information."""
 
         logger.info("Sending welcome message...")
         send_telegram_message(welcome_message)
