@@ -354,7 +354,7 @@ def handle_timeframe_selection(channel_id: str, hours: int) -> None:
     summary, period_start, period_end = create_ai_summary(messages, channel_name, hours)
     if summary:
         save_summary_to_storage(channel_name, summary, period_start, period_end, f"{hours}h")
-        send_telegram_message("*Claude Summary:*\n" + summary)
+        send_telegram_message(summary)
 
 def process_telegram_callback(callback_query: Dict) -> None:
     """Process callback queries from Telegram inline keyboards"""
