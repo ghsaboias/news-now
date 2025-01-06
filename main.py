@@ -522,8 +522,8 @@ def auto_generate_reports(top_n: int = 3, hours: int = 8):
             if messages:
                 claude_summary = generate_summary(messages, channel_name, hours)
                 if claude_summary:
-                    header = f"*📊 Automated Report: #{channel_name}*\n\n"
-                    send_telegram_message(header + claude_summary)
+                    send_telegram_message(f"*📊 Automated Report: #{channel_name}*")
+                    send_telegram_message(claude_summary)
             
             # Add delay between reports to avoid rate limiting
             time.sleep(5)
