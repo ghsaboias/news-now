@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 import requests
 import json
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 import time
 import anthropic
 import logging
@@ -79,8 +79,8 @@ def send_telegram_message(message: str, reply_markup=None) -> Optional[dict]:
         logger.error(f"Full exception: {str(e)}", exc_info=True)
         return None
 
-def get_guild_channels(guild_id: str):
-    """Get all channels from a Discord guild"""
+def fetch_filtered_discord_channels(guild_id: str) -> List[Dict]:
+    """Fetch and filter Discord channels based on predefined criteria"""
     headers = {'Authorization': DISCORD_TOKEN}
     url = f'https://discord.com/api/v10/guilds/{guild_id}/channels'
     
@@ -106,8 +106,21 @@ def get_guild_channels(guild_id: str):
     
     return filtered_channels
 
-def get_channel_messages(channel_id: str, hours: int = 24):
-    """Get messages from a Discord channel within the specified timeframe"""
+def fetch_discord_message_batch(channel_id: str, last_message_id: str = None) -> List[Dict]:
+    """Fetch a single batch of messages from Discord channel"""
+    headers = {'Authorization': DISCORD_TOKEN}
+    url = f'https://discord.com/api/v10/channels/{channel_id}/messages?limit=100'
+    if last_message_id:
+        url += f'&before={last_message_id}'
+        
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        return None
+        
+    return json.loads(response.text)
+
+def fetch_bot_messages_in_timeframe(channel_id: str, hours: int = 24) -> List[Dict]:
+    """Fetch bot messages from a Discord channel within specified timeframe"""
     messages = []
     last_message_id = None
     cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
@@ -115,7 +128,7 @@ def get_channel_messages(channel_id: str, hours: int = 24):
     logger.info(f"Fetching messages from channel {channel_id} for past {hours} hours")
     
     while True:
-        batch = get_batch_messages(channel_id, last_message_id)
+        batch = fetch_discord_message_batch(channel_id, last_message_id)
         if not batch:
             logger.warning(f"No messages received from channel {channel_id}")
             break
@@ -142,21 +155,8 @@ def get_channel_messages(channel_id: str, hours: int = 24):
     logger.info(f"Total bot messages found: {len(messages)}")
     return messages
 
-def get_batch_messages(channel_id: str, last_message_id: str = None):
-    """Helper function to get a batch of messages"""
-    headers = {'Authorization': DISCORD_TOKEN}
-    url = f'https://discord.com/api/v10/channels/{channel_id}/messages?limit=100'
-    if last_message_id:
-        url += f'&before={last_message_id}'
-        
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        return None
-        
-    return json.loads(response.text)
-
-def generate_report(channel_name: str, messages: List[Dict]) -> str:
-    """Generate a formatted report from messages"""
+def format_raw_message_report(channel_name: str, messages: List[Dict]) -> str:
+    """Format raw messages into a basic report format"""
     report = f"*📊 Report for #{channel_name}*\n\n"
     
     for msg in messages:
@@ -169,7 +169,7 @@ def generate_report(channel_name: str, messages: List[Dict]) -> str:
     
     return report
 
-def create_timeframe_keyboard(channel_id: str):
+def create_timeframe_selection_keyboard(channel_id: str) -> Dict:
     """Create inline keyboard for timeframe selection"""
     return {
         "inline_keyboard": [
@@ -188,7 +188,7 @@ def create_timeframe_keyboard(channel_id: str):
         ]
     }
 
-def create_channels_keyboard(channels):
+def create_channel_selection_keyboard(channels: List[Dict]) -> Dict:
     """Create inline keyboard for channel selection"""
     keyboard = []
     row = []
@@ -226,8 +226,8 @@ def create_channels_keyboard(channels):
         
     return {"inline_keyboard": keyboard}
 
-def format_messages_for_summary(messages: List[dict]) -> str:
-    """Format Discord messages into a clean text format for Claude"""
+def format_messages_for_claude(messages: List[dict]) -> str:
+    """Format Discord messages for Claude AI processing"""
     formatted_messages = []
     
     for msg in messages:
@@ -260,33 +260,20 @@ def format_messages_for_summary(messages: List[dict]) -> str:
     
     return "\n---\n".join(formatted_messages)
 
-def generate_summary(messages: List[dict], channel_name: str, requested_hours: int) -> str:
-    """Generate a summary of the messages using Claude"""
+def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: int) -> Tuple[str, datetime, datetime]:
+    """Generate an AI summary of messages using Claude"""
     if not messages:
-        return "No messages found in the specified timeframe."
-    
+        return "No messages found in the specified timeframe.", None, None
+
     # Calculate time period from timestamps
     timestamps = [datetime.fromisoformat(msg['timestamp'].rstrip('Z')).replace(tzinfo=timezone.utc) 
                  for msg in messages]
     
-    period_start = min(timestamps)  # Keep as datetime object
-    period_end = max(timestamps)    # Keep as datetime object
+    period_start = min(timestamps)
+    period_end = max(timestamps)
 
-    formatted_text = format_messages_for_summary(messages)
-
-    # Save formatted messages with deduplication
-    file_ops.append_formatted_messages(channel_name, formatted_text, period_start, period_end)
-        
-    # Get previous summary for context
-    previous_summary = file_ops.get_latest_summary(channel_name, f"{requested_hours}h")
-    context = ""
-    if previous_summary:
-        context = f"""Previous report context:
-        Time period: {previous_summary['period_start']} to {previous_summary['period_end']}
-        {previous_summary['content']}
-        
-        Use this for context and continuity, but focus on new developments."""
-
+    formatted_text = format_messages_for_claude(messages)
+    
     prompt = f"""Create a concise, journalistic news summary of these military/conflict updates from the last {requested_hours} hours.
 
     Updates to analyze:
@@ -321,57 +308,66 @@ def generate_summary(messages: List[dict], channel_name: str, requested_hours: i
             ]
         )
         
-        summary = response.content[0].text
+        return response.content[0].text, period_start, period_end
         
+    except Exception as e:
+        logger.error(f"Error generating summary: {str(e)}")
+        return "Error generating summary. Please try again.", None, None
+
+def save_summary_to_storage(channel_name: str, summary: str, period_start: datetime, 
+                          period_end: datetime, timeframe: str) -> None:
+    """Save the generated summary to storage"""
+    if period_start and period_end:
         summary_data = {
-            "period_start": period_start.isoformat(), 
-            "period_end": period_end.isoformat(),     
-            "timeframe": f"{requested_hours}h",
+            "period_start": period_start.isoformat(),
+            "period_end": period_end.isoformat(),
+            "timeframe": timeframe,
             "channel": channel_name,
             "content": summary
         }
         file_ops.save_summary(channel_name, summary_data)
-        
-        return summary
-        
-    except Exception as e:
-        logger.error(f"Error generating summary: {str(e)}")
-        return "Error generating summary. Please try again."
 
-def handle_callback_query(callback_query):
-    """Handle callback queries from inline keyboards"""
+def handle_channel_selection(channel_id: str) -> None:
+    """Handle channel selection from keyboard"""
+    logger.info(f"User selected channel: {channel_id}")
+    message = "Select timeframe for the report:"
+    reply_markup = create_timeframe_selection_keyboard(channel_id)
+    send_telegram_message(message, reply_markup)
+
+def handle_timeframe_selection(channel_id: str, hours: int) -> None:
+    """Handle timeframe selection and generate report"""
+    logger.info(f"Generating report for channel {channel_id} for past {hours} hours")
+    
+    channels = fetch_filtered_discord_channels(GUILD_ID)
+    channel_name = next((c['name'] for c in channels if c['id'] == channel_id), 'unknown-channel')
+    
+    messages = fetch_bot_messages_in_timeframe(channel_id, hours)
+    
+    send_telegram_message(f"Found {len(messages)} messages in #{channel_name} for the last {hours} hour(s).")
+    
+    if not messages:
+        logger.info(f"No messages found in {channel_name} for the last {hours} hours")
+        send_telegram_message(f"No messages found in #{channel_name} for the last {hours} hours.")
+        return
+    
+    # Generate and save summary
+    summary, period_start, period_end = create_ai_summary(messages, channel_name, hours)
+    if summary:
+        save_summary_to_storage(channel_name, summary, period_start, period_end, f"{hours}h")
+        send_telegram_message("*Claude Summary:*\n" + summary)
+
+def process_telegram_callback(callback_query: Dict) -> None:
+    """Process callback queries from Telegram inline keyboards"""
     data = callback_query.get('data', '')
     
     if data.startswith('channel_'):
         channel_id = data.split('_')[1]
-        logger.info(f"User selected channel: {channel_id}")
-        message = "Select timeframe for the report:"
-        reply_markup = create_timeframe_keyboard(channel_id)
-        send_telegram_message(message, reply_markup)
+        handle_channel_selection(channel_id)
         
     elif data.startswith('report_'):
         _, channel_id, hours = data.split('_')
         try:
-            hours = int(hours)
-            logger.info(f"Generating report for channel {channel_id} for past {hours} hours")
-            
-            channels = get_guild_channels(GUILD_ID)
-            channel_name = next((c['name'] for c in channels if c['id'] == channel_id), 'unknown-channel')
-            
-            messages = get_channel_messages(channel_id, hours)
-
-            send_telegram_message(f"Found {len(messages)} messages in #{channel_name} for the last {hours} hour(s).")
-            
-            if not messages:
-                logger.info(f"No messages found in {channel_name} for the last {hours} hours")
-                send_telegram_message(f"No messages found in #{channel_name} for the last {hours} hours.")
-                return
-                
-            # Generate and send summaries from both models
-            claude_summary = generate_summary(messages, channel_name, hours)
-            if claude_summary:
-                send_telegram_message("*Claude Summary:*\n" + claude_summary)
-            
+            handle_timeframe_selection(channel_id, int(hours))
         except Exception as e:
             error_msg = f"Error generating report: {str(e)}"
             logger.error(error_msg, exc_info=True)
@@ -395,42 +391,105 @@ def setup_bot_commands():
     except Exception as e:
         logger.error(f"Error setting up commands menu: {e}")
 
-def handle_telegram_command(message: str):
-    """Handle incoming Telegram commands"""
-    parts = message.lower().split()
-    command = parts[0]
+def analyze_channel_activity(hours: int = 24) -> List[tuple]:
+    """Analyze and return activity metrics for all channels with more than 3 messages"""
+    channels = fetch_filtered_discord_channels(GUILD_ID)
+    if not channels:
+        logger.error("Failed to fetch channels")
+        return []
     
-    if command == '/help':
-        help_text = """*📋 Available Commands*
+    channel_counts = []
+    for channel in channels:
+        messages = fetch_bot_messages_in_timeframe(channel['id'], hours)
+        if messages and len(messages) > 3:  # Only include channels with more than 3 messages
+            channel_counts.append((channel['id'], channel['name'], len(messages)))
+    
+    # Sort by message count in descending order
+    return sorted(channel_counts, key=itemgetter(2), reverse=True)
+
+def send_activity_overview(active_channels: List[tuple], hours: int) -> None:
+    """Send an overview message of channel activity"""
+    if not active_channels:
+        send_telegram_message("ℹ️ No channels have significant activity (>3 messages) in the last hour")
+        return
+        
+    overview = "*🤖 Automated Report Generation*\n\n"
+    overview += f"Analyzing active channels from the last {hours} hours:\n"
+    for channel_id, channel_name, count in active_channels:
+        overview += f"• #{channel_name}: {count} messages\n"
+    
+    send_telegram_message(overview)
+
+def generate_top_channel_reports(active_channels: List[tuple], top_n: int, hours: int) -> None:
+    """Generate reports for the top N most active channels"""
+    for channel_id, channel_name, count in active_channels[:top_n]:
+        logger.info(f"Generating report for #{channel_name}")
+        messages = fetch_bot_messages_in_timeframe(channel_id, hours)
+        
+        if messages:
+            summary, period_start, period_end = create_ai_summary(messages, channel_name, hours)
+            if summary:
+                save_summary_to_storage(channel_name, summary, period_start, period_end, f"{hours}h")
+                send_telegram_message(f"*📊 Automated Report: #{channel_name}*")
+                send_telegram_message(summary)
+        
+        # Add delay between reports to avoid rate limiting
+        time.sleep(5)
+
+def execute_help_command() -> None:
+    """Execute the help command and display available commands"""
+    help_text = """*📋 Available Commands*
 
 • /channels - List all available Discord channels
 • /active - Check most active channels in last hour
 • /help - Show this help message
 
 Select a channel and timeframe using the buttons to generate reports."""
-        send_telegram_message(help_text)
-        
-    elif command == '/channels':
-        logger.info("Fetching channels from Discord...")
-        channels = get_guild_channels(GUILD_ID)
-        if channels:
-            logger.info(f"Successfully fetched {len(channels)} channels")
-            message = "Select a channel to generate report:"
-            reply_markup = create_channels_keyboard(channels)
-            response = send_telegram_message(message, reply_markup)
-            if response:
-                logger.info("Successfully sent channels message with keyboard")
-            else:
-                logger.error("Failed to send channels message")
-        else:
-            logger.error("Failed to fetch channels from Discord")
-            send_telegram_message("Error: Could not fetch channels")
-    elif command == '/active':
-        logger.info("Running inform command for most active channels in last hour...")
-        auto_generate_reports(top_n=3, hours=1)
+    send_telegram_message(help_text)
 
-def handle_incoming_messages():
-    """Handle incoming Telegram messages"""
+def execute_channels_command() -> None:
+    """Execute the channels command and display channel selection keyboard"""
+    logger.info("Fetching channels from Discord...")
+    channels = fetch_filtered_discord_channels(GUILD_ID)
+    if channels:
+        logger.info(f"Successfully fetched {len(channels)} channels")
+        message = "Select a channel to generate report:"
+        reply_markup = create_channel_selection_keyboard(channels)
+        response = send_telegram_message(message, reply_markup)
+        if response:
+            logger.info("Successfully sent channels message with keyboard")
+        else:
+            logger.error("Failed to send channels message")
+    else:
+        logger.error("Failed to fetch channels from Discord")
+        send_telegram_message("Error: Could not fetch channels")
+
+def execute_active_command() -> None:
+    """Execute the active command and generate reports for most active channels"""
+    logger.info("Running inform command for most active channels in last hour...")
+    active_channels = analyze_channel_activity(hours=1)
+    
+    if not active_channels:
+        send_telegram_message("ℹ️ No channels have significant activity in the last hour")
+        return
+        
+    send_activity_overview(active_channels[:3], hours=1)
+    generate_top_channel_reports(active_channels, top_n=3, hours=1)
+
+def process_telegram_command(message: str) -> None:
+    """Process incoming Telegram commands"""
+    parts = message.lower().split()
+    command = parts[0]
+    
+    if command == '/help':
+        execute_help_command()
+    elif command == '/channels':
+        execute_channels_command()
+    elif command == '/active':
+        execute_active_command()
+
+def run_telegram_message_loop() -> None:
+    """Run the main Telegram message processing loop"""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
     last_update_id = None
     consecutive_errors = 0
@@ -454,13 +513,13 @@ def handle_incoming_messages():
                 try:
                     # Handle callback queries (button clicks)
                     if 'callback_query' in update:
-                        handle_callback_query(update['callback_query'])
+                        process_telegram_callback(update['callback_query'])
                     
                     # Handle regular messages
                     message = update.get('message', {}).get('text', '')
                     if message and message.startswith('/'):
                         logger.info(f"Processing command: {message}")
-                        handle_telegram_command(message)
+                        process_telegram_command(message)
                         
                     # Only update the offset after successfully processing the message
                     last_update_id = update['update_id'] + 1
@@ -491,71 +550,6 @@ def handle_incoming_messages():
             delay = min(300, 2 ** consecutive_errors)
             logger.info(f"Retrying in {delay} seconds...")
             time.sleep(delay)
-
-def get_channel_message_counts(hours: int = 24) -> List[tuple]:
-    """Get message counts for all channels in the specified timeframe"""
-    channels = get_guild_channels(GUILD_ID)
-    if not channels:
-        logger.error("Failed to fetch channels")
-        return []
-    
-    channel_counts = []
-    for channel in channels:
-        messages = get_channel_messages(channel['id'], hours)
-        if messages:
-            channel_counts.append((channel['id'], channel['name'], len(messages)))
-    
-    # Sort by message count in descending order
-    return sorted(channel_counts, key=itemgetter(2), reverse=True)
-
-def auto_generate_reports(top_n: int = 3, hours: int = 8):
-    """
-    Automatically generate reports for the top N most active channels
-    
-    Args:
-        top_n: Number of top channels to report on
-        hours: Timeframe to analyze in hours
-    """
-    logger.info(f"Starting automated report generation for top {top_n} channels")
-    
-    try:
-        # Get the most active channels
-        channel_counts = get_channel_message_counts(hours)
-        
-        # Filter out channels with 3 or fewer messages
-        active_channels = [(cid, name, count) for cid, name, count in channel_counts if count > 3]
-        
-        if not active_channels:
-            logger.info("No channels with more than 3 messages found")
-            send_telegram_message("ℹ️ No channels have significant activity (>3 messages) in the last hour")
-            return
-        
-        # Send overview message
-        overview = "*🤖 Automated Report Generation*\n\n"
-        overview += f"Analyzing active channels from the last {hours} hours:\n"
-        for channel_id, channel_name, count in active_channels[:top_n]:
-            overview += f"• #{channel_name}: {count} messages\n"
-        
-        send_telegram_message(overview)
-        
-        # Generate reports for top channels
-        for channel_id, channel_name, count in active_channels[:top_n]:
-            logger.info(f"Generating report for #{channel_name}")
-            messages = get_channel_messages(channel_id, hours)
-            
-            if messages:
-                claude_summary = generate_summary(messages, channel_name, hours)
-                if claude_summary:
-                    send_telegram_message(f"*📊 Automated Report: #{channel_name}*")
-                    send_telegram_message(claude_summary)
-            
-            # Add delay between reports to avoid rate limiting
-            time.sleep(5)
-            
-    except Exception as e:
-        error_msg = f"Error in automated report generation: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        send_telegram_message(f"❌ {error_msg}")
 
 def main():
     logger.info("Starting Discord Report Bot...")
@@ -591,7 +585,7 @@ Type /help for more information."""
         logger.info("Sending welcome message...")
         send_telegram_message(welcome_message)
         logger.info("Starting message handler...")
-        handle_incoming_messages()
+        run_telegram_message_loop()
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)
         sys.exit(1)
@@ -599,7 +593,10 @@ Type /help for more information."""
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--auto-report":
         # When called with --auto-report, generate reports and exit
-        auto_generate_reports()
+        active_channels = analyze_channel_activity(hours=8)
+        if active_channels:
+            send_activity_overview(active_channels[:3], hours=8)
+            generate_top_channel_reports(active_channels, top_n=3, hours=8)
         sys.exit(0)
     else:
         # Normal bot operation
