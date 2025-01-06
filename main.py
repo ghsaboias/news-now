@@ -579,8 +579,7 @@ Available commands:
 • /channels - List channels
 • /active - Check active channels
 • /help - Show help
-
-Type /help for more information."""
+"""
 
         logger.info("Sending welcome message...")
         send_telegram_message(welcome_message)
