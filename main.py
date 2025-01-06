@@ -382,6 +382,7 @@ def handle_telegram_command(message: str):
         help_text = """
         Available commands:
         /channels - List all available Discord channels
+        /inform - Check most active channels in last hour and generate reports
         /help - Show this help message
 
         Click on channel buttons to select timeframe and generate reports.
@@ -403,6 +404,9 @@ def handle_telegram_command(message: str):
         else:
             logger.error("Failed to fetch channels from Discord")
             send_telegram_message("Error: Could not fetch channels")
+    elif command == '/inform':
+        logger.info("Running inform command for most active channels in last hour...")
+        auto_generate_reports(top_n=3, hours=1)
 
 def handle_incoming_messages():
     """Handle incoming Telegram messages"""
@@ -553,6 +557,7 @@ Bot is running!
 
 Commands:
 /channels - List channels
+/inform - Check active channels
 /help - Show help
 
 Type /help for more info."""
