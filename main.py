@@ -50,7 +50,7 @@ signal.signal(signal.SIGINT, signal_handler)
 # Add after other global variables
 file_ops = FileOps()
 
-def send_telegram_message(message: str, reply_markup=None) -> Optional[dict]:
+def send_telegram_message(message: str, reply_markup=None, is_error_message: bool = False) -> Optional[dict]:
     """Send a message to Telegram"""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
@@ -72,11 +72,15 @@ def send_telegram_message(message: str, reply_markup=None) -> Optional[dict]:
         else:
             logger.error(f"Failed to send message. Status code: {response.status_code}")
             logger.error(f"Response: {json.dumps(result, indent=2)}")
+            if not is_error_message:
+                send_telegram_message(f"❌ Error: Failed to send message: {result}", is_error_message=True)
             
         return result
     except Exception as e:
         logger.error(f"Error sending Telegram message: {e}")
         logger.error(f"Full exception: {str(e)}", exc_info=True)
+        if not is_error_message:
+            send_telegram_message(f"❌ Error: Failed to send message: {e}", is_error_message=True)
         return None
 
 def fetch_filtered_discord_channels(guild_id: str) -> List[Dict]:
@@ -284,7 +288,7 @@ def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: 
     - Second line must be in format: [City/Region], [Month Day, Year]
     - First paragraph must summarize the most important development
     - Write an appropriate number of paragraphs of supporting details
-    - Maximum 5000 characters, average 2500 characters
+    - Maximum 4096 characters, average 2500 characters
     - Focus on verified facts and official statements
     - Maintain neutral, factual tone
     - NO analysis or commentary
@@ -298,7 +302,7 @@ def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: 
     try:
         response = claude_client.messages.create(
             model="claude-3-haiku-20240307",
-            max_tokens=1000,
+            max_tokens=800,
             system="""You are an experienced news wire journalist creating concise, clear updates.""",
             messages=[
                 {
@@ -308,11 +312,22 @@ def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: 
             ]
         )
         
-        return response.content[0].text, period_start, period_end
+        if not response or not response.content or not response.content[0].text:
+            error_msg = "Claude returned empty response"
+            logger.error(error_msg)
+            send_telegram_message(f"❌ Error: {error_msg}")
+            return None, None, None
+            
+        summary = response.content[0].text
+        summary_size = len(summary)
+        
+        return summary, period_start, period_end
         
     except Exception as e:
-        logger.error(f"Error generating summary: {str(e)}")
-        return "Error generating summary. Please try again.", None, None
+        error_msg = f"Unexpected error generating summary: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        send_telegram_message(f"❌ {error_msg}")
+        return None, None, None
 
 def save_summary_to_storage(channel_name: str, summary: str, period_start: datetime, 
                           period_end: datetime, timeframe: str) -> None:
@@ -350,11 +365,29 @@ def handle_timeframe_selection(channel_id: str, hours: int) -> None:
         send_telegram_message(f"No messages found in #{channel_name} for the last {hours} hours.")
         return
     
-    # Generate and save summary
-    summary, period_start, period_end = create_ai_summary(messages, channel_name, hours)
-    if summary:
-        save_summary_to_storage(channel_name, summary, period_start, period_end, f"{hours}h")
-        send_telegram_message(summary)
+    try:
+        summary, period_start, period_end = create_ai_summary(messages, channel_name, hours)
+        
+        if not summary:
+            send_telegram_message(f"❌ Error: AI summary generation returned empty result for #{channel_name}")
+            return
+            
+        try:
+            save_summary_to_storage(channel_name, summary, period_start, period_end, f"{hours}h")
+        except Exception as storage_error:
+            logger.error(f"Failed to save summary: {str(storage_error)}")
+            send_telegram_message(f"⚠️ Warning: Summary generated but failed to save to storage: {str(storage_error)}")
+            
+        try:
+            send_telegram_message(summary)
+        except Exception as send_error:
+            logger.error(f"Failed to send summary: {str(send_error)}")
+            send_telegram_message(f"❌ Error: Summary generated but failed to send: {str(send_error)}")
+            
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Failed to generate summary: {error_msg}", exc_info=True)
+        send_telegram_message(f"❌ Error generating summary for #{channel_name}: {error_msg}")
 
 def process_telegram_callback(callback_query: Dict) -> None:
     """Process callback queries from Telegram inline keyboards"""
@@ -377,8 +410,8 @@ def setup_bot_commands():
     """Set up the bot's command menu in Telegram"""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setMyCommands"
     commands = [
-        {"command": "channels", "description": "📊 List available Discord channels"},
-        {"command": "inform", "description": "🔄 Create reports for 3 most active channels in last hour"},
+        {"command": "channels", "description": "📊 List available channels"},
+        {"command": "active", "description": "🔄 Reports on 3 most active channels in last hour"},
         {"command": "help", "description": "❓ Show available commands"}
     ]
     
@@ -466,7 +499,7 @@ def execute_channels_command() -> None:
 
 def execute_active_command() -> None:
     """Execute the active command and generate reports for most active channels"""
-    logger.info("Running inform command for most active channels in last hour...")
+    logger.info("Running active command for most active channels in last hour...")
     active_channels = analyze_channel_activity(hours=1)
     
     if not active_channels:
