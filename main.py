@@ -284,20 +284,21 @@ def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: 
     {formatted_text}
 
     Requirements:
-    - First line must be a clear headline in ALL CAPS
+    - First line must be a factual headline in ALL CAPS that informs about the main event
     - Second line must be in format: [City/Region], [Month Day, Year]
-    - First paragraph must summarize the most important development
-    - Write an appropriate number of paragraphs of supporting details
+    - First paragraph must summarize the most important verified development
+    - Each subsequent paragraph must directly relate to the main topic
     - Maximum 4096 characters, average 2500 characters
-    - Focus on verified facts and official statements
-    - Maintain neutral, factual tone
-    - NO analysis or commentary
+    - Only include verified facts and direct quotes from official statements
+    - Maintain strictly neutral tone - avoid loaded terms or partisan framing
+    - NO analysis, commentary, or speculation
+    - NO use of terms like "likely", "appears to", or "is seen as"
     
     Example format:
-    MAJOR EVENT HAPPENS IN REGION
+    MAJOR MILITARY DEVELOPMENT OCCURS IN REGION
     Tel Aviv, March 20, 2024 
     
-    First paragraph with main development..."""
+    First paragraph with main verified development..."""
     
     try:
         response = claude_client.messages.create(
