@@ -123,13 +123,20 @@ def fetch_discord_message_batch(channel_id: str, last_message_id: str = None) ->
         
     return json.loads(response.text)
 
-def fetch_bot_messages_in_timeframe(channel_id: str, hours: int = 24) -> List[Dict]:
+def fetch_bot_messages_in_timeframe(channel_id: str, hours: int = 24, minutes: int = None) -> List[Dict]:
     """Fetch bot messages from a Discord channel within specified timeframe"""
     messages = []
     last_message_id = None
-    cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
     
-    logger.info(f"Fetching messages from channel {channel_id} for past {hours} hours")
+    # Calculate cutoff time based on hours or minutes
+    if minutes is not None:
+        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+        time_str = f"{minutes} minutes"
+    else:
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        time_str = f"{hours} hours"
+    
+    logger.info(f"Fetching messages from channel {channel_id} for past {time_str}")
     
     while True:
         batch = fetch_discord_message_batch(channel_id, last_message_id)
@@ -424,8 +431,14 @@ def setup_bot_commands():
     except Exception as e:
         logger.error(f"Error setting up commands menu: {e}")
 
-def analyze_channel_activity(hours: int = 24) -> List[tuple]:
-    """Analyze and return activity metrics for all channels with more than 3 messages"""
+def analyze_channel_activity(*, hours: int = None, minutes: int = None, min_messages: int = 3) -> List[tuple]:
+    """Analyze and return activity metrics for all channels with more than min_messages messages
+    
+    Args:
+        hours: Number of hours to look back
+        minutes: Number of minutes to look back (takes precedence over hours if both provided)
+        min_messages: Minimum number of messages required (default: 3)
+    """
     channels = fetch_filtered_discord_channels(GUILD_ID)
     if not channels:
         logger.error("Failed to fetch channels")
@@ -433,41 +446,69 @@ def analyze_channel_activity(hours: int = 24) -> List[tuple]:
     
     channel_counts = []
     for channel in channels:
-        messages = fetch_bot_messages_in_timeframe(channel['id'], hours)
-        if messages and len(messages) > 3:  # Only include channels with more than 3 messages
+        messages = fetch_bot_messages_in_timeframe(channel['id'], hours=hours, minutes=minutes)
+        if messages and len(messages) >= min_messages:
             channel_counts.append((channel['id'], channel['name'], len(messages)))
     
     # Sort by message count in descending order
     return sorted(channel_counts, key=itemgetter(2), reverse=True)
 
-def send_activity_overview(active_channels: List[tuple], hours: int) -> None:
+def send_activity_overview(active_channels: List[tuple], hours: int = None, minutes: int = None) -> None:
     """Send an overview message of channel activity"""
     if not active_channels:
-        send_telegram_message("ℹ️ No channels have significant activity (>3 messages) in the last hour")
+        time_str = f"{minutes} minutes" if minutes is not None else f"{hours} hours"
+        send_telegram_message(f"ℹ️ No channels have significant activity (>3 messages) in the last {time_str}")
         return
         
     overview = "*🤖 Automated Report Generation*\n\n"
-    overview += f"Analyzing active channels from the last {hours} hours:\n"
+    time_str = f"{minutes} minutes" if minutes is not None else f"{hours} hours"
+    overview += f"Analyzing active channels from the last {time_str}:\n"
     for channel_id, channel_name, count in active_channels:
         overview += f"• #{channel_name}: {count} messages\n"
     
     send_telegram_message(overview)
 
-def generate_top_channel_reports(active_channels: List[tuple], top_n: int, hours: int) -> None:
-    """Generate reports for the top N most active channels"""
-    for channel_id, channel_name, count in active_channels[:top_n]:
+def generate_channel_reports(active_channels: List[tuple], *, hours: int = None, minutes: int = None, top_n: int = None) -> None:
+    """Generate reports for active channels
+    
+    Args:
+        active_channels: List of (channel_id, channel_name, message_count) tuples
+        hours: Number of hours to look back
+        minutes: Number of minutes to look back (takes precedence over hours)
+        top_n: If set, only generate reports for top N channels
+    """
+    channels_to_process = active_channels[:top_n] if top_n else active_channels
+    
+    for channel_id, channel_name, count in channels_to_process:
         logger.info(f"Generating report for #{channel_name}")
-        messages = fetch_bot_messages_in_timeframe(channel_id, hours)
+        messages = fetch_bot_messages_in_timeframe(channel_id, hours=hours, minutes=minutes)
         
         if messages:
-            summary, period_start, period_end = create_ai_summary(messages, channel_name, hours)
+            # Convert minutes to hours for AI summary if needed
+            requested_hours = minutes / 60 if minutes else hours
+            summary, period_start, period_end = create_ai_summary(messages, channel_name, requested_hours)
+            
             if summary:
-                save_summary_to_storage(channel_name, summary, period_start, period_end, f"{hours}h")
-                send_telegram_message(f"*📊 Automated Report: #{channel_name}*")
+                # Use appropriate timeframe identifier
+                timeframe = f"{minutes}m" if minutes else f"{hours}h"
+                save_summary_to_storage(channel_name, summary, period_start, period_end, timeframe)
+                
+                # Use appropriate report type in message
+                report_type = "Quick" if minutes else "Automated"
+                send_telegram_message(f"*📊 {report_type} Report: #{channel_name}*")
                 send_telegram_message(summary)
         
         # Add delay between reports to avoid rate limiting
         time.sleep(5)
+
+def execute_quick_report() -> None:
+    """Execute a quick report for channels with high activity in the last 10 minutes"""
+    logger.info("Running quick report for active channels in last 10 minutes...")
+    active_channels = analyze_channel_activity(minutes=10)
+    
+    if active_channels:
+        send_activity_overview(active_channels, minutes=10)
+        generate_channel_reports(active_channels, minutes=10)
 
 def execute_help_command() -> None:
     """Execute the help command and display available commands"""
@@ -507,7 +548,7 @@ def execute_active_command() -> None:
         return
         
     send_activity_overview(active_channels[:3], hours=1)
-    generate_top_channel_reports(active_channels, top_n=3, hours=1)
+    generate_channel_reports(active_channels, hours=1, top_n=3)
 
 def process_telegram_command(message: str) -> None:
     """Process incoming Telegram commands"""
@@ -623,13 +664,18 @@ Available commands:
         sys.exit(1)
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "--auto-report":
-        # When called with --auto-report, generate reports and exit
-        active_channels = analyze_channel_activity(hours=8)
-        if active_channels:
-            send_activity_overview(active_channels[:3], hours=8)
-            generate_top_channel_reports(active_channels, top_n=3, hours=8)
-        sys.exit(0)
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "--auto-report":
+            # When called with --auto-report, generate reports and exit
+            active_channels = analyze_channel_activity(hours=8)
+            if active_channels:
+                send_activity_overview(active_channels[:3], hours=8)
+                generate_channel_reports(active_channels, hours=8, top_n=3)
+            sys.exit(0)
+        elif sys.argv[1] == "--quick-report":
+            # When called with --quick-report, generate quick reports and exit
+            execute_quick_report()
+            sys.exit(0)
     else:
         # Normal bot operation
         main()
