@@ -278,7 +278,7 @@ def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: 
 
     formatted_text = format_messages_for_claude(messages)
     
-    prompt = f"""Create a concise, journalistic news summary of these military/conflict updates from the last {requested_hours} hours.
+    prompt = f"""Create a concise, journalistic report of the following updates from the last {requested_hours} hours.
 
     Updates to analyze:
     {formatted_text}
@@ -295,7 +295,7 @@ def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: 
     - NO use of terms like "likely", "appears to", or "is seen as"
     
     Example format:
-    MAJOR MILITARY DEVELOPMENT OCCURS IN REGION
+    MAJOR DEVELOPMENT OCCURS IN REGION
     Tel Aviv, March 20, 2024 
     
     First paragraph with main verified development..."""
@@ -320,7 +320,6 @@ def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: 
             return None, None, None
             
         summary = response.content[0].text
-        summary_size = len(summary)
         
         return summary, period_start, period_end
         
