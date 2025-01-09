@@ -579,22 +579,22 @@ def execute_10min_reports() -> None:
         send_telegram_message("❌ Error: Failed to fetch channels")
         return
     
-    channel_stats = []
+    channel_stats = {}
     reports_saved = 0
     
     for channel in channels:
         message_count, was_saved = generate_report_if_threshold_met(channel['id'], channel['name'], "10m", min_messages=3)
         if message_count > 0:
-            channel_stats.append(f"• #{channel['name']}: {message_count} messages")
+            channel_stats[channel['name']] = message_count
         if was_saved:
             reports_saved += 1
         time.sleep(1)  # Rate limiting protection
     
     if channel_stats:
         summary = "*📊 10-minute Report Summary*\n\n"
-        summary += "\n".join(channel_stats)
+        summary += "\n".join(f"• #{name}: {count} messages" for name, count in channel_stats.items())
         summary += f"\n\nReports saved for {reports_saved} channels"
-        if not any(count >= 3 for count in [int(stat.split(': ')[1].split()[0]) for stat in channel_stats]):
+        if not any(count >= 3 for count in channel_stats.values()):
             summary += "\nNo channels met threshold (3 messages) for sending report"
         send_telegram_message(summary)
     else:
@@ -611,22 +611,22 @@ def execute_1h_reports() -> None:
         send_telegram_message("❌ Error: Failed to fetch channels")
         return
     
-    channel_stats = []
+    channel_stats = {}
     reports_saved = 0
     
     for channel in channels:
         message_count, was_saved = generate_report_if_threshold_met(channel['id'], channel['name'], "1h", min_messages=5)
         if message_count > 0:
-            channel_stats.append(f"• #{channel['name']}: {message_count} messages")
+            channel_stats[channel['name']] = message_count
         if was_saved:
             reports_saved += 1
         time.sleep(1)  # Rate limiting protection
     
     if channel_stats:
         summary = "*📊 Hourly Report Summary*\n\n"
-        summary += "\n".join(channel_stats)
+        summary += "\n".join(f"• #{name}: {count} messages" for name, count in channel_stats.items())
         summary += f"\n\nReports saved for {reports_saved} channels"
-        if not any(count >= 5 for count in [int(stat.split(': ')[1].split()[0]) for stat in channel_stats]):
+        if not any(count >= 5 for count in channel_stats.values()):
             summary += "\nNo channels met threshold (5 messages) for sending report"
         send_telegram_message(summary)
     else:
@@ -643,22 +643,22 @@ def execute_24h_reports() -> None:
         send_telegram_message("❌ Error: Failed to fetch channels")
         return
     
-    channel_stats = []
+    channel_stats = {}
     reports_saved = 0
     
     for channel in channels:
         message_count, was_saved = generate_report_if_threshold_met(channel['id'], channel['name'], "24h", min_messages=10)
         if message_count > 0:
-            channel_stats.append(f"• #{channel['name']}: {message_count} messages")
+            channel_stats[channel['name']] = message_count
         if was_saved:
             reports_saved += 1
         time.sleep(1)  # Rate limiting protection
     
     if channel_stats:
         summary = "*📊 Daily Report Summary*\n\n"
-        summary += "\n".join(channel_stats)
+        summary += "\n".join(f"• #{name}: {count} messages" for name, count in channel_stats.items())
         summary += f"\n\nReports saved for {reports_saved} channels"
-        if not any(count >= 10 for count in [int(stat.split(': ')[1].split()[0]) for stat in channel_stats]):
+        if not any(count >= 10 for count in channel_stats.values()):
             summary += "\nNo channels met threshold (10 messages) for sending report"
         send_telegram_message(summary)
     else:
