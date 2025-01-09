@@ -431,7 +431,7 @@ def setup_bot_commands():
     except Exception as e:
         logger.error(f"Error setting up commands menu: {e}")
 
-def analyze_channel_activity(*, hours: int = None, minutes: int = None, min_messages: int = 3) -> List[tuple]:
+def analyze_channel_activity(*, hours: int = None, minutes: int = None, min_messages: int = 5) -> List[tuple]:
     """Analyze and return activity metrics for all channels with more than min_messages messages
     
     Args:
