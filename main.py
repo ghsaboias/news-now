@@ -269,9 +269,23 @@ def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: 
 
     formatted_text = format_messages_for_claude(messages)
     
-    prompt = f"""Create a concise, journalistic report of the following updates from the last {requested_hours} hours.
+    # Get the previous summary for context
+    timeframe = f"{requested_hours}h"
+    previous_summary = file_ops.get_latest_summary(channel_name, timeframe)
+    previous_summary_text = ""
+    if previous_summary:
+        previous_summary_text = f"""CONTEXT FROM PREVIOUS REPORT
+        Time period: {datetime.fromisoformat(previous_summary['period_start']).strftime('%B %d, %Y %H:%M')} to {datetime.fromisoformat(previous_summary['period_end']).strftime('%B %d, %Y %H:%M')} UTC
 
-    Updates to analyze:
+        {previous_summary['content']}
+
+        -------------------
+        NEW UPDATES TO INCORPORATE
+        """
+    
+    prompt = f"""Create a concise, journalistic report of the following updates, incorporating context from the previous report when relevant.
+
+    {previous_summary_text}Updates to analyze:
     {formatted_text}
 
     Requirements:
@@ -284,6 +298,13 @@ def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: 
     - Maintain strictly neutral tone - avoid loaded terms or partisan framing
     - NO analysis, commentary, or speculation
     - NO use of terms like "likely", "appears to", or "is seen as"
+
+    When incorporating previous context:
+    - Focus primarily on new developments from the current timeframe
+    - Reference previous events only if they directly relate to new developments
+    - Avoid repeating old information unless it provides crucial context
+    - If a situation has evolved, clearly indicate what has changed
+    - Maintain chronological clarity when connecting past and present events
     
     Example format:
     MAJOR DEVELOPMENT OCCURS IN REGION
@@ -295,7 +316,7 @@ def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: 
         response = claude_client.messages.create(
             model="claude-3-haiku-20240307",
             max_tokens=800,
-            system="""You are an experienced news wire journalist creating concise, clear updates.""",
+            system="""You are an experienced news wire journalist creating concise, clear updates. Your task is to report the latest developments while maintaining narrative continuity with previous coverage. Focus on what's new and noteworthy, using prior context only when it enhances understanding of current events.""",
             messages=[
                 {
                     "role": "user",
