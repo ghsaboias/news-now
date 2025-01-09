@@ -49,6 +49,7 @@ signal.signal(signal.SIGINT, signal_handler)
 
 # Add after other global variables
 file_ops = FileOps()
+user_states = {}
 
 def send_telegram_message(message: str, reply_markup=None, is_error_message: bool = False) -> Optional[dict]:
     """Send a message to Telegram"""
@@ -180,21 +181,21 @@ def format_raw_message_report(channel_name: str, messages: List[Dict]) -> str:
     
     return report
 
-def create_timeframe_selection_keyboard(channel_id: str) -> Dict:
+def create_timeframe_keyboard() -> Dict:
     """Create inline keyboard for timeframe selection"""
     return {
         "inline_keyboard": [
             [
-                {"text": "1 hour", "callback_data": f"report_{channel_id}_1"},
-                {"text": "2 hours", "callback_data": f"report_{channel_id}_2"}
+                {"text": "1 hour", "callback_data": "timeframe_1"},
+                {"text": "2 hours", "callback_data": "timeframe_2"}
             ],
             [
-                {"text": "4 hours", "callback_data": f"report_{channel_id}_4"},
-                {"text": "8 hours", "callback_data": f"report_{channel_id}_8"}
+                {"text": "4 hours", "callback_data": "timeframe_4"},
+                {"text": "8 hours", "callback_data": "timeframe_8"}
             ],
             [
-                {"text": "12 hours", "callback_data": f"report_{channel_id}_12"},
-                {"text": "24 hours", "callback_data": f"report_{channel_id}_24"}
+                {"text": "12 hours", "callback_data": "timeframe_12"},
+                {"text": "24 hours", "callback_data": "timeframe_24"}
             ]
         ]
     }
@@ -205,25 +206,8 @@ def create_channel_selection_keyboard(channels: List[Dict]) -> Dict:
     row = []
     
     for channel in channels:
-        # Get the original name and remove the emoji
-        full_name = channel['name']
-        name_without_emoji = full_name[1:] if full_name[0] in {'🟡', '🔴', '🟠', '⚫'} else full_name
-        
-        # Split by hyphen and abbreviate each word
-        words = name_without_emoji.split('-')
-        abbreviated = []
-        for word in words:
-            if word.lower() in ['and', 'the', 'for', 'of']:  # Skip abbreviating common words
-                abbreviated.append(word)
-            else:
-                abbreviated.append(word[:5])
-        
-        # Reconstruct the name with emoji and abbreviations
-        emoji = full_name[0] if full_name[0] in {'🟡', '🔴', '🟠', '⚫'} else ''
-        abbreviated_name = emoji + '-'.join(abbreviated)
-        
         button = {
-            "text": abbreviated_name,
+            "text": f"#{channel['name']}",
             "callback_data": f"channel_{channel['id']}"
         }
         row.append(button)
@@ -351,10 +335,14 @@ def save_summary_to_storage(channel_name: str, summary: str, period_start: datet
 
 def handle_channel_selection(channel_id: str) -> None:
     """Handle channel selection from keyboard"""
-    logger.info(f"User selected channel: {channel_id}")
-    message = "Select timeframe for the report:"
-    reply_markup = create_timeframe_selection_keyboard(channel_id)
-    send_telegram_message(message, reply_markup)
+    channels = fetch_filtered_discord_channels(GUILD_ID)
+    channel_name = next((c['name'] for c in channels if c['id'] == channel_id), 'unknown-channel')
+    
+    message = f"Selected channel: *#{channel_name}*\n\nSelect timeframe for the report:"
+    
+    # Store the selected channel ID in user state
+    user_states[TELEGRAM_CHAT_ID] = {"selected_channel": channel_id}
+    send_telegram_message(message, reply_markup=create_timeframe_keyboard())
 
 def handle_timeframe_selection(channel_id: str, hours: int) -> None:
     """Handle timeframe selection and generate report"""
@@ -369,7 +357,7 @@ def handle_timeframe_selection(channel_id: str, hours: int) -> None:
     
     if not messages:
         logger.info(f"No messages found in {channel_name} for the last {hours} hours")
-        send_telegram_message(f"No messages found in #{channel_name} for the last {hours} hours.")
+        send_telegram_message(f"No messages found in #{channel_name} for the last {hours} hour(s).")
         return
     
     try:
@@ -404,21 +392,24 @@ def process_telegram_callback(callback_query: Dict) -> None:
         channel_id = data.split('_')[1]
         handle_channel_selection(channel_id)
         
-    elif data.startswith('report_'):
-        _, channel_id, hours = data.split('_')
-        try:
-            handle_timeframe_selection(channel_id, int(hours))
-        except Exception as e:
-            error_msg = f"Error generating report: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            send_telegram_message(error_msg)
+    elif data.startswith('timeframe_'):
+        hours = int(data.split('_')[1])
+        user_state = user_states.get(TELEGRAM_CHAT_ID, {})
+        channel_id = user_state.get('selected_channel')
+        
+        if not channel_id:
+            send_telegram_message("❌ Please select a channel first using /channels")
+            return
+            
+        handle_timeframe_selection(channel_id, hours)
+        # Clear user state after processing
+        user_states.pop(TELEGRAM_CHAT_ID, None)
 
 def setup_bot_commands():
     """Set up the bot's command menu in Telegram"""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setMyCommands"
     commands = [
         {"command": "channels", "description": "📊 List available channels"},
-        {"command": "active", "description": "🔄 Reports on 3 most active channels in last hour"},
         {"command": "help", "description": "❓ Show available commands"}
     ]
     
@@ -431,94 +422,14 @@ def setup_bot_commands():
     except Exception as e:
         logger.error(f"Error setting up commands menu: {e}")
 
-def analyze_channel_activity(*, hours: int = None, minutes: int = None, min_messages: int = 5) -> List[tuple]:
-    """Analyze and return activity metrics for all channels with more than min_messages messages
-    
-    Args:
-        hours: Number of hours to look back
-        minutes: Number of minutes to look back (takes precedence over hours if both provided)
-        min_messages: Minimum number of messages required (default: 3)
-    """
-    channels = fetch_filtered_discord_channels(GUILD_ID)
-    if not channels:
-        logger.error("Failed to fetch channels")
-        return []
-    
-    channel_counts = []
-    for channel in channels:
-        messages = fetch_bot_messages_in_timeframe(channel['id'], hours=hours, minutes=minutes)
-        if messages and len(messages) >= min_messages:
-            channel_counts.append((channel['id'], channel['name'], len(messages)))
-    
-    # Sort by message count in descending order
-    return sorted(channel_counts, key=itemgetter(2), reverse=True)
-
-def send_activity_overview(active_channels: List[tuple], hours: int = None, minutes: int = None) -> None:
-    """Send an overview message of channel activity"""
-    if not active_channels:
-        time_str = f"{minutes} minutes" if minutes is not None else f"{hours} hours"
-        send_telegram_message(f"ℹ️ No channels have significant activity (>3 messages) in the last {time_str}")
-        return
-        
-    overview = "*🤖 Automated Report Generation*\n\n"
-    time_str = f"{minutes} minutes" if minutes is not None else f"{hours} hours"
-    overview += f"Analyzing active channels from the last {time_str}:\n"
-    for channel_id, channel_name, count in active_channels:
-        overview += f"• #{channel_name}: {count} messages\n"
-    
-    send_telegram_message(overview)
-
-def generate_channel_reports(active_channels: List[tuple], *, hours: int = None, minutes: int = None, top_n: int = None) -> None:
-    """Generate reports for active channels
-    
-    Args:
-        active_channels: List of (channel_id, channel_name, message_count) tuples
-        hours: Number of hours to look back
-        minutes: Number of minutes to look back (takes precedence over hours)
-        top_n: If set, only generate reports for top N channels
-    """
-    channels_to_process = active_channels[:top_n] if top_n else active_channels
-    
-    for channel_id, channel_name, count in channels_to_process:
-        logger.info(f"Generating report for #{channel_name}")
-        messages = fetch_bot_messages_in_timeframe(channel_id, hours=hours, minutes=minutes)
-        
-        if messages:
-            # Convert minutes to hours for AI summary if needed
-            requested_hours = minutes / 60 if minutes else hours
-            summary, period_start, period_end = create_ai_summary(messages, channel_name, requested_hours)
-            
-            if summary:
-                # Use appropriate timeframe identifier
-                timeframe = f"{minutes}m" if minutes else f"{hours}h"
-                save_summary_to_storage(channel_name, summary, period_start, period_end, timeframe)
-                
-                # Use appropriate report type in message
-                report_type = "Quick" if minutes else "Automated"
-                send_telegram_message(f"*📊 {report_type} Report: #{channel_name}*")
-                send_telegram_message(summary)
-        
-        # Add delay between reports to avoid rate limiting
-        time.sleep(5)
-
-def execute_quick_report() -> None:
-    """Execute a quick report for channels with high activity in the last 10 minutes"""
-    logger.info("Running quick report for active channels in last 10 minutes...")
-    active_channels = analyze_channel_activity(minutes=10)
-    
-    if active_channels:
-        send_activity_overview(active_channels, minutes=10)
-        generate_channel_reports(active_channels, minutes=10)
-
 def execute_help_command() -> None:
     """Execute the help command and display available commands"""
     help_text = """*📋 Available Commands*
 
-• /channels - List all available Discord channels
-• /active - Check most active channels in last hour
+• /channels - List available Discord channels
 • /help - Show this help message
 
-Select a channel and timeframe using the buttons to generate reports."""
+Select a channel and enter timeframe to generate reports."""
     send_telegram_message(help_text)
 
 def execute_channels_command() -> None:
@@ -527,28 +438,12 @@ def execute_channels_command() -> None:
     channels = fetch_filtered_discord_channels(GUILD_ID)
     if channels:
         logger.info(f"Successfully fetched {len(channels)} channels")
-        message = "Select a channel to generate report:"
+        message = "*Select a channel to generate a report:*"
         reply_markup = create_channel_selection_keyboard(channels)
-        response = send_telegram_message(message, reply_markup)
-        if response:
-            logger.info("Successfully sent channels message with keyboard")
-        else:
-            logger.error("Failed to send channels message")
+        send_telegram_message(message, reply_markup)
     else:
         logger.error("Failed to fetch channels from Discord")
         send_telegram_message("Error: Could not fetch channels")
-
-def execute_active_command() -> None:
-    """Execute the active command and generate reports for most active channels"""
-    logger.info("Running active command for most active channels in last hour...")
-    active_channels = analyze_channel_activity(hours=1)
-    
-    if not active_channels:
-        send_telegram_message("ℹ️ No channels have significant activity in the last hour")
-        return
-        
-    send_activity_overview(active_channels[:3], hours=1)
-    generate_channel_reports(active_channels, hours=1, top_n=3)
 
 def process_telegram_command(message: str) -> None:
     """Process incoming Telegram commands"""
@@ -559,8 +454,34 @@ def process_telegram_command(message: str) -> None:
         execute_help_command()
     elif command == '/channels':
         execute_channels_command()
-    elif command == '/active':
-        execute_active_command()
+    elif command.startswith('/'):  # Any other command
+        # Check if it's a timeframe input for a selected channel
+        if command[1:].replace('.', '').isdigit() or command[1:].endswith(('m', 'h')):
+            timeframe = command[1:]  # Remove the leading slash
+            user_state = user_states.get(TELEGRAM_CHAT_ID, {})
+            channel_id = user_state.get('selected_channel')
+            
+            if not channel_id:
+                send_telegram_message("❌ Please select a channel first using /channels")
+                return
+                
+            try:
+                if timeframe.endswith('m'):
+                    minutes = int(timeframe[:-1])
+                    hours = minutes / 60
+                elif timeframe.endswith('h'):
+                    hours = int(timeframe[:-1])
+                else:
+                    send_telegram_message("❌ Invalid timeframe format. Use 'm' for minutes or 'h' for hours (e.g., 10m, 1h, 24h)")
+                    return
+                    
+                handle_timeframe_selection(channel_id, hours)
+                # Clear user state after processing
+                user_states.pop(TELEGRAM_CHAT_ID, None)
+            except ValueError:
+                send_telegram_message("❌ Invalid timeframe value. Please use numbers (e.g., 10m, 1h, 24h)")
+        else:
+            send_telegram_message("❌ Unknown command. Use /help to see available commands")
 
 def run_telegram_message_loop() -> None:
     """Run the main Telegram message processing loop"""
@@ -615,15 +536,133 @@ def run_telegram_message_loop() -> None:
             delay = min(300, 2 ** consecutive_errors)
             logger.info(f"Retrying in {delay} seconds...")
             time.sleep(delay)
-            
-        except Exception as e:
-            consecutive_errors += 1
-            logger.error(f"Unexpected error: {e}", exc_info=True)
-            
-            # Exponential backoff with max delay of 5 minutes
-            delay = min(300, 2 ** consecutive_errors)
-            logger.info(f"Retrying in {delay} seconds...")
-            time.sleep(delay)
+
+def generate_report_if_threshold_met(channel_id: str, channel_name: str, timeframe: str, min_messages: int) -> Tuple[int, bool]:
+    """Generate and optionally send a report if message threshold is met
+    Returns: (message_count, whether_report_was_saved)"""
+    # Convert timeframe to hours for message fetching
+    if timeframe.endswith('m'):
+        minutes = int(timeframe[:-1])
+        hours = minutes / 60
+    else:
+        hours = int(timeframe[:-1])
+    
+    messages = fetch_bot_messages_in_timeframe(channel_id, hours=hours)
+    if not messages:
+        logger.info(f"No messages found for #{channel_name} in the last {timeframe}")
+        return 0, False
+        
+    message_count = len(messages)
+    logger.info(f"Found {message_count} messages for #{channel_name} in the last {timeframe}")
+    
+    # Generate report regardless of threshold
+    summary, period_start, period_end = create_ai_summary(messages, channel_name, hours)
+    if summary:
+        save_summary_to_storage(channel_name, summary, period_start, period_end, timeframe)
+        
+        # Only send if threshold is met
+        if message_count >= min_messages:
+            send_telegram_message(f"*📊 Report for #{channel_name} ({timeframe})*\nMessages in timeframe: {message_count}")
+            send_telegram_message(summary)
+        
+        return message_count, True
+    return message_count, False
+
+def execute_10min_reports() -> None:
+    """Execute 10-minute reports for all channels"""
+    logger.info("Running 10-minute reports...")
+    send_telegram_message("🔄 Running 10-minute report check...")
+    
+    channels = fetch_filtered_discord_channels(GUILD_ID)
+    if not channels:
+        logger.error("Failed to fetch channels")
+        send_telegram_message("❌ Error: Failed to fetch channels")
+        return
+    
+    channel_stats = []
+    reports_saved = 0
+    
+    for channel in channels:
+        message_count, was_saved = generate_report_if_threshold_met(channel['id'], channel['name'], "10m", min_messages=3)
+        if message_count > 0:
+            channel_stats.append(f"• #{channel['name']}: {message_count} messages")
+        if was_saved:
+            reports_saved += 1
+        time.sleep(1)  # Rate limiting protection
+    
+    if channel_stats:
+        summary = "*📊 10-minute Report Summary*\n\n"
+        summary += "\n".join(channel_stats)
+        summary += f"\n\nReports saved for {reports_saved} channels"
+        if not any(count >= 3 for count in [int(stat.split(': ')[1].split()[0]) for stat in channel_stats]):
+            summary += "\nNo channels met threshold (3 messages) for sending report"
+        send_telegram_message(summary)
+    else:
+        send_telegram_message("ℹ️ No activity in any channel in the last 10 minutes")
+
+def execute_1h_reports() -> None:
+    """Execute 1-hour reports for all channels"""
+    logger.info("Running 1-hour reports...")
+    send_telegram_message("🔄 Running hourly report check...")
+    
+    channels = fetch_filtered_discord_channels(GUILD_ID)
+    if not channels:
+        logger.error("Failed to fetch channels")
+        send_telegram_message("❌ Error: Failed to fetch channels")
+        return
+    
+    channel_stats = []
+    reports_saved = 0
+    
+    for channel in channels:
+        message_count, was_saved = generate_report_if_threshold_met(channel['id'], channel['name'], "1h", min_messages=5)
+        if message_count > 0:
+            channel_stats.append(f"• #{channel['name']}: {message_count} messages")
+        if was_saved:
+            reports_saved += 1
+        time.sleep(1)  # Rate limiting protection
+    
+    if channel_stats:
+        summary = "*📊 Hourly Report Summary*\n\n"
+        summary += "\n".join(channel_stats)
+        summary += f"\n\nReports saved for {reports_saved} channels"
+        if not any(count >= 5 for count in [int(stat.split(': ')[1].split()[0]) for stat in channel_stats]):
+            summary += "\nNo channels met threshold (5 messages) for sending report"
+        send_telegram_message(summary)
+    else:
+        send_telegram_message("ℹ️ No activity in any channel in the last hour")
+
+def execute_24h_reports() -> None:
+    """Execute 24-hour reports for all channels"""
+    logger.info("Running 24-hour reports...")
+    send_telegram_message("🔄 Running daily report check...")
+    
+    channels = fetch_filtered_discord_channels(GUILD_ID)
+    if not channels:
+        logger.error("Failed to fetch channels")
+        send_telegram_message("❌ Error: Failed to fetch channels")
+        return
+    
+    channel_stats = []
+    reports_saved = 0
+    
+    for channel in channels:
+        message_count, was_saved = generate_report_if_threshold_met(channel['id'], channel['name'], "24h", min_messages=10)
+        if message_count > 0:
+            channel_stats.append(f"• #{channel['name']}: {message_count} messages")
+        if was_saved:
+            reports_saved += 1
+        time.sleep(1)  # Rate limiting protection
+    
+    if channel_stats:
+        summary = "*📊 Daily Report Summary*\n\n"
+        summary += "\n".join(channel_stats)
+        summary += f"\n\nReports saved for {reports_saved} channels"
+        if not any(count >= 10 for count in [int(stat.split(': ')[1].split()[0]) for stat in channel_stats]):
+            summary += "\nNo channels met threshold (10 messages) for sending report"
+        send_telegram_message(summary)
+    else:
+        send_telegram_message("ℹ️ No activity in any channel in the last 24 hours")
 
 def main():
     logger.info("Starting Discord Report Bot...")
@@ -651,7 +690,6 @@ def main():
 
 Available commands:
 • /channels - List channels
-• /active - Check active channels
 • /help - Show help
 """
 
@@ -665,16 +703,14 @@ Available commands:
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        if sys.argv[1] == "--auto-report":
-            # When called with --auto-report, generate reports and exit
-            active_channels = analyze_channel_activity(hours=8)
-            if active_channels:
-                send_activity_overview(active_channels[:3], hours=8)
-                generate_channel_reports(active_channels, hours=8, top_n=3)
+        if sys.argv[1] == "--10min-report":
+            execute_10min_reports()
             sys.exit(0)
-        elif sys.argv[1] == "--quick-report":
-            # When called with --quick-report, generate quick reports and exit
-            execute_quick_report()
+        elif sys.argv[1] == "--1h-report":
+            execute_1h_reports()
+            sys.exit(0)
+        elif sys.argv[1] == "--24h-report":
+            execute_24h_reports()
             sys.exit(0)
     else:
         # Normal bot operation

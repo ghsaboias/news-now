@@ -1,6 +1,14 @@
 {
     "projectContext": {
         "description": "Discord Report Bot that fetches messages from Discord channels and generates summaries using Claude AI",
+        "objectives": {
+            "primary": "Provide real-time news summaries from Discord channels",
+            "secondary": [
+                "Ensure high reliability of message processing",
+                "Maintain accurate and timely reporting",
+                "Scale efficiently with channel growth"
+            ]
+        },
         "mainComponents": [
             "Discord API integration",
             "Telegram Bot interface",
@@ -8,19 +16,45 @@
             "Message processing and summarization",
             "File operations for storing summaries"
         ],
-        "keyDependencies": [
-            "anthropic",
-            "python-dotenv",
-            "requests"
-        ]
+        "componentInteractions": {
+            "Discord": {
+                "responsibilities": "Message fetching and channel management",
+                "rateLimits": "50 requests per second",
+                "errorHandling": "Exponential backoff with max 5 minute delay"
+            },
+            "Telegram": {
+                "responsibilities": "User interface and report delivery",
+                "rateLimits": "30 messages per second",
+                "errorHandling": "Retry with 3 attempts"
+            },
+            "Claude": {
+                "responsibilities": "Summary generation",
+                "rateLimits": "5 requests per minute",
+                "errorHandling": "Fallback to raw message format"
+            }
+        },
+        "keyDependencies": {
+            "anthropic": "Latest stable version",
+            "python-dotenv": "Latest stable version",
+            "requests": "Latest stable version"
+        }
     },
     "codeStyle": {
         "language": "python",
         "conventions": {
             "functionNaming": "snake_case",
             "classNaming": "PascalCase",
-            "docstrings": "Use clear, concise docstrings for all functions",
-            "logging": "Use the logging module for all debug/info/error messages"
+            "docstrings": "Google style docstrings for all functions",
+            "logging": "Use logging module with appropriate levels",
+            "typeHints": "Required for all new code",
+            "formatting": {
+                "tool": "black",
+                "lineLength": 100
+            },
+            "imports": {
+                "tool": "isort",
+                "style": "grouped with standard ordering"
+            }
         }
     },
     "architecture": {
@@ -32,12 +66,51 @@
         "dataFlow": [
             "Discord messages → Message processing → Claude summarization → Telegram output",
             "Summaries stored using file_ops.py for context in future summaries"
-        ]
+        ],
+        "errorHandling": {
+            "networkErrors": "Exponential backoff with max retry",
+            "apiErrors": "Circuit breaker pattern",
+            "processingErrors": "Skip and log for manual review"
+        },
+        "performance": {
+            "messageProcessing": "Max 5 seconds per message",
+            "summaryGeneration": "Max 30 seconds per summary",
+            "reportDelivery": "Max 2 seconds per report"
+        }
     },
     "bestPractices": {
         "errorHandling": "Use try-except blocks with specific exceptions",
-        "logging": "Include detailed logging for debugging and monitoring",
-        "configManagement": "Use environment variables for sensitive data",
-        "apiCalls": "Include proper error handling and rate limiting"
+        "logging": {
+            "levels": {
+                "DEBUG": "Detailed information for debugging",
+                "INFO": "General operational events",
+                "WARNING": "Unexpected but handled situations",
+                "ERROR": "Failures requiring attention"
+            },
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        },
+        "configManagement": {
+            "sensitive": "Use environment variables",
+            "operational": "Use configuration files",
+            "defaults": "Define in constants.py"
+        },
+        "apiCalls": {
+            "rateLimit": "Implement per-service rate limiting",
+            "retry": "Use exponential backoff",
+            "timeout": "Set appropriate timeouts per service"
+        },
+        "monitoring": {
+            "metrics": [
+                "Message processing rate",
+                "Summary generation time",
+                "API error rates",
+                "Report delivery latency"
+            ],
+            "alerts": {
+                "highPriority": "Service unavailable > 5 minutes",
+                "mediumPriority": "Processing delays > 30 seconds",
+                "lowPriority": "Increased error rates"
+            }
+        }
     }
 }
