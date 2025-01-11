@@ -425,12 +425,17 @@ def process_telegram_callback(callback_query: Dict) -> None:
         handle_timeframe_selection(channel_id, hours)
         # Clear user state after processing
         user_states.pop(TELEGRAM_CHAT_ID, None)
+        
+    elif data.startswith('activity_'):
+        timeframe = data.split('_')[1]
+        check_channel_activity(timeframe)
 
 def setup_bot_commands():
     """Set up the bot's command menu in Telegram"""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setMyCommands"
     commands = [
         {"command": "channels", "description": "📊 List available channels"},
+        {"command": "check_activity", "description": "📈 Check activity in all channels"},
         {"command": "help", "description": "❓ Show available commands"}
     ]
     
@@ -448,6 +453,7 @@ def execute_help_command() -> None:
     help_text = """*📋 Available Commands*
 
 • /channels - List available Discord channels
+• /check_activity - Check activity in all channels
 • /help - Show this help message
 
 Select a channel and enter timeframe to generate reports."""
@@ -475,6 +481,10 @@ def process_telegram_command(message: str) -> None:
         execute_help_command()
     elif command == '/channels':
         execute_channels_command()
+    elif command == '/check_activity':
+        message = "*Select timeframe for activity check:*"
+        reply_markup = create_activity_timeframe_keyboard()
+        send_telegram_message(message, reply_markup)
     elif command.startswith('/'):  # Any other command
         # Check if it's a timeframe input for a selected channel
         if command[1:].replace('.', '').isdigit() or command[1:].endswith(('m', 'h')):
@@ -685,6 +695,57 @@ def execute_24h_reports() -> None:
     else:
         send_telegram_message("ℹ️ No activity in any channel in the last 24 hours")
 
+def create_activity_timeframe_keyboard() -> Dict:
+    """Create inline keyboard for activity check timeframe selection"""
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "30 minutes", "callback_data": "activity_30m"},
+                {"text": "1 hour", "callback_data": "activity_1h"}
+            ],
+            [
+                {"text": "2 hours", "callback_data": "activity_2h"},
+                {"text": "4 hours", "callback_data": "activity_4h"}
+            ]
+        ]
+    }
+
+def check_channel_activity(timeframe: str) -> None:
+    """Check activity across all channels for a given timeframe"""
+    logger.info(f"Checking activity for all channels in the last {timeframe}")
+    send_telegram_message(f"🔄 Checking channel activity for the last {timeframe}...")
+    
+    channels = fetch_filtered_discord_channels(GUILD_ID)
+    if not channels:
+        logger.error("Failed to fetch channels")
+        send_telegram_message("❌ Error: Failed to fetch channels")
+        return
+    
+    channel_stats = {}
+    
+    # Convert timeframe to hours/minutes for message fetching
+    if timeframe.endswith('m'):
+        minutes = int(timeframe[:-1])
+        hours = minutes / 60
+    else:
+        hours = int(timeframe[:-1])
+    
+    for channel in channels:
+        messages = fetch_bot_messages_in_timeframe(channel['id'], hours=hours)
+        message_count = len(messages) if messages else 0
+        if message_count > 0:
+            channel_stats[channel['name']] = message_count
+        time.sleep(1)  # Rate limiting protection
+    
+    if channel_stats:
+        # Sort channels by message count in descending order
+        sorted_stats = dict(sorted(channel_stats.items(), key=lambda x: x[1], reverse=True))
+        summary = f"*📊 Channel Activity ({timeframe})*\n\n"
+        summary += "\n".join(f"• #{name}: {count} messages" for name, count in sorted_stats.items())
+        send_telegram_message(summary)
+    else:
+        send_telegram_message(f"ℹ️ No activity in any channel in the last {timeframe}")
+
 def main():
     logger.info("Starting Discord Report Bot...")
     
@@ -711,6 +772,7 @@ def main():
 
 Available commands:
 • /channels - List channels
+• /check_activity - Check activity in all channels
 • /help - Show help
 """
 
