@@ -5,10 +5,10 @@ After=network.target
 [Service]
 User=root
 Group=root
-WorkingDirectory=/root/news-web/web
+WorkingDirectory=/root/news-web
 Environment="PATH=/root/news-web/.venv/bin"
 Environment="PYTHONPATH=/root/news-web"
-ExecStart=/root/news-web/.venv/bin/gunicorn app:app -c gunicorn.conf.py
+ExecStart=/root/news-web/.venv/bin/gunicorn -c web/gunicorn.conf.py web.app:app
 Restart=always
 RestartSec=5
 
