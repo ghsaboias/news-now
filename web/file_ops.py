@@ -4,11 +4,18 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, List
 import shutil
 import logging
+import sys
 
+# Add parent directory to path to import config
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import DATA_DIR, SUMMARY_RETENTION, LOG_FORMAT
+
+# Configure logging
+logging.basicConfig(format=LOG_FORMAT)
 logger = logging.getLogger(__name__)
 
 class FileOps:
-    def __init__(self, base_dir: str = "data"):
+    def __init__(self, base_dir: str = DATA_DIR):
         self.base_dir = base_dir
         
     def _ensure_channel_dir(self, channel_name: str) -> str:
@@ -24,6 +31,28 @@ class FileOps:
         except Exception as e:
             logger.error(f"Error creating directories for {channel_name}: {e}")
             raise
+
+    def _cleanup_old_summaries(self, summaries_file: str, timeframe: str) -> None:
+        """Clean up old summaries based on retention policy"""
+        try:
+            if os.path.exists(summaries_file):
+                with open(summaries_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                
+                # Get retention limit for this timeframe
+                retain_count = SUMMARY_RETENTION.get(timeframe, 30)  # Default to 30 if not specified
+                
+                if len(data['summaries']) > retain_count:
+                    # Keep only the most recent summaries
+                    data['summaries'] = data['summaries'][:retain_count]
+                    
+                    # Write back to file
+                    with open(summaries_file, 'w', encoding='utf-8') as f:
+                        json.dump(data, f, indent=2, ensure_ascii=False)
+                    
+                    logger.info(f"Cleaned up {summaries_file}, keeping {retain_count} most recent summaries")
+        except Exception as e:
+            logger.error(f"Error cleaning up old summaries in {summaries_file}: {e}")
 
     def append_formatted_messages(self, channel_name: str, messages: str, period_start: datetime, period_end: datetime) -> None:
         """Store unique messages chronologically"""
@@ -98,6 +127,9 @@ class FileOps:
                 # Write back to file
                 with open(summaries_file, 'w', encoding='utf-8') as f:
                     json.dump(data, f, indent=2, ensure_ascii=False)
+                    
+                # Clean up old summaries based on retention policy
+                self._cleanup_old_summaries(summaries_file, timeframe)
             else:
                 logger.info(f"Summary for period already exists in {summaries_file}, skipping")
                 
@@ -105,40 +137,20 @@ class FileOps:
             logger.error(f"Error saving summary to {summaries_file}: {e}")
             raise
 
-    def get_latest_summary(self, channel_name: str, current_timeframe: str) -> Optional[Dict]:
-        """Get the most recent summary, prioritizing same timeframe"""
-        channel_dir = self._ensure_channel_dir(channel_name)
-        summaries_dir = os.path.join(channel_dir, "summaries")
-        
+    def get_latest_summary(self, channel_name: str, timeframe: str) -> Optional[Dict]:
+        """Get the latest summary for a channel and timeframe"""
         try:
-            # First try to get summary from same timeframe
-            same_timeframe_file = os.path.join(summaries_dir, f"{current_timeframe}_summaries.json")
-            if os.path.exists(same_timeframe_file):
-                with open(same_timeframe_file, 'r', encoding='utf-8') as f:
+            channel_dir = os.path.join(self.base_dir, channel_name)
+            summaries_file = os.path.join(channel_dir, "summaries", f"{timeframe}_summaries.json")
+            
+            if os.path.exists(summaries_file):
+                with open(summaries_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                    if data["summaries"]:
-                        return data["summaries"][0]
-            
-            # If not found, get most recent summary from any timeframe
-            latest_summary = None
-            latest_timestamp = None
-            
-            for filename in os.listdir(summaries_dir):
-                if filename.endswith('_summaries.json'):
-                    file_path = os.path.join(summaries_dir, filename)
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                        if data["summaries"]:
-                            summary = data["summaries"][0]
-                            timestamp = datetime.fromisoformat(summary['period_end'])
-                            if latest_timestamp is None or timestamp > latest_timestamp:
-                                latest_timestamp = timestamp
-                                latest_summary = summary
-            
-            return latest_summary
-            
+                    if data['summaries']:
+                        return data['summaries'][0]  # Return most recent summary
+            return None
         except Exception as e:
-            logger.error(f"Error reading summary for {channel_name}: {e}")
+            logger.error(f"Error reading latest summary for {channel_name}: {e}")
             return None
 
     def check_disk_space(self) -> bool:

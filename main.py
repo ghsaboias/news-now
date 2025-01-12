@@ -1,5 +1,4 @@
 import os
-from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 import requests
 import json
@@ -10,34 +9,34 @@ import logging
 from logging.handlers import RotatingFileHandler
 import signal
 import sys
-from file_ops import FileOps
-from operator import itemgetter
+from web.file_ops import FileOps
 
-# Load environment variables
-load_dotenv()
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-GUILD_ID = os.getenv("GUILD_ID")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+# Import configuration
+from config import (
+    DISCORD_TOKEN, GUILD_ID, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
+    ANTHROPIC_API_KEY, REPORT_THRESHOLDS, LOG_FILE, LOG_FORMAT,
+    LOG_MAX_BYTES, LOG_BACKUP_COUNT
+)
 
-# Add logging configuration after imports
+# Configure logging
 logging.basicConfig(
     handlers=[
         RotatingFileHandler(
-            'bot.log',
-            maxBytes=10485760,  # 10MB
-            backupCount=5
+            LOG_FILE,
+            maxBytes=LOG_MAX_BYTES,
+            backupCount=LOG_BACKUP_COUNT
         ),
         logging.StreamHandler()
     ],
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format=LOG_FORMAT,
     level=logging.INFO
 )
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+# Initialize Claude client
+claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 # Add graceful shutdown handling
 def signal_handler(signum, frame):
@@ -47,7 +46,7 @@ def signal_handler(signum, frame):
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
 
-# Add after other global variables
+# Initialize file operations
 file_ops = FileOps()
 user_states = {}
 
@@ -579,7 +578,7 @@ def run_telegram_message_loop() -> None:
             logger.info(f"Retrying in {delay} seconds...")
             time.sleep(delay)
 
-def generate_report_if_threshold_met(channel_id: str, channel_name: str, timeframe: str, min_messages: int) -> Tuple[int, bool]:
+def generate_report_if_threshold_met(channel_id: str, channel_name: str, timeframe: str, min_messages: int = None) -> Tuple[int, bool]:
     """Generate and optionally send a report if message threshold is met
     Returns: (message_count, whether_report_was_saved)"""
     # Convert timeframe to hours for message fetching
@@ -596,6 +595,10 @@ def generate_report_if_threshold_met(channel_id: str, channel_name: str, timefra
         
     message_count = len(messages)
     logger.info(f"Found {message_count} messages for #{channel_name} in the last {timeframe}")
+    
+    # Use configured threshold if not specified
+    if min_messages is None:
+        min_messages = REPORT_THRESHOLDS.get(timeframe, 5)  # Default to 5 if not configured
     
     # Generate report regardless of threshold
     summary, period_start, period_end = create_ai_summary(messages, channel_name, hours)

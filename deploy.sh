@@ -1,76 +1,63 @@
 #!/bin/bash
 
+# Exit on any error
+set -e
+
 # Configuration
-SERVER="root@138.68.163.17"
-REMOTE_DIR="/root/news-web"
-LOCAL_DIR="."
+APP_DIR="/root/discord-report-bot"
+DATA_DIR="$APP_DIR/data"
+WEB_USER="www-data"  # The user running the web service
+BOT_USER="root"      # The user running the bot service
 
-# Colors for output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
+echo "Starting deployment..."
 
-echo -e "${GREEN}🚀 Starting deployment to aiworld.com.br...${NC}"
+# Create necessary directories
+echo "Creating directories..."
+mkdir -p "$DATA_DIR"
+mkdir -p "$APP_DIR/logs"
 
-# 1. Sync web files
-echo -e "\n${GREEN}📂 Copying web files...${NC}"
-rsync -avz --progress ./web/ $SERVER:$REMOTE_DIR/web/
-
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✅ Files copied successfully${NC}"
-else
-    echo -e "${RED}❌ Error copying files${NC}"
-    exit 1
+# Set up virtual environment if it doesn't exist
+if [ ! -d "$APP_DIR/.venv" ]; then
+    echo "Creating virtual environment..."
+    python3 -m venv "$APP_DIR/.venv"
 fi
 
-# 2. Set up service file and restart services
-echo -e "\n${GREEN}🔄 Setting up service and restarting...${NC}"
-ssh $SERVER << 'EOF'
-    # Create service file
-    cat > /etc/systemd/system/news-now-web.service << 'SERVICEEOF'
-[Unit]
-Description=News Now Web Application
-After=network.target
+# Activate virtual environment
+source "$APP_DIR/.venv/bin/activate"
 
-[Service]
-User=root
-Group=root
-WorkingDirectory=/root/news-web/web
-Environment="PATH=/root/news-web/.venv/bin"
-Environment="PYTHONPATH=/root/news-web"
-ExecStart=/root/news-web/.venv/bin/gunicorn app:app -c gunicorn.conf.py
-Restart=always
-RestartSec=5
+# Install/upgrade dependencies
+echo "Installing dependencies..."
+pip install --upgrade pip
+pip install -r requirements.txt
 
-[Install]
-WantedBy=multi-user.target
-SERVICEEOF
+# Set proper permissions
+echo "Setting permissions..."
+chown -R $BOT_USER:$WEB_USER "$DATA_DIR"
+chmod -R 775 "$DATA_DIR"  # Both bot and web can read/write
 
-    # Set proper permissions
-    chown -R root:root /root/news-web
-    chmod -R 755 /root/news-web
-    chmod 644 /etc/systemd/system/news-now-web.service
+# Set up log directory permissions
+chown -R $BOT_USER:$BOT_USER "$APP_DIR/logs"
+chmod -R 755 "$APP_DIR/logs"
 
-    # Reload systemd and restart service
-    systemctl daemon-reload
-    systemctl enable news-now-web
-    systemctl restart news-now-web
+# Copy and reload systemd services
+echo "Setting up services..."
+cp discord-report-bot.service /etc/systemd/system/
+cp discord-bot-watchdog.service /etc/systemd/system/
+cp news-web.service /etc/systemd/system/
 
-    # Check service status
-    if systemctl is-active --quiet news-now-web; then
-        echo "✅ Web service restarted successfully"
-        systemctl status news-now-web --no-pager
-    else
-        echo "❌ Error: Web service failed to restart"
-        systemctl status news-now-web --no-pager
-        exit 1
-    fi
-EOF
+# Reload systemd
+systemctl daemon-reload
 
-if [ $? -eq 0 ]; then
-    echo -e "\n${GREEN}✅ Deployment completed successfully!${NC}"
-    echo -e "🌎 Website should be updated at https://aiworld.com.br"
-else
-    echo -e "\n${RED}❌ Deployment failed${NC}"
-    exit 1
-fi 
+# Restart services
+echo "Restarting services..."
+systemctl restart discord-report-bot
+systemctl restart discord-bot-watchdog
+systemctl restart news-web
+
+echo "Deployment complete!"
+
+# Show service status
+echo -e "\nService Status:"
+systemctl status discord-report-bot --no-pager
+systemctl status discord-bot-watchdog --no-pager
+systemctl status news-web --no-pager 

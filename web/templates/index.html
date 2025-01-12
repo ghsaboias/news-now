@@ -3,237 +3,59 @@
 {% block title %}News Now - Live Updates{% endblock %}
 
 {% block content %}
-<div class="space-y-8">
-    <div class="text-center">
-        <h1 class="text-4xl font-bold text-gray-900">Latest Updates</h1>
-        <p class="mt-3 text-lg text-gray-600">Real-time news from monitored channels</p>
+<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="text-center mb-12">
+        <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-3">Live News Updates</h1>
+        <p class="text-lg text-gray-600 dark:text-gray-400">Real-time summaries from monitored channels</p>
+        <p class="text-sm text-gray-500 dark:text-gray-500 mt-2">Last update: {{ datetime.now().strftime('%H:%M UTC') }}</p>
     </div>
 
-    <!-- Filter Bar -->
-    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <div class="flex flex-wrap items-start gap-8">
-            <!-- Region Filter -->
-            <div class="flex-1 min-w-[200px]">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Region</label>
-                <select id="region-filter" class="w-full text-sm border-gray-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white">
-                    <option value="all">All Regions</option>
-                    <option value="middle-east">Middle East</option>
-                    <option value="europe">Europe</option>
-                    <option value="africa">Africa</option>
-                    <option value="americas">Americas</option>
-                    <option value="asia">Asia</option>
-                </select>
-            </div>
-
-            <!-- Priority Filter -->
-            <div class="flex-1 min-w-[200px]">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Priority Level</label>
-                <div class="space-y-2">
-                    <label class="flex items-center">
-                        <input type="checkbox" class="form-checkbox text-red-600 rounded border-gray-300" checked>
-                        <span class="ml-2 text-sm text-gray-700 flex items-center">
-                            <span class="w-2 h-2 bg-red-500 rounded-full mr-1.5"></span>
-                            High Priority
-                        </span>
-                    </label>
-                    <label class="flex items-center">
-                        <input type="checkbox" class="form-checkbox text-yellow-600 rounded border-gray-300" checked>
-                        <span class="ml-2 text-sm text-gray-700 flex items-center">
-                            <span class="w-2 h-2 bg-yellow-500 rounded-full mr-1.5"></span>
-                            Medium Priority
-                        </span>
-                    </label>
-                    <label class="flex items-center">
-                        <input type="checkbox" class="form-checkbox text-orange-600 rounded border-gray-300" checked>
-                        <span class="ml-2 text-sm text-gray-700 flex items-center">
-                            <span class="w-2 h-2 bg-orange-500 rounded-full mr-1.5"></span>
-                            Low Priority
-                        </span>
-                    </label>
-                </div>
-            </div>
-
-            <!-- Timeframe Filter -->
-            <div class="flex-1 min-w-[200px]">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Timeframe</label>
-                <div class="flex flex-wrap gap-2">
-                    <button class="px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors duration-200">10m</button>
-                    <button class="px-3 py-1.5 text-sm font-medium rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors duration-200">1h</button>
-                    <button class="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors duration-200">24h</button>
-                    <button class="px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-50 text-gray-700 hover:bg-gray-100 transition-colors duration-200">All</button>
-                </div>
-            </div>
-
-            <!-- Sort Options -->
-            <div class="flex-1 min-w-[200px]">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
-                <select id="sort-filter" class="w-full text-sm border-gray-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white">
-                    <option value="latest">Latest First</option>
-                    <option value="priority">Priority</option>
-                    <option value="activity">Most Active</option>
-                    <option value="alphabetical">Alphabetical</option>
-                </select>
-            </div>
-        </div>
-    </div>
-
-    <!-- Channel Grid -->
     <div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        {% for channel in channels %}
-        <div class="bg-white overflow-hidden shadow-sm hover:shadow-md rounded-xl news-card border border-gray-100 transition-all duration-200">
+        {% for item in news_items %}
+        <article class="bg-white dark:bg-dark-200 overflow-hidden rounded-xl border border-gray-100 dark:border-dark-300 hover:border-gray-200 dark:hover:border-dark-200 transition-all duration-200">
             <div class="p-6">
-                <!-- Card Header -->
-                <div class="flex items-center justify-between border-b border-gray-100 pb-4 mb-4">
-                    <div class="flex-1">
-                        <div class="flex items-center space-x-2">
-                            <h2 class="text-2xl font-bold text-gray-900">{{ channel.display_name }}</h2>
-                            {% if (datetime.now() - datetime.strptime(channel.period_end, '%B %d, %Y %H:%M UTC')).total_seconds() < 1800 %}
-                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 animate-pulse">Live</span>
-                            {% endif %}
-                        </div>
-                        <div class="mt-2 flex items-center space-x-3">
-                            {% set minutes = (datetime.now() - datetime.strptime(channel.period_end, '%B %d, %Y %H:%M UTC')).seconds // 60 %}
-                            <span class="text-sm text-gray-500">
-                                {% if minutes >= 60 %}
-                                    {{ minutes // 60 }}h {{ minutes % 60 }}m ago
-                                {% else %}
-                                    {{ minutes }}m ago
-                                {% endif %}
-                            </span>
-                            <span class="text-sm text-gray-400">•</span>
-                            <span class="text-sm text-gray-500">{{ channel.name.split('-')[0] }}</span>
-                            {% if channel.message_count %}
-                            <span class="text-sm text-gray-400">•</span>
-                            <span class="text-sm text-gray-500">{{ channel.message_count }} messages</span>
+                <!-- Header -->
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white tracking-tight">{{ item.display_name }}</h2>
+                        <div class="mt-1.5 flex items-center gap-x-4">
+                            <time class="text-sm text-gray-500 dark:text-gray-400 tabular-nums">{{ item.timestamp.split('UTC')[0].strip() }}</time>
+                            {% if item.priority == 'high' %}
+                            <span class="inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 ring-1 ring-inset ring-red-600/20 dark:ring-red-500/30">High Priority</span>
                             {% endif %}
                         </div>
                     </div>
-                    <div class="flex items-center space-x-2">
-                        <button class="p-2 text-gray-400 hover:text-gray-600 transition-colors duration-200" title="Bookmark">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>
-                            </svg>
-                        </button>
-                        <a href="{{ url_for('channel', channel_name=channel.name) }}" 
-                           class="inline-flex items-center px-4 py-2 border border-gray-200 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors duration-200">
-                            View Details
-                            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                            </svg>
-                        </a>
-                    </div>
+                    <a href="{{ url_for('channel', channel_name=item.channel) }}" 
+                       class="inline-flex items-center text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors duration-200">
+                        Full Coverage <span class="ml-1">→</span>
+                    </a>
                 </div>
                 
-                <!-- Card Content -->
-                <div class="prose prose-sm max-w-none">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-3">{{ channel.summary.split('\n')[0] }}</h3>
-                    <div class="text-gray-600 whitespace-pre-line leading-relaxed max-h-[500px] overflow-y-auto">{{ '\n'.join(channel.summary.split('\n')[1:]) | safe }}</div>
-                </div>
-
-                <!-- Card Footer -->
-                <div class="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-                    <div class="flex items-center space-x-4">
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ 'bg-blue-100 text-blue-800' if channel.timeframe == '10m' else 'bg-purple-100 text-purple-800' if channel.timeframe == '1h' else 'bg-indigo-100 text-indigo-800' }}">
-                            {{ channel.timeframe }}
-                        </span>
-                    </div>
-                    <div class="flex items-center space-x-4">
-                        <button class="text-sm text-gray-500 hover:text-gray-700 font-medium flex items-center space-x-1">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z"/>
-                            </svg>
-                            <span>Share</span>
-                        </button>
-                        <button class="text-sm text-gray-500 hover:text-gray-700 font-medium flex items-center space-x-1">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
-                            </svg>
-                            <span>Subscribe</span>
-                        </button>
-                    </div>
+                <!-- Content -->
+                <div class="space-y-3">
+                    {% set lines = item.summary.split('\n') %}
+                    {% if lines|length > 0 %}
+                        <h3 class="text-base font-bold text-gray-900 dark:text-white leading-6">{{ lines[0] }}</h3>
+                        {% if lines|length > 1 %}
+                            <div class="prose prose-gray dark:prose-invert prose-sm max-w-none text-gray-600 dark:text-gray-300">
+                                {{ '\n'.join(lines[1:]) | safe }}
+                            </div>
+                        {% endif %}
+                    {% endif %}
                 </div>
             </div>
-        </div>
+        </article>
         {% else %}
-        <div class="col-span-full text-center py-12 bg-white shadow-sm rounded-xl border border-gray-100">
-            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
-            </svg>
-            <p class="mt-4 text-gray-600 font-medium">No updates available</p>
-            <p class="mt-2 text-sm text-gray-500">Check back soon</p>
+        <div class="col-span-full">
+            <div class="bg-white dark:bg-dark-200 rounded-xl py-12 px-4 text-center border border-gray-100 dark:border-dark-300">
+                <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+                </svg>
+                <h3 class="mt-4 text-base font-medium text-gray-900 dark:text-white">No summaries available</h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Check back later for updates</p>
+            </div>
         </div>
         {% endfor %}
     </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const regionFilter = document.getElementById('region-filter');
-    const sortFilter = document.getElementById('sort-filter');
-    const timeframeButtons = document.querySelectorAll('[data-timeframe]');
-    const cards = document.querySelectorAll('.news-card');
-    const priorityCheckboxes = document.querySelectorAll('input[type="checkbox"]');
-
-    function filterCards() {
-        const region = regionFilter.value;
-        const sortBy = sortFilter.value;
-        const selectedPriorities = Array.from(priorityCheckboxes)
-            .filter(cb => cb.checked)
-            .map(cb => cb.nextElementSibling.textContent.trim().toLowerCase());
-
-        cards.forEach(card => {
-            let showCard = true;
-
-            // Region filtering
-            if (region !== 'all') {
-                const cardRegion = card.querySelector('.text-gray-500').textContent.toLowerCase();
-                if (!cardRegion.includes(region)) {
-                    showCard = false;
-                }
-            }
-
-            // Priority filtering
-            const cardPriority = card.dataset.priority;
-            if (!selectedPriorities.includes(cardPriority)) {
-                showCard = false;
-            }
-
-            card.style.display = showCard ? 'block' : 'none';
-        });
-
-        // Sort cards
-        const cardsArray = Array.from(cards).filter(card => card.style.display !== 'none');
-        cardsArray.sort((a, b) => {
-            if (sortBy === 'latest') {
-                return b.dataset.timestamp - a.dataset.timestamp;
-            } else if (sortBy === 'priority') {
-                return b.dataset.priorityLevel - a.dataset.priorityLevel;
-            } else if (sortBy === 'activity') {
-                return b.dataset.messageCount - a.dataset.messageCount;
-            } else {
-                return a.dataset.name.localeCompare(b.dataset.name);
-            }
-        });
-
-        const container = document.querySelector('.grid');
-        cardsArray.forEach(card => container.appendChild(card));
-    }
-
-    regionFilter.addEventListener('change', filterCards);
-    sortFilter.addEventListener('change', filterCards);
-    timeframeButtons.forEach(btn => btn.addEventListener('click', filterCards));
-    priorityCheckboxes.forEach(cb => cb.addEventListener('change', filterCards));
-
-    // Initialize tooltips
-    const tooltips = document.querySelectorAll('[title]');
-    tooltips.forEach(el => {
-        tippy(el, {
-            content: el.getAttribute('title'),
-            placement: 'top',
-            arrow: true,
-            theme: 'light-border'
-        });
-    });
-});
-</script>
 {% endblock %}
