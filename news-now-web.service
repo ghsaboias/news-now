@@ -1,0 +1,16 @@
+[Unit]
+Description=News Now Web Application
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/root/news-web/web
+Environment="PATH=/root/news-web/.venv/bin"
+Environment="PYTHONPATH=/root/news-web"
+ExecStart=/root/news-web/.venv/bin/gunicorn app:app -c gunicorn.conf.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target 

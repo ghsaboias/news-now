@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}News Now{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@popperjs/core@2"></script>
+    <script src="https://unpkg.com/tippy.js@6"></script>
+    <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/themes/light-border.css"/>
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+    <style>
+        html { font-family: 'Inter', sans-serif; }
+        @supports (font-variation-settings: normal) {
+            html { font-family: 'Inter var', sans-serif; }
+        }
+        .news-card { transition: all 0.2s ease-in-out; }
+        .news-card:hover { transform: translateY(-2px); }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-50">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto">
+            <!-- Top Bar -->
+            <div class="border-b border-gray-100">
+                <div class="px-4 sm:px-6 lg:px-8 py-2">
+                    <div class="flex items-center justify-between text-xs text-gray-500">
+                        <div class="flex items-center space-x-4">
+                            <span class="flex items-center">
+                                <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5 animate-pulse"></span>
+                                System Status: Operational
+                            </span>
+                            <span>Last Update: {{ datetime.now().strftime('%H:%M:%S UTC') }}</span>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <a href="#" class="hover:text-gray-700">Documentation</a>
+                            <a href="#" class="hover:text-gray-700">Support</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Navigation -->
+            <div class="px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <!-- Left side -->
+                    <div class="flex items-center">
+                        <a href="/" class="flex items-center space-x-3">
+                            <span class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-blue-800">News Now</span>
+                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 animate-pulse">Live</span>
+                        </a>
+                        <nav class="hidden md:flex ml-8 space-x-6">
+                            <a href="/" class="text-sm font-medium text-gray-700 hover:text-blue-600 flex items-center space-x-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                                </svg>
+                                <span>Dashboard</span>
+                            </a>
+                            <a href="#" class="text-sm font-medium text-gray-700 hover:text-blue-600 flex items-center space-x-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/>
+                                </svg>
+                                <span>Reports</span>
+                            </a>
+                            <a href="#" class="text-sm font-medium text-gray-700 hover:text-blue-600 flex items-center space-x-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                                <span>Analytics</span>
+                            </a>
+                        </nav>
+                    </div>
+
+                    <!-- Right side -->
+                    <div class="flex items-center space-x-6">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-sm text-gray-500">Timeframes:</span>
+                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">10m</span>
+                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">1h</span>
+                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800">24h</span>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <button class="text-gray-500 hover:text-gray-700" title="Notifications">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                                </svg>
+                            </button>
+                            <button class="text-gray-500 hover:text-gray-700" title="Settings">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-100 mt-12">
+        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-gray-500">Powered by Discord Report Bot</span>
+                    <span class="text-sm text-gray-400">•</span>
+                    <span class="flex items-center text-sm text-green-600">
+                        <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5 animate-pulse"></span>
+                        Connected
+                    </span>
+                </div>
+                <div class="flex items-center space-x-6">
+                    <a href="#" class="text-sm text-gray-500 hover:text-gray-700">Terms</a>
+                    <a href="#" class="text-sm text-gray-500 hover:text-gray-700">Privacy</a>
+                    <a href="#" class="text-sm text-gray-500 hover:text-gray-700">Contact</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Initialize tooltips
+        tippy('[title]', {
+            placement: 'bottom',
+            arrow: true,
+            theme: 'light-border',
+        });
+
+        // Auto-refresh status every minute
+        setInterval(() => {
+            const statusTime = document.querySelector('span:contains("Last Update")');
+            if (statusTime) {
+                statusTime.textContent = `Last Update: ${new Date().toLocaleTimeString()} UTC`;
+            }
+        }, 60000);
+    </script>
+</body>
+</html> 

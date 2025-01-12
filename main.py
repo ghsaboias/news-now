@@ -51,13 +51,25 @@ signal.signal(signal.SIGINT, signal_handler)
 file_ops = FileOps()
 user_states = {}
 
+def escape_markdown_v2(text: str) -> str:
+    """Escape special characters for Telegram MarkdownV2 format"""
+    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for char in special_chars:
+        text = text.replace(char, f'\\{char}')
+    return text
+
 def send_telegram_message(message: str, reply_markup=None, is_error_message: bool = False) -> Optional[dict]:
     """Send a message to Telegram"""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    
+    # Don't escape message if it's an error message
+    if not is_error_message:
+        message = escape_markdown_v2(message)
+    
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
-        "parse_mode": "Markdown"
+        "parse_mode": "MarkdownV2" if not is_error_message else None
     }
     if reply_markup:
         payload["reply_markup"] = reply_markup
@@ -450,13 +462,12 @@ def setup_bot_commands():
 
 def execute_help_command() -> None:
     """Execute the help command and display available commands"""
-    help_text = """*📋 Available Commands*
+    help_text = """🤖 *Discord Report Bot*
 
-• /channels - List available Discord channels
-• /check_activity - Check activity in all channels
-• /help - Show this help message
-
-Select a channel and enter timeframe to generate reports."""
+Available commands:
+- /channels - List channels
+- /check_activity - Check activity in all channels
+- /help - Show help"""
     send_telegram_message(help_text)
 
 def execute_channels_command() -> None:
@@ -768,13 +779,12 @@ def main():
         # Set up bot commands menu
         setup_bot_commands()
         
-        welcome_message = """*🤖 Discord Report Bot*
+        welcome_message = """🤖 *Discord Report Bot*
 
-Available commands:
-• /channels - List channels
-• /check_activity - Check activity in all channels
-• /help - Show help
-"""
+*Available commands:*
+/channels \- List channels
+/check\_activity \- Check activity in all channels
+/help \- Show help"""
 
         logger.info("Sending welcome message...")
         send_telegram_message(welcome_message)
