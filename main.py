@@ -9,6 +9,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import signal
 import sys
+import report_generator
 from web.file_ops import FileOps
 from report_generator import ReportGenerator
 
@@ -38,6 +39,9 @@ logger.setLevel(logging.DEBUG)
 
 # Initialize Claude client
 claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+# Initialize ReportGenerator
+report_gen = ReportGenerator(claude_client, logger)
 
 # Add graceful shutdown handling
 def signal_handler(signum, frame):
@@ -340,7 +344,7 @@ def handle_timeframe_selection(channel_id: str, hours: int) -> None:
         return
     
     try:
-        summary, period_start, period_end = create_ai_summary(messages, channel_name, hours)
+        summary, period_start, period_end = report_gen.create_ai_summary(messages, channel_name, hours)
         
         if not summary:
             send_telegram_message(
@@ -558,7 +562,6 @@ def generate_report_if_threshold_met(channel_id: str, channel_name: str, timefra
         min_messages = REPORT_THRESHOLDS.get(timeframe, 5)  # Default to 5 if not configured
     
     # Generate report using ReportGenerator
-    report_gen = ReportGenerator(claude_client, logger)
     timeframe_str = f"{hours}h"
     previous_summary = file_ops.get_latest_summary(channel_name, timeframe_str)
     summary, period_start, period_end = report_gen.create_ai_summary(messages, channel_name, hours, previous_summary)
