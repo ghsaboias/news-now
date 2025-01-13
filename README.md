@@ -8,7 +8,7 @@ A Telegram bot that fetches and summarizes messages from Discord channels, power
 - AI-powered summaries using Claude 3 Haiku
 - Interactive channel selection via Telegram inline keyboards
 - Flexible timeframe selection through interactive buttons
-- Automated periodic reports (10-minute, hourly, and daily)
+- Automated periodic reports (hourly and daily)
 - Smart context handling with previous report incorporation
 - Automatic message threshold detection
 - Persistent summary storage for context continuity
@@ -66,7 +66,6 @@ After using `/channels`, select a channel and timeframe using the interactive bu
 
 ### Report Thresholds
 
-- 10-minute reports: 3+ messages
 - Hourly reports: 5+ messages
 - Daily reports: 10+ messages
 
