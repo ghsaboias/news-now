@@ -1,6 +1,5 @@
 import os
 from datetime import datetime, timedelta, timezone
-import requests
 import json
 from typing import List, Dict, Optional, Tuple
 import time
@@ -12,6 +11,7 @@ import sys
 from web.file_ops import FileOps
 from report_generator import ReportGenerator
 from telegram_bot import TelegramBot
+from discord_client import DiscordClient
 
 # Import configuration
 from config import (
@@ -41,6 +41,7 @@ logger.setLevel(logging.DEBUG)
 claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 report_gen = ReportGenerator(claude_client, logger)
 telegram_bot = TelegramBot(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, logger)
+discord_client = DiscordClient(DISCORD_TOKEN, GUILD_ID, logger)
 
 # Add graceful shutdown handling
 def signal_handler(signum, frame):
@@ -56,86 +57,14 @@ user_states = {}
 
 def fetch_filtered_discord_channels(guild_id: str) -> List[Dict]:
     """Fetch and filter Discord channels based on predefined criteria"""
-    headers = {'Authorization': DISCORD_TOKEN}
-    url = f'https://discord.com/api/v10/guilds/{guild_id}/channels'
-    
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        telegram_bot.send_message(f"Error fetching channels: {response.status_code}")
-        return None
-        
-    channels = json.loads(response.text)
-    
-    # Filter channels
-    allowed_emojis = {'🟡', '🔴', '🟠', '⚫'}
-    filtered_channels = [
-        channel for channel in channels 
-        if channel['type'] == 0 and
-        (
-            len(channel['name']) > 0 and
-            channel['name'][0] in allowed_emojis and
-            ('godly-chat' not in channel['name'] and channel.get('position', 0) < 30)
-            or channel['parent_id'] == '1112044935982633060'
-        ) 
-    ]
-    
-    return filtered_channels
+    channels = discord_client.fetch_channels()
+    if channels is None:
+        telegram_bot.send_message("Error: Could not fetch channels")
+    return channels
 
-def fetch_discord_message_batch(channel_id: str, last_message_id: str = None) -> List[Dict]:
-    """Fetch a single batch of messages from Discord channel"""
-    headers = {'Authorization': DISCORD_TOKEN}
-    url = f'https://discord.com/api/v10/channels/{channel_id}/messages?limit=100'
-    if last_message_id:
-        url += f'&before={last_message_id}'
-        
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        return None
-        
-    return json.loads(response.text)
-
-def fetch_bot_messages_in_timeframe(channel_id: str, hours: int = 24, minutes: int = None) -> List[Dict]:
+def fetch_bot_messages_in_timeframe(channel_id: str, hours: float) -> List[Dict]:
     """Fetch bot messages from a Discord channel within specified timeframe"""
-    messages = []
-    last_message_id = None
-    
-    # Calculate cutoff time based on hours or minutes
-    if minutes is not None:
-        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=minutes)
-        time_str = f"{minutes} minutes"
-    else:
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
-        time_str = f"{hours} hours"
-    
-    logger.info(f"Fetching messages from channel {channel_id} for past {time_str}")
-    
-    while True:
-        batch = fetch_discord_message_batch(channel_id, last_message_id)
-        if not batch:
-            logger.warning(f"No messages received from channel {channel_id}")
-            break
-            
-        # Process batch and get bot messages
-        batch_bot_messages = 0
-        for msg in batch:
-            msg_time = datetime.fromisoformat(msg['timestamp'].rstrip('Z')).replace(tzinfo=timezone.utc)
-            if (msg['author'].get('username') == 'FaytuksBot' and 
-                msg['author'].get('discriminator') == '7032' and 
-                msg_time >= cutoff_time):
-                messages.append(msg)
-                batch_bot_messages += 1
-        
-        logger.info(f"Processed batch of {len(batch)} messages, found {batch_bot_messages} bot messages")
-        
-        # Check if we should stop
-        last_msg_time = datetime.fromisoformat(batch[-1]['timestamp'].rstrip('Z')).replace(tzinfo=timezone.utc)
-        if last_msg_time < cutoff_time:
-            break
-            
-        last_message_id = batch[-1]['id']
-    
-    logger.info(f"Total bot messages found: {len(messages)}")
-    return messages
+    return discord_client.fetch_messages_in_timeframe(channel_id, hours)
 
 def format_raw_message_report(channel_name: str, messages: List[Dict]) -> str:
     """Format raw messages into a basic report format"""
@@ -326,24 +255,6 @@ def process_telegram_callback(callback_query: Dict) -> None:
         timeframe = data.split('_')[1]
         check_channel_activity(timeframe)
 
-def setup_bot_commands():
-    """Set up the bot's command menu in Telegram"""
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setMyCommands"
-    commands = [
-        {"command": "channels", "description": "📊 List available channels"},
-        {"command": "check_activity", "description": "📈 Check activity in all channels"},
-        {"command": "help", "description": "❓ Show available commands"}
-    ]
-    
-    try:
-        response = requests.post(url, json={"commands": commands})
-        if response.status_code == 200:
-            logger.info("Successfully set up bot commands menu")
-        else:
-            logger.error(f"Failed to set up commands menu: {response.status_code}")
-    except Exception as e:
-        logger.error(f"Error setting up commands menu: {e}")
-
 def execute_help_command() -> None:
     """Execute the help command and display available commands"""
     help_text = """🤖 Discord Report Bot
@@ -408,60 +319,6 @@ def process_telegram_command(message: str) -> None:
                 telegram_bot.send_message("❌ Invalid timeframe value. Please use numbers (e.g., 10m, 1h, 24h)")
         else:
             telegram_bot.send_message("❌ Unknown command. Use /help to see available commands")
-
-def run_telegram_message_loop() -> None:
-    """Run the main Telegram message processing loop"""
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
-    last_update_id = None
-    consecutive_errors = 0
-    
-    logger.info("Bot started and listening for messages...")
-    
-    while True:
-        try:
-            params = {'timeout': 100}
-            if last_update_id is not None:
-                params['offset'] = last_update_id
-                
-            response = requests.get(url, params=params, timeout=120)
-            response.raise_for_status()
-            updates = response.json().get('result', [])
-            
-            if updates:
-                logger.info(f"Found {len(updates)} new updates")
-            
-            for update in updates:
-                try:
-                    # Handle callback queries (button clicks)
-                    if 'callback_query' in update:
-                        process_telegram_callback(update['callback_query'])
-                    
-                    # Handle regular messages
-                    message = update.get('message', {}).get('text', '')
-                    if message and message.startswith('/'):
-                        logger.info(f"Processing command: {message}")
-                        process_telegram_command(message)
-                        
-                    # Only update the offset after successfully processing the message
-                    last_update_id = update['update_id'] + 1
-                    
-                except Exception as e:
-                    logger.error(f"Error processing update {update['update_id']}: {e}", exc_info=True)
-                    # Still update offset to avoid getting stuck on a problematic message
-                    last_update_id = update['update_id'] + 1
-            
-            # Reset error counter on successful iteration
-            consecutive_errors = 0
-            time.sleep(1)
-            
-        except requests.exceptions.RequestException as e:
-            consecutive_errors += 1
-            logger.error(f"Network error: {e}")
-            
-            # Exponential backoff with max delay of 5 minutes
-            delay = min(300, 2 ** consecutive_errors)
-            logger.info(f"Retrying in {delay} seconds...")
-            time.sleep(delay)
 
 def generate_report_if_threshold_met(channel_id: str, channel_name: str, timeframe: str, min_messages: int = None) -> Tuple[int, bool]:
     """Generate and optionally send a report if message threshold is met
@@ -646,9 +503,7 @@ def main():
             {"command": "help", "description": "❓ Show available commands"}
         ]
         
-        if not telegram_bot.setup_commands(commands):
-            # Fallback to old implementation
-            setup_bot_commands()
+        telegram_bot.setup_commands(commands)
         
         welcome_message = """🤖 Discord Report Bot
 
@@ -658,9 +513,7 @@ Available commands:
 • /help - Show help"""
 
         logger.info("Sending welcome message...")
-        if not telegram_bot.send_message(welcome_message):
-            # Fallback to old implementation
-            telegram_bot.send_message(welcome_message)
+        telegram_bot.send_message(welcome_message)
             
         logger.info("Starting message handler...")
         
