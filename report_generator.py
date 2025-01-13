@@ -102,7 +102,13 @@ class ReportGenerator:
         - Reference previous events only if they directly relate to new developments
         - Avoid repeating old information unless it provides crucial context
         - If a situation has evolved, clearly indicate what has changed
-        - Maintain chronological clarity when connecting past and present events"""
+        - Maintain chronological clarity when connecting past and present events
+        
+        Example format:
+        MAJOR DEVELOPMENT OCCURS IN REGION
+        Tel Aviv, March 20, 2024 
+        
+        First paragraph with main verified development..."""
         
         try:
             response = self.claude_client.messages.create(
