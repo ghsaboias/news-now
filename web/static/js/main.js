@@ -49,4 +49,18 @@ $(document).ready(function() {
             theme: 'light-border',
         });
     }
+});
+
+// Convert UTC timestamps to local time
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('[data-local-time]').forEach(el => {
+        const utc = new Date(el.getAttribute('datetime'));
+        el.textContent = utc.toLocaleString(undefined, {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    });
 }); 

@@ -14,4 +14,4 @@ if [ -z "$PROD_SERVER" ]; then
     exit 1
 fi
 
-rsync -av --exclude 'data' --exclude '.git' --exclude '.venv' --exclude '__pycache__' --exclude '.env' --exclude '.pytest_cache' . root@$PROD_SERVER:/var/www/news-now/ && ssh root@$PROD_SERVER "cd /var/www/news-now && chown -R www-data:www-data . && chmod -R 755 . && systemctl restart news-web && systemctl restart discord-report-bot"
+rsync -av --exclude 'data' --exclude '.git' --exclude '.venv' --exclude '__pycache__' --exclude '.env' --exclude '.pytest_cache' . root@$PROD_SERVER:/var/www/news-now/ && ssh root@$PROD_SERVER "cd /var/www/news-now && mkdir -p logs && chown -R www-data:www-data . && chmod -R 755 . && chmod 775 logs && systemctl restart news-web && systemctl restart discord-report-bot"

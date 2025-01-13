@@ -10,7 +10,6 @@ import re
 import unicodedata
 
 # Add parent directory to path to import config
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import DATA_DIR, LOG_FORMAT
 
 # Configure logging
@@ -76,14 +75,8 @@ def get_latest_summary(channel_dir: str, include_user_reports: bool = True) -> d
         # Find the most recent summary
         latest_summary = max(summaries, key=lambda x: datetime.fromisoformat(x['period_end']))
         
-        result = {
-            'summary': latest_summary['content'],
-            'timestamp': datetime.fromisoformat(latest_summary['period_end']).strftime('%B %d, %Y %H:%M UTC'),
-            'timeframe': latest_summary.get('timeframe', '1h'),  # Default to 1h if not specified
-            'is_user_report': latest_summary.get('is_user_report', False)
-        }
-        logger.debug(f"Parsed summary: {str(result)[:100]}...")
-        return result
+        logger.debug(f"Latest summary: {latest_summary}")
+        return latest_summary
             
     except Exception as e:
         logger.error(f"Error reading summary for {channel_dir}: {str(e)}")
@@ -101,13 +94,14 @@ def _get_summaries_from_dir(summaries_dir: str) -> List[Dict]:
             
         filepath = os.path.join(summaries_dir, filename)
         try:
-            with open(filepath) as f:
+            with open(filepath, 'r') as f:
                 data = json.load(f)
-                if data.get('summaries'):
+                if 'summaries' in data and isinstance(data['summaries'], list):
                     summaries.extend(data['summaries'])
         except Exception as e:
             logger.error(f"Error reading {filepath}: {str(e)}")
-            
+            continue
+    
     return summaries
 
 def get_channel_slug(name: str) -> str:
@@ -137,6 +131,31 @@ def get_channel_slug(name: str) -> str:
         logger.error(f"Error creating slug for channel '{name}': {str(e)}")
         return 'untitled'  # Safe fallback
 
+def clean_channel_name(name: str) -> str:
+    """Clean channel name for Telegram display by removing problematic characters."""
+    return name.replace('-', ' ')
+
+def extract_channel_tags(channel_name: str) -> List[str]:
+    """Extract meaningful tags from a channel name by removing emojis, splitting on hyphens,
+    and filtering out common suffixes."""
+    import re
+    
+    # Remove any leading emojis (any non-ASCII characters at the start)
+    clean_name = re.sub(r'^[^\x00-\x7F]+', '', channel_name)
+    
+    # Split by hyphens and filter out common suffixes
+    common_suffixes = {'live', 'confirmed', 'updates', 'news', 'breaking'}
+    tags = []
+    
+    for part in clean_name.split('-'):
+        part = part.strip()
+        if part and part.lower() not in common_suffixes:
+            # Capitalize each word
+            tag = ' '.join(word.capitalize() for word in part.split())
+            tags.append(tag)
+    
+    return tags
+
 @app.route('/')
 def index():
     try:
@@ -152,18 +171,21 @@ def index():
             logger.debug(f"Processing channel: {channel_name}")
             
             if os.path.isdir(channel_dir):
-                latest_summary = get_latest_summary(channel_dir)
-                if latest_summary:
+                latest = get_latest_summary(channel_dir)
+                if latest and latest['content']:
+                    summary_content = latest['content']
                     channel_slug = get_channel_slug(channel_name)
                     news_item = {
                         'channel': channel_name,
                         'channel_slug': channel_slug,
                         'display_name': format_channel_name(channel_name),
-                        'summary': latest_summary['summary'],
-                        'timestamp': latest_summary['timestamp'],
+                        'headline': summary_content['headline'],
+                        'location': summary_content.get('location', 'Location Unknown'),
+                        'body': summary_content['body'],
+                        'timestamp': datetime.fromisoformat(latest['period_end']),
                         'priority': get_priority(channel_name),
-                        'timeframe': latest_summary['timeframe'],
-                        'is_user_report': latest_summary.get('is_user_report', False)
+                        'timeframe': latest['timeframe'],
+                        'tags': extract_channel_tags(channel_name)  # Add tags to news item
                     }
                     logger.debug(f"Created news item: {str(news_item)[:100]}...")
                     news_items.append(news_item)

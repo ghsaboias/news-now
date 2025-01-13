@@ -7,9 +7,11 @@ load_dotenv()
 # Base paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.getenv('DATA_DIR', os.path.join('/var/www/news-now/data'))
+LOG_DIR = os.getenv('LOG_DIR', os.path.join('/var/www/news-now/logs'))
 
 # Ensure directories exist
 os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(LOG_DIR, exist_ok=True)
 
 # Discord configuration
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
@@ -35,7 +37,7 @@ SUMMARY_RETENTION = {
 }
 
 # Logging configuration
-LOG_FILE = os.path.join(BASE_DIR, 'bot.log')
+LOG_FILE = os.path.join(LOG_DIR, 'bot.log')
 LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 LOG_MAX_BYTES = 10485760  # 10MB
 LOG_BACKUP_COUNT = 5 

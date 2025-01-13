@@ -63,8 +63,13 @@
                                 </div>
                             </div>
                             <div class="prose prose-sm max-w-none prose-invert">
-                                <h3 class="text-lg font-semibold text-gray-100 mb-3">{{ summary.content.split('\n')[0] }}</h3>
-                                <div class="text-gray-300 whitespace-pre-line leading-relaxed">{{ '\n'.join(summary.content.split('\n')[1:]) | safe }}</div>
+                                <h3 class="text-lg font-semibold text-gray-100 mb-3">{{ summary.content.headline }}</h3>
+                                <div class="flex items-center space-x-2 text-sm text-gray-400 mb-4">
+                                    <span>{{ summary.content.location }}</span>
+                                    <span>•</span>
+                                    <time datetime="{{ summary.content.timestamp }}" data-local-time>{{ summary.content.timestamp }}</time>
+                                </div>
+                                <div class="text-gray-300 whitespace-pre-line leading-relaxed">{{ summary.content.body | safe }}</div>
                             </div>
                         </div>
                     </div>
@@ -93,8 +98,13 @@
                                 </div>
                             </div>
                             <div class="prose prose-sm max-w-none prose-invert">
-                                <h3 class="text-lg font-semibold text-gray-100 mb-3">{{ summary.content.split('\n')[0] }}</h3>
-                                <div class="text-gray-300 whitespace-pre-line leading-relaxed">{{ '\n'.join(summary.content.split('\n')[1:]) | safe }}</div>
+                                <h3 class="text-lg font-semibold text-gray-100 mb-3">{{ summary.content.headline }}</h3>
+                                <div class="flex items-center space-x-2 text-sm text-gray-400 mb-4">
+                                    <span>{{ summary.content.location }}</span>
+                                    <span>•</span>
+                                    <time datetime="{{ summary.content.timestamp }}" data-local-time>{{ summary.content.timestamp }}</time>
+                                </div>
+                                <div class="text-gray-300 whitespace-pre-line leading-relaxed">{{ summary.content.body | safe }}</div>
                             </div>
                         </div>
                     </div>
@@ -132,8 +142,13 @@
                                 </div>
                             </div>
                             <div class="prose prose-sm max-w-none prose-invert">
-                                <h3 class="text-lg font-semibold text-gray-100 mb-3">{{ summary.content.split('\n')[0] }}</h3>
-                                <div class="text-gray-300 whitespace-pre-line leading-relaxed">{{ '\n'.join(summary.content.split('\n')[1:]) | safe }}</div>
+                                <h3 class="text-lg font-semibold text-gray-100 mb-3">{{ summary.content.headline }}</h3>
+                                <div class="flex items-center space-x-2 text-sm text-gray-400 mb-4">
+                                    <span>{{ summary.content.location }}</span>
+                                    <span>•</span>
+                                    <time datetime="{{ summary.content.timestamp }}" data-local-time>{{ summary.content.timestamp }}</time>
+                                </div>
+                                <div class="text-gray-300 whitespace-pre-line leading-relaxed">{{ summary.content.body | safe }}</div>
                             </div>
                         </div>
                     </div>

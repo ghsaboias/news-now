@@ -181,14 +181,6 @@ def create_timeframe_keyboard() -> Dict:
         "inline_keyboard": [
             [
                 {"text": "1 hour", "callback_data": "timeframe_1"},
-                {"text": "2 hours", "callback_data": "timeframe_2"}
-            ],
-            [
-                {"text": "4 hours", "callback_data": "timeframe_4"},
-                {"text": "8 hours", "callback_data": "timeframe_8"}
-            ],
-            [
-                {"text": "12 hours", "callback_data": "timeframe_12"},
                 {"text": "24 hours", "callback_data": "timeframe_24"}
             ]
         ]
@@ -249,10 +241,23 @@ def format_messages_for_claude(messages: List[dict]) -> str:
     
     return "\n---\n".join(formatted_messages)
 
-def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: int) -> Tuple[str, datetime, datetime]:
+def parse_ai_summary(text: str) -> Dict:
+    """Parse AI summary text into structured format"""
+    lines = text.split('\n')
+    headline = lines[0].strip()
+    location = lines[1].strip()
+    body = '\n'.join(lines[3:]).strip()
+    
+    return {
+        "headline": headline,
+        "location": location,
+        "body": body
+    }
+
+def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: int) -> Tuple[Dict, datetime, datetime]:
     """Generate an AI summary of messages using Claude"""
     if not messages:
-        return "No messages found in the specified timeframe.", None, None
+        return None, None, None
 
     # Calculate time period from timestamps
     timestamps = [datetime.fromisoformat(msg['timestamp'].rstrip('Z')).replace(tzinfo=timezone.utc) 
@@ -279,12 +284,13 @@ def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: 
     
     prompt = f"""Create a concise, journalistic report of the following updates, incorporating context from the previous report when relevant.
 
-    {previous_summary_text}Updates to analyze:
+    {previous_summary_text} Updates to analyze:
     {formatted_text}
 
     Requirements:
     - First line must be a factual headline in ALL CAPS that informs about the main event
-    - Second line must be in format: [City/Region], [Month Day, Year]
+    - Second line must be in format: City, Month Day, Year
+    - City must be a properly capitalized city name or appropriate region name
     - First paragraph must summarize the most important verified development
     - Each subsequent paragraph must directly relate to the main topic
     - Maximum 4096 characters, average 2500 characters
@@ -325,17 +331,17 @@ def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: 
             send_telegram_message(f"❌ Error: {error_msg}")
             return None, None, None
             
-        summary = response.content[0].text
-        
-        return summary, period_start, period_end
-        
+        # Parse the summary into structured format
+        structured_summary = parse_ai_summary(response.content[0].text)
+        return structured_summary, period_start, period_end
+            
     except Exception as e:
         error_msg = f"Unexpected error generating summary: {str(e)}"
         logger.error(error_msg, exc_info=True)
         send_telegram_message(f"❌ {error_msg}")
         return None, None, None
 
-def save_summary_to_storage(channel_name: str, summary: str, period_start: datetime, 
+def save_summary_to_storage(channel_name: str, content: Dict, period_start: datetime, 
                           period_end: datetime, timeframe: str) -> None:
     """Save the generated summary to storage"""
     if period_start and period_end:
@@ -344,7 +350,7 @@ def save_summary_to_storage(channel_name: str, summary: str, period_start: datet
             "period_end": period_end.isoformat(),
             "timeframe": timeframe,
             "channel": channel_name,
-            "content": summary
+            "content": content
         }
         
         # Create summaries directory if it doesn't exist
@@ -437,7 +443,9 @@ def handle_timeframe_selection(channel_id: str, hours: int) -> None:
             )
             
         try:
-            send_telegram_message(summary)
+            # Format the summary properly before sending
+            formatted_summary = f"{summary['headline']}\n{summary['location']}\n\n{summary['body']}"
+            send_telegram_message(formatted_summary)
         except Exception as send_error:
             logger.error(f"Failed to send summary: {str(send_error)}")
             send_telegram_message(
@@ -645,7 +653,9 @@ def generate_report_if_threshold_met(channel_id: str, channel_name: str, timefra
             send_telegram_message(
                 f"📊 Report for {clean_channel_name(channel_name)} ({timeframe})\nMessages in timeframe: {message_count}"
             )
-            send_telegram_message(summary)
+            # Format the summary properly before sending
+            formatted_summary = f"{summary['headline']}\n{summary['location']}\n\n{summary['body']}"
+            send_telegram_message(formatted_summary)
         
         return message_count, True
     return message_count, False
