@@ -282,17 +282,17 @@ def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: 
         NEW UPDATES TO INCORPORATE
         """
     
-    prompt = f"""Create a concise, journalistic report of the following updates, incorporating context from the previous report when relevant.
+    prompt = f"""Create a concise, journalistic report covering the key developments, incorporating context from the previous report when relevant.
 
     {previous_summary_text} Updates to analyze:
     {formatted_text}
 
     Requirements:
-    - First line must be a factual headline in ALL CAPS that informs about the main event
-    - Second line must be in format: City, Month Day, Year
-    - City must be a properly capitalized city name or appropriate region name
+    - Start with ONE headline in ALL CAPS that captures the most significant development
+    - Second line must be in format: City, Month Day, Year (use location of main development)
     - First paragraph must summarize the most important verified development
-    - Each subsequent paragraph must directly relate to the main topic
+    - Subsequent paragraphs should cover other significant developments
+    - Do NOT include additional headlines - weave all events into a cohesive narrative
     - Maximum 4096 characters, average 2500 characters
     - Only include verified facts and direct quotes from official statements
     - Maintain strictly neutral tone - avoid loaded terms or partisan framing
@@ -310,7 +310,9 @@ def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: 
     MAJOR DEVELOPMENT OCCURS IN REGION
     Tel Aviv, March 20, 2024 
     
-    First paragraph with main verified development..."""
+    First paragraph with main development...
+    
+    Second paragraph with related developments..."""
     
     try:
         response = claude_client.messages.create(
