@@ -3,47 +3,46 @@
 {% block title %}{{ display_name }} - News Now{% endblock %}
 
 {% block content %}
-<div class="flex">
+<div class="flex bg-gray-900">
     <!-- Navigation Sidebar -->
-    <div class="w-64 bg-white border-r border-gray-100 p-4 space-y-4 h-screen sticky top-0">
-        <div class="font-medium text-gray-700 mb-2">Timeframes</div>
+    <div class="w-64 bg-gray-800 border-r border-gray-700 p-4 space-y-4 h-screen sticky top-0">
+        <div class="font-medium text-gray-300 mb-2">Timeframes</div>
         <div class="space-y-2">
-            <a href="#quick-updates" class="block px-3 py-2 text-sm text-gray-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg">Quick Updates (10m)</a>
-            <a href="#hourly" class="block px-3 py-2 text-sm text-gray-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg">Hourly Summaries</a>
-            <a href="#daily" class="block px-3 py-2 text-sm text-gray-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg">Daily Digests</a>
+            <a href="#quick-updates" class="block px-3 py-2 text-sm text-gray-400 hover:bg-gray-700 hover:text-blue-400 rounded-lg">Quick Updates (10m)</a>
+            <a href="#hourly" class="block px-3 py-2 text-sm text-gray-400 hover:bg-gray-700 hover:text-blue-400 rounded-lg">Hourly Summaries</a>
+            <a href="#daily" class="block px-3 py-2 text-sm text-gray-400 hover:bg-gray-700 hover:text-blue-400 rounded-lg">Daily Digests</a>
         </div>
-        <div class="border-t border-gray-100 my-4"></div>
-        <div class="font-medium text-gray-700 mb-2">Channel Info</div>
-        <div class="text-sm text-gray-600">
-            {% if summaries and (datetime.now() - datetime.strptime(summaries[0].period_end, '%B %d, %Y %H:%M UTC')).total_seconds() < 1800 %}
-            <div class="flex items-center text-green-600 mb-2">
-                <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5 animate-pulse"></span>
-                Live
-            </div>
-            {% endif %}
-            <div class="text-gray-500">
-                Last update: 
-                {% if summaries %}
-                    {% set minutes = (datetime.now() - datetime.strptime(summaries[0].period_end, '%B %d, %Y %H:%M UTC')).seconds // 60 %}
-                    {% if minutes >= 60 %}
-                        {{ minutes // 60 }}h {{ minutes % 60 }}m ago
-                    {% else %}
-                        {{ minutes }}m ago
-                    {% endif %}
-                {% else %}
-                    Never
+        <div class="border-t border-gray-700 my-4"></div>
+        <div class="font-medium text-gray-300 mb-2">Channel Info</div>
+        <div class="text-sm text-gray-400">
+            {% if summaries %}
+                {% if summaries[0].is_live %}
+                    <div class="flex items-center text-green-400 mb-2">
+                        <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5 animate-pulse"></span>
+                        Live
+                    </div>
                 {% endif %}
-            </div>
+                <div class="text-gray-400">
+                    Last update: 
+                    {% if summaries[0].minutes_ago >= 60 %}
+                        {{ summaries[0].minutes_ago // 60 }}h {{ summaries[0].minutes_ago % 60 }}m ago
+                    {% else %}
+                        {{ summaries[0].minutes_ago }}m ago
+                    {% endif %}
+                </div>
+            {% else %}
+                <div class="text-gray-400">Last update: Never</div>
+            {% endif %}
         </div>
     </div>
 
     <!-- Main Content -->
     <div class="flex-1 p-8 space-y-8">
-        <div class="flex items-center justify-between border-b border-gray-100 pb-6">
+        <div class="flex items-center justify-between border-b border-gray-700 pb-6">
             <div class="flex-1">
-                <h1 class="text-3xl font-bold text-gray-900">{{ display_name }}</h1>
+                <h1 class="text-3xl font-bold text-gray-100">{{ display_name }}</h1>
             </div>
-            <a href="/" class="ml-4 inline-flex items-center px-4 py-2 border border-gray-200 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors duration-200">
+            <a href="/" class="ml-4 inline-flex items-center px-4 py-2 border border-gray-600 rounded-lg shadow-sm text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 transition-colors duration-200">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                 </svg>
@@ -53,98 +52,92 @@
 
         <!-- Quick Updates Section -->
         <section id="quick-updates" class="space-y-6">
-            <h2 class="text-xl font-semibold text-gray-900">Quick Updates</h2>
-            {% set quick_updates = [] %}
-            {% for summary in summaries if summary.timeframe == "10m" %}
-                {% do quick_updates.append(summary) %}
-            {% endfor %}
-            
-            {% if quick_updates %}
-                {% for summary in quick_updates[:5] %}
-                    <div class="bg-white overflow-hidden shadow-sm hover:shadow-md rounded-xl news-card border border-gray-100">
+            <h2 class="text-xl font-semibold text-gray-100">Quick Updates</h2>
+            {% for summary in summaries %}
+                {% if summary.timeframe == "10m" %}
+                    <div class="bg-gray-800 overflow-hidden shadow-sm hover:shadow-md rounded-xl news-card border border-gray-700">
                         <div class="p-6">
                             <div class="flex items-center justify-between mb-4">
                                 <div class="flex items-center space-x-3">
-                                    {% set minutes = (datetime.now() - datetime.strptime(summary.period_end, '%B %d, %Y %H:%M UTC')).seconds // 60 %}
-                                    <span class="text-sm text-gray-500">{{ minutes }}m ago</span>
+                                    <span class="text-sm text-gray-400">{{ summary.minutes_ago }}m ago</span>
                                 </div>
                             </div>
-                            <div class="prose prose-sm max-w-none">
-                                <h3 class="text-lg font-semibold text-gray-900 mb-3">{{ summary.content.split('\n')[0] }}</h3>
-                                <div class="text-gray-600 whitespace-pre-line leading-relaxed">{{ '\n'.join(summary.content.split('\n')[1:]) | safe }}</div>
+                            <div class="prose prose-sm max-w-none prose-invert">
+                                <h3 class="text-lg font-semibold text-gray-100 mb-3">{{ summary.content.split('\n')[0] }}</h3>
+                                <div class="text-gray-300 whitespace-pre-line leading-relaxed">{{ '\n'.join(summary.content.split('\n')[1:]) | safe }}</div>
                             </div>
                         </div>
                     </div>
-                {% endfor %}
+                {% endif %}
             {% else %}
-                <div class="text-center py-8 bg-white shadow-sm rounded-xl border border-gray-100">
-                    <p class="text-gray-600">No quick updates available</p>
+                <div class="text-center py-12 bg-gray-800 shadow-sm rounded-xl border border-gray-700">
+                    <svg class="w-12 h-12 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <p class="text-gray-400 text-lg mb-2">No quick updates available</p>
+                    <p class="text-gray-500 text-sm">Check back in a few minutes for new updates</p>
                 </div>
-            {% endif %}
+            {% endfor %}
         </section>
 
         <!-- Hourly Summaries Section -->
         <section id="hourly" class="space-y-6 mt-12">
-            <h2 class="text-xl font-semibold text-gray-900">Hourly Summaries</h2>
-            {% set hourly_summaries = [] %}
-            {% for summary in summaries if summary.timeframe == "1h" %}
-                {% do hourly_summaries.append(summary) %}
-            {% endfor %}
-            
-            {% if hourly_summaries %}
-                {% for summary in hourly_summaries[:5] %}
-                    <div class="bg-white overflow-hidden shadow-sm hover:shadow-md rounded-xl news-card border border-gray-100">
+            <h2 class="text-xl font-semibold text-gray-100">Hourly Summaries</h2>
+            {% for summary in summaries %}
+                {% if summary.timeframe == "1h" %}
+                    <div class="bg-gray-800 overflow-hidden shadow-sm hover:shadow-md rounded-xl news-card border border-gray-700">
                         <div class="p-6">
                             <div class="flex items-center justify-between mb-4">
                                 <div class="flex items-center space-x-3">
-                                    {% set minutes = (datetime.now() - datetime.strptime(summary.period_end, '%B %d, %Y %H:%M UTC')).seconds // 60 %}
-                                    <span class="text-sm text-gray-500">{{ minutes // 60 }}h {{ minutes % 60 }}m ago</span>
+                                    <span class="text-sm text-gray-400">{{ summary.minutes_ago // 60 }}h {{ summary.minutes_ago % 60 }}m ago</span>
                                 </div>
                             </div>
-                            <div class="prose prose-sm max-w-none">
-                                <h3 class="text-lg font-semibold text-gray-900 mb-3">{{ summary.content.split('\n')[0] }}</h3>
-                                <div class="text-gray-600 whitespace-pre-line leading-relaxed">{{ '\n'.join(summary.content.split('\n')[1:]) | safe }}</div>
+                            <div class="prose prose-sm max-w-none prose-invert">
+                                <h3 class="text-lg font-semibold text-gray-100 mb-3">{{ summary.content.split('\n')[0] }}</h3>
+                                <div class="text-gray-300 whitespace-pre-line leading-relaxed">{{ '\n'.join(summary.content.split('\n')[1:]) | safe }}</div>
                             </div>
                         </div>
                     </div>
-                {% endfor %}
+                {% endif %}
             {% else %}
-                <div class="text-center py-8 bg-white shadow-sm rounded-xl border border-gray-100">
-                    <p class="text-gray-600">No hourly summaries available</p>
+                <div class="text-center py-12 bg-gray-800 shadow-sm rounded-xl border border-gray-700">
+                    <svg class="w-12 h-12 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    <p class="text-gray-400 text-lg mb-2">No hourly summaries available</p>
+                    <p class="text-gray-500 text-sm">Summaries are generated every hour when there's new activity</p>
                 </div>
-            {% endif %}
+            {% endfor %}
         </section>
 
         <!-- Daily Digests Section -->
         <section id="daily" class="space-y-6 mt-12">
-            <h2 class="text-xl font-semibold text-gray-900">Daily Digests</h2>
-            {% set daily_summaries = [] %}
-            {% for summary in summaries if summary.timeframe == "24h" %}
-                {% do daily_summaries.append(summary) %}
-            {% endfor %}
-            
-            {% if daily_summaries %}
-                {% for summary in daily_summaries[:5] %}
-                    <div class="bg-white overflow-hidden shadow-sm hover:shadow-md rounded-xl news-card border border-gray-100">
+            <h2 class="text-xl font-semibold text-gray-100">Daily Digests</h2>
+            {% for summary in summaries %}
+                {% if summary.timeframe == "24h" %}
+                    <div class="bg-gray-800 overflow-hidden shadow-sm hover:shadow-md rounded-xl news-card border border-gray-700">
                         <div class="p-6">
                             <div class="flex items-center justify-between mb-4">
                                 <div class="flex items-center space-x-3">
-                                    {% set minutes = (datetime.now() - datetime.strptime(summary.period_end, '%B %d, %Y %H:%M UTC')).seconds // 60 %}
-                                    <span class="text-sm text-gray-500">{{ minutes // 60 }}h ago</span>
+                                    <span class="text-sm text-gray-400">{{ summary.minutes_ago // 60 }}h ago</span>
                                 </div>
                             </div>
-                            <div class="prose prose-sm max-w-none">
-                                <h3 class="text-lg font-semibold text-gray-900 mb-3">{{ summary.content.split('\n')[0] }}</h3>
-                                <div class="text-gray-600 whitespace-pre-line leading-relaxed">{{ '\n'.join(summary.content.split('\n')[1:]) | safe }}</div>
+                            <div class="prose prose-sm max-w-none prose-invert">
+                                <h3 class="text-lg font-semibold text-gray-100 mb-3">{{ summary.content.split('\n')[0] }}</h3>
+                                <div class="text-gray-300 whitespace-pre-line leading-relaxed">{{ '\n'.join(summary.content.split('\n')[1:]) | safe }}</div>
                             </div>
                         </div>
                     </div>
-                {% endfor %}
+                {% endif %}
             {% else %}
-                <div class="text-center py-8 bg-white shadow-sm rounded-xl border border-gray-100">
-                    <p class="text-gray-600">No daily digests available</p>
+                <div class="text-center py-12 bg-gray-800 shadow-sm rounded-xl border border-gray-700">
+                    <svg class="w-12 h-12 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                    <p class="text-gray-400 text-lg mb-2">No daily digests available</p>
+                    <p class="text-gray-500 text-sm">Daily summaries are created when there's significant activity</p>
                 </div>
-            {% endif %}
+            {% endfor %}
         </section>
     </div>
 </div>

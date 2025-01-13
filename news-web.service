@@ -3,12 +3,12 @@ Description=News Now Web Application
 After=network.target
 
 [Service]
-User=root
-Group=root
-WorkingDirectory=/root/news-web
-Environment="PATH=/root/news-web/.venv/bin"
-Environment="PYTHONPATH=/root/news-web"
-ExecStart=/root/news-web/.venv/bin/gunicorn -c web/gunicorn.conf.py web.app:app
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/news-now
+Environment="PATH=/var/www/news-now/.venv/bin"
+Environment="PYTHONPATH=/var/www/news-now"
+ExecStart=/var/www/news-now/.venv/bin/gunicorn -c web/gunicorn.conf.py -w 4 web.app:app
 Restart=always
 RestartSec=5
 

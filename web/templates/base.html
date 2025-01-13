@@ -22,6 +22,8 @@
             }
         }
     </script>
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://unpkg.com/@popperjs/core@2"></script>
     <script src="https://unpkg.com/tippy.js@6"></script>
     <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/themes/light-border.css"/>
@@ -48,7 +50,7 @@
                                 <span class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5 animate-pulse"></span>
                                 System Status: Operational
                             </span>
-                            <span>Last Update: {{ datetime.now().strftime('%H:%M:%S UTC') }}</span>
+                            <span class="status-time">Last Update: {{ datetime.now().strftime('%H:%M:%S UTC') }}</span>
                         </div>
                         <div class="flex items-center space-x-4">
                             <button id="theme-toggle" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-300">
@@ -150,58 +152,7 @@
         </div>
     </footer>
 
-    <script>
-        // Initialize tooltips
-        tippy('[title]', {
-            placement: 'bottom',
-            arrow: true,
-            theme: 'light-border',
-        });
-
-        // Dark mode toggle
-        const themeToggleDarkIcon = document.getElementById('theme-toggle-dark-icon');
-        const themeToggleLightIcon = document.getElementById('theme-toggle-light-icon');
-        const themeToggleBtn = document.getElementById('theme-toggle');
-
-        // Change the icons inside the button based on previous settings
-        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            themeToggleLightIcon.classList.remove('hidden');
-        } else {
-            themeToggleDarkIcon.classList.remove('hidden');
-        }
-
-        themeToggleBtn.addEventListener('click', function() {
-            // Toggle icons
-            themeToggleDarkIcon.classList.toggle('hidden');
-            themeToggleLightIcon.classList.toggle('hidden');
-
-            // If is set in localStorage
-            if (localStorage.getItem('color-theme')) {
-                if (localStorage.getItem('color-theme') === 'light') {
-                    document.documentElement.classList.add('dark');
-                    localStorage.setItem('color-theme', 'dark');
-                } else {
-                    document.documentElement.classList.remove('dark');
-                    localStorage.setItem('color-theme', 'light');
-                }
-            } else {
-                if (document.documentElement.classList.contains('dark')) {
-                    document.documentElement.classList.remove('dark');
-                    localStorage.setItem('color-theme', 'light');
-                } else {
-                    document.documentElement.classList.add('dark');
-                    localStorage.setItem('color-theme', 'dark');
-                }
-            }
-        });
-
-        // Auto-refresh status every minute
-        setInterval(() => {
-            const statusTime = document.querySelector('span:contains("Last Update")');
-            if (statusTime) {
-                statusTime.textContent = `Last Update: ${new Date().toLocaleTimeString()} UTC`;
-            }
-        }, 60000);
-    </script>
+    <!-- Load our main JS file -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html> 

@@ -50,50 +50,33 @@ signal.signal(signal.SIGINT, signal_handler)
 file_ops = FileOps()
 user_states = {}
 
-def escape_markdown_v2(text: str) -> str:
-    """Escape special characters for Telegram MarkdownV2 format"""
-    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
-    for char in special_chars:
-        text = text.replace(char, f'\\{char}')
-    return text
-
-def send_telegram_message(message: str, reply_markup=None, is_error_message: bool = False) -> Optional[dict]:
-    """Send a message to Telegram"""
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    
-    # Don't escape message if it's an error message
-    if not is_error_message:
-        message = escape_markdown_v2(message)
-    
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "MarkdownV2" if not is_error_message else None
-    }
-    if reply_markup:
-        payload["reply_markup"] = reply_markup
-        
+def send_telegram_message(message: str, parse_mode: str = None, reply_markup: Dict = None) -> bool:
+    """Send a message to Telegram chat"""
     try:
-        logger.debug(f"Sending message to Telegram: {message[:100]}...")
-        logger.debug(f"Payload: {json.dumps(payload, indent=2)}")
-        response = requests.post(url, json=payload)
-        result = response.json()
+        payload = {
+            'chat_id': TELEGRAM_CHAT_ID,
+            'text': message
+        }
         
-        if response.status_code == 200:
-            logger.debug("Message sent successfully")
-        else:
-            logger.error(f"Failed to send message. Status code: {response.status_code}")
-            logger.error(f"Response: {json.dumps(result, indent=2)}")
-            if not is_error_message:
-                send_telegram_message(f"❌ Error: Failed to send message: {result}", is_error_message=True)
+        if reply_markup:
+            payload['reply_markup'] = reply_markup
             
-        return result
+        logger.debug(f"Sending message to Telegram with payload: {json.dumps(payload, indent=2)}")
+        
+        response = requests.post(
+            f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage',
+            json=payload
+        )
+        
+        if not response.ok:
+            logger.error(f"Failed to send message. Status code: {response.status_code}")
+            logger.error(f"Response: {json.dumps(response.json(), indent=2)}")
+            return False
+            
+        return True
     except Exception as e:
-        logger.error(f"Error sending Telegram message: {e}")
-        logger.error(f"Full exception: {str(e)}", exc_info=True)
-        if not is_error_message:
-            send_telegram_message(f"❌ Error: Failed to send message: {e}", is_error_message=True)
-        return None
+        logger.error(f"Error sending message: {str(e)}")
+        return False
 
 def fetch_filtered_discord_channels(guild_id: str) -> List[Dict]:
     """Fetch and filter Discord channels based on predefined criteria"""
@@ -180,7 +163,7 @@ def fetch_bot_messages_in_timeframe(channel_id: str, hours: int = 24, minutes: i
 
 def format_raw_message_report(channel_name: str, messages: List[Dict]) -> str:
     """Format raw messages into a basic report format"""
-    report = f"*📊 Report for #{channel_name}*\n\n"
+    report = f"📊 Report for #{channel_name}\n\n"
     
     for msg in messages:
         timestamp = datetime.fromisoformat(msg['timestamp'].rstrip('Z')).strftime('%Y-%m-%d %H:%M UTC')
@@ -218,7 +201,7 @@ def create_channel_selection_keyboard(channels: List[Dict]) -> Dict:
     
     for channel in channels:
         button = {
-            "text": f"#{channel['name']}",
+            "text": f"#{clean_channel_name(channel['name'])}",
             "callback_data": f"channel_{channel['id']}"
         }
         row.append(button)
@@ -365,16 +348,20 @@ def save_summary_to_storage(channel_name: str, summary: str, period_start: datet
         }
         file_ops.save_summary(channel_name, summary_data)
 
+def clean_channel_name(name: str) -> str:
+    """Clean channel name for Telegram display by removing problematic characters."""
+    return name.replace('-', ' ')
+
 def handle_channel_selection(channel_id: str) -> None:
     """Handle channel selection from keyboard"""
     channels = fetch_filtered_discord_channels(GUILD_ID)
     channel_name = next((c['name'] for c in channels if c['id'] == channel_id), 'unknown-channel')
     
-    message = f"Selected channel: *#{channel_name}*\n\nSelect timeframe for the report:"
+    message = f"Selected channel: {clean_channel_name(channel_name)}\n\nSelect timeframe for the report:"
     
     # Store the selected channel ID in user state
     user_states[TELEGRAM_CHAT_ID] = {"selected_channel": channel_id}
-    send_telegram_message(message, reply_markup=create_timeframe_keyboard())
+    send_telegram_message(message, parse_mode=None, reply_markup=create_timeframe_keyboard())
 
 def handle_timeframe_selection(channel_id: str, hours: int) -> None:
     """Handle timeframe selection and generate report"""
@@ -385,36 +372,48 @@ def handle_timeframe_selection(channel_id: str, hours: int) -> None:
     
     messages = fetch_bot_messages_in_timeframe(channel_id, hours)
     
-    send_telegram_message(f"Found {len(messages)} messages in #{channel_name} for the last {hours} hour(s).")
+    send_telegram_message(
+        f"Found {len(messages)} messages in #{clean_channel_name(channel_name)} for the last {hours} hour(s)."
+    )
     
     if not messages:
         logger.info(f"No messages found in {channel_name} for the last {hours} hours")
-        send_telegram_message(f"No messages found in #{channel_name} for the last {hours} hour(s).")
+        send_telegram_message(
+            f"No messages found in #{clean_channel_name(channel_name)} for the last {hours} hour(s)."
+        )
         return
     
     try:
         summary, period_start, period_end = create_ai_summary(messages, channel_name, hours)
         
         if not summary:
-            send_telegram_message(f"❌ Error: AI summary generation returned empty result for #{channel_name}")
+            send_telegram_message(
+                f"❌ Error: AI summary generation returned empty result for #{clean_channel_name(channel_name)}"
+            )
             return
             
         try:
             save_summary_to_storage(channel_name, summary, period_start, period_end, f"{hours}h")
         except Exception as storage_error:
             logger.error(f"Failed to save summary: {str(storage_error)}")
-            send_telegram_message(f"⚠️ Warning: Summary generated but failed to save to storage: {str(storage_error)}")
+            send_telegram_message(
+                f"⚠️ Warning: Summary generated but failed to save to storage: {str(storage_error)}"
+            )
             
         try:
             send_telegram_message(summary)
         except Exception as send_error:
             logger.error(f"Failed to send summary: {str(send_error)}")
-            send_telegram_message(f"❌ Error: Summary generated but failed to send: {str(send_error)}")
+            send_telegram_message(
+                f"❌ Error: Summary generated but failed to send: {str(send_error)}"
+            )
             
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Failed to generate summary: {error_msg}", exc_info=True)
-        send_telegram_message(f"❌ Error generating summary for #{channel_name}: {error_msg}")
+        send_telegram_message(
+            f"❌ Error generating summary for #{clean_channel_name(channel_name)}: {error_msg}"
+        )
 
 def process_telegram_callback(callback_query: Dict) -> None:
     """Process callback queries from Telegram inline keyboards"""
@@ -461,7 +460,7 @@ def setup_bot_commands():
 
 def execute_help_command() -> None:
     """Execute the help command and display available commands"""
-    help_text = """🤖 *Discord Report Bot*
+    help_text = """🤖 Discord Report Bot
 
 Available commands:
 - /channels - List channels
@@ -475,12 +474,12 @@ def execute_channels_command() -> None:
     channels = fetch_filtered_discord_channels(GUILD_ID)
     if channels:
         logger.info(f"Successfully fetched {len(channels)} channels")
-        message = "*Select a channel to generate a report:*"
+        message = "Select a channel to generate a report:"
         reply_markup = create_channel_selection_keyboard(channels)
-        send_telegram_message(message, reply_markup)
+        send_telegram_message(message, parse_mode=None, reply_markup=reply_markup)
     else:
         logger.error("Failed to fetch channels from Discord")
-        send_telegram_message("Error: Could not fetch channels")
+        send_telegram_message("Error: Could not fetch channels", parse_mode=None)
 
 def process_telegram_command(message: str) -> None:
     """Process incoming Telegram commands"""
@@ -492,9 +491,9 @@ def process_telegram_command(message: str) -> None:
     elif command == '/channels':
         execute_channels_command()
     elif command == '/check_activity':
-        message = "*Select timeframe for activity check:*"
+        message = "Select timeframe for activity check:"
         reply_markup = create_activity_timeframe_keyboard()
-        send_telegram_message(message, reply_markup)
+        send_telegram_message(message, reply_markup=reply_markup)
     elif command.startswith('/'):  # Any other command
         # Check if it's a timeframe input for a selected channel
         if command[1:].replace('.', '').isdigit() or command[1:].endswith(('m', 'h')):
@@ -607,7 +606,9 @@ def generate_report_if_threshold_met(channel_id: str, channel_name: str, timefra
         
         # Only send if threshold is met
         if message_count >= min_messages:
-            send_telegram_message(f"*📊 Report for #{channel_name} ({timeframe})*\nMessages in timeframe: {message_count}")
+            send_telegram_message(
+                f"📊 Report for {clean_channel_name(channel_name)} ({timeframe})\nMessages in timeframe: {message_count}"
+            )
             send_telegram_message(summary)
         
         return message_count, True
@@ -636,8 +637,8 @@ def execute_10min_reports() -> None:
         time.sleep(1)  # Rate limiting protection
     
     if channel_stats:
-        summary = "*📊 10-minute Report Summary*\n\n"
-        summary += "\n".join(f"• #{name}: {count} messages" for name, count in channel_stats.items())
+        summary = "📊 10-minute Report Summary\n\n"
+        summary += "\n".join(f"• {name}: {count} messages" for name, count in channel_stats.items())
         summary += f"\n\nReports saved for {reports_saved} channels"
         if not any(count >= 3 for count in channel_stats.values()):
             summary += "\nNo channels met threshold (3 messages) for sending report"
@@ -668,8 +669,8 @@ def execute_1h_reports() -> None:
         time.sleep(1)  # Rate limiting protection
     
     if channel_stats:
-        summary = "*📊 Hourly Report Summary*\n\n"
-        summary += "\n".join(f"• #{name}: {count} messages" for name, count in channel_stats.items())
+        summary = "📊 Hourly Report Summary\n\n"
+        summary += "\n".join(f"• {name}: {count} messages" for name, count in channel_stats.items())
         summary += f"\n\nReports saved for {reports_saved} channels"
         if not any(count >= 5 for count in channel_stats.values()):
             summary += "\nNo channels met threshold (5 messages) for sending report"
@@ -700,7 +701,7 @@ def execute_24h_reports() -> None:
         time.sleep(1)  # Rate limiting protection
     
     if channel_stats:
-        summary = "*📊 Daily Report Summary*\n\n"
+        summary = "📊 Daily Report Summary\n\n"
         summary += "\n".join(f"• #{name}: {count} messages" for name, count in channel_stats.items())
         summary += f"\n\nReports saved for {reports_saved} channels"
         if not any(count >= 10 for count in channel_stats.values()):
@@ -754,7 +755,7 @@ def check_channel_activity(timeframe: str) -> None:
     if channel_stats:
         # Sort channels by message count in descending order
         sorted_stats = dict(sorted(channel_stats.items(), key=lambda x: x[1], reverse=True))
-        summary = f"*📊 Channel Activity ({timeframe})*\n\n"
+        summary = f"📊 Channel Activity ({timeframe})\n\n"
         summary += "\n".join(f"• #{name}: {count} messages" for name, count in sorted_stats.items())
         send_telegram_message(summary)
     else:
@@ -782,12 +783,12 @@ def main():
         # Set up bot commands menu
         setup_bot_commands()
         
-        welcome_message = """🤖 *Discord Report Bot*
+        welcome_message = """🤖 Discord Report Bot
 
-*Available commands:*
-/channels \- List channels
-/check\_activity \- Check activity in all channels
-/help \- Show help"""
+Available commands:
+• /channels - List channels
+• /check_activity - Check activity in all channels
+• /help - Show help"""
 
         logger.info("Sending welcome message...")
         send_telegram_message(welcome_message)

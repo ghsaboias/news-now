@@ -6,7 +6,7 @@ load_dotenv()
 
 # Base paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.getenv('DATA_DIR', os.path.join('/root/discord-report-bot/data'))
+DATA_DIR = os.getenv('DATA_DIR', os.path.join('/var/www/news-now/data'))
 
 # Ensure data directory exists
 os.makedirs(DATA_DIR, exist_ok=True)

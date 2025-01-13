@@ -3,14 +3,15 @@
 {% block title %}News Now - Live Updates{% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="text-center mb-12">
         <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-3">Live News Updates</h1>
         <p class="text-lg text-gray-600 dark:text-gray-400">Real-time summaries from monitored channels</p>
         <p class="text-sm text-gray-500 dark:text-gray-500 mt-2">Last update: {{ datetime.now().strftime('%H:%M UTC') }}</p>
     </div>
 
-    <div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
+    <!-- News Feed Section -->
+    <div class="space-y-6">
         {% for item in news_items %}
         <article class="bg-white dark:bg-dark-200 overflow-hidden rounded-xl border border-gray-100 dark:border-dark-300 hover:border-gray-200 dark:hover:border-dark-200 transition-all duration-200">
             <div class="p-6">
@@ -25,7 +26,7 @@
                             {% endif %}
                         </div>
                     </div>
-                    <a href="{{ url_for('channel', channel_name=item.channel) }}" 
+                    <a href="{{ url_for('channel', channel_slug=item.channel_slug) }}" 
                        class="inline-flex items-center text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors duration-200">
                         Full Coverage <span class="ml-1">→</span>
                     </a>
