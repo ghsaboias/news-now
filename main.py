@@ -10,6 +10,7 @@ from logging.handlers import RotatingFileHandler
 import signal
 import sys
 from web.file_ops import FileOps
+from report_generator import ReportGenerator
 
 # Import configuration
 from config import (
@@ -253,95 +254,6 @@ def parse_ai_summary(text: str) -> Dict:
         "location": location,
         "body": body
     }
-
-def create_ai_summary(messages: List[dict], channel_name: str, requested_hours: int) -> Tuple[Dict, datetime, datetime]:
-    """Generate an AI summary of messages using Claude"""
-    if not messages:
-        return None, None, None
-
-    # Calculate time period from timestamps
-    timestamps = [datetime.fromisoformat(msg['timestamp'].rstrip('Z')).replace(tzinfo=timezone.utc) 
-                 for msg in messages]
-    
-    period_start = min(timestamps)
-    period_end = max(timestamps)
-
-    formatted_text = format_messages_for_claude(messages)
-    
-    # Get the previous summary for context
-    timeframe = f"{requested_hours}h"
-    previous_summary = file_ops.get_latest_summary(channel_name, timeframe)
-    previous_summary_text = ""
-    if previous_summary:
-        previous_summary_text = f"""CONTEXT FROM PREVIOUS REPORT
-        Time period: {datetime.fromisoformat(previous_summary['period_start']).strftime('%B %d, %Y %H:%M')} to {datetime.fromisoformat(previous_summary['period_end']).strftime('%B %d, %Y %H:%M')} UTC
-
-        {previous_summary['content']}
-
-        -------------------
-        NEW UPDATES TO INCORPORATE
-        """
-    
-    prompt = f"""Create a concise, journalistic report covering the key developments, incorporating context from the previous report when relevant.
-
-    {previous_summary_text} Updates to analyze:
-    {formatted_text}
-
-    Requirements:
-    - Start with ONE headline in ALL CAPS that captures the most significant development
-    - Second line must be in format: City, Month Day, Year (use location of main development)
-    - First paragraph must summarize the most important verified development
-    - Subsequent paragraphs should cover other significant developments
-    - Do NOT include additional headlines - weave all events into a cohesive narrative
-    - Maximum 4096 characters, average 2500 characters
-    - Only include verified facts and direct quotes from official statements
-    - Maintain strictly neutral tone - avoid loaded terms or partisan framing
-    - NO analysis, commentary, or speculation
-    - NO use of terms like "likely", "appears to", or "is seen as"
-
-    When incorporating previous context:
-    - Focus primarily on new developments from the current timeframe
-    - Reference previous events only if they directly relate to new developments
-    - Avoid repeating old information unless it provides crucial context
-    - If a situation has evolved, clearly indicate what has changed
-    - Maintain chronological clarity when connecting past and present events
-    
-    Example format:
-    MAJOR DEVELOPMENT OCCURS IN REGION
-    Tel Aviv, March 20, 2024 
-    
-    First paragraph with main development...
-    
-    Second paragraph with related developments..."""
-    
-    try:
-        response = claude_client.messages.create(
-            model="claude-3-haiku-20240307",
-            max_tokens=800,
-            system="""You are an experienced news wire journalist creating concise, clear updates. Your task is to report the latest developments while maintaining narrative continuity with previous coverage. Focus on what's new and noteworthy, using prior context only when it enhances understanding of current events.""",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-        )
-        
-        if not response or not response.content or not response.content[0].text:
-            error_msg = "Claude returned empty response"
-            logger.error(error_msg)
-            send_telegram_message(f"❌ Error: {error_msg}")
-            return None, None, None
-            
-        # Parse the summary into structured format
-        structured_summary = parse_ai_summary(response.content[0].text)
-        return structured_summary, period_start, period_end
-            
-    except Exception as e:
-        error_msg = f"Unexpected error generating summary: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        send_telegram_message(f"❌ {error_msg}")
-        return None, None, None
 
 def save_summary_to_storage(channel_name: str, content: Dict, period_start: datetime, 
                           period_end: datetime, timeframe: str) -> None:
@@ -645,8 +557,12 @@ def generate_report_if_threshold_met(channel_id: str, channel_name: str, timefra
     if min_messages is None:
         min_messages = REPORT_THRESHOLDS.get(timeframe, 5)  # Default to 5 if not configured
     
-    # Generate report regardless of threshold
-    summary, period_start, period_end = create_ai_summary(messages, channel_name, hours)
+    # Generate report using ReportGenerator
+    report_gen = ReportGenerator(claude_client, logger)
+    timeframe_str = f"{hours}h"
+    previous_summary = file_ops.get_latest_summary(channel_name, timeframe_str)
+    summary, period_start, period_end = report_gen.create_ai_summary(messages, channel_name, hours, previous_summary)
+
     if summary:
         save_summary_to_storage(channel_name, summary, period_start, period_end, timeframe)
         
