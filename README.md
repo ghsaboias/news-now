@@ -53,7 +53,6 @@ python main.py
 
 Run specific report types:
 ```bash
-python main.py --10min-report  # 10-minute activity report
 python main.py --1h-report     # Hourly activity report
 python main.py --24h-report    # Daily activity report
 ```

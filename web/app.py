@@ -23,7 +23,7 @@ app = Flask(__name__, static_folder='static')
 # Add datetime to Jinja globals
 app.jinja_env.globals.update(datetime=datetime)
 
-# Use centralized data directory
+# Use centralized data directories
 SUMMARIES_DIR = DATA_DIR
 logger.debug(f"SUMMARIES_DIR set to: {SUMMARIES_DIR}")
 
@@ -59,40 +59,28 @@ def get_priority(channel_name: str) -> str:
     return 'medium'
 
 @lru_cache(maxsize=100)
-def get_latest_summary(channel_dir: str) -> dict:
-    """Cache summaries for 1 minute"""
+def get_latest_summary(channel_dir: str, include_user_reports: bool = True) -> dict:
+    """Cache summaries for 1 minute. Returns the most recent summary from any timeframe."""
     try:
         logger.debug(f"Getting latest summary from: {channel_dir}")
-        summaries_dir = os.path.join(channel_dir, 'summaries')
+        summaries = []
         
-        if not os.path.exists(summaries_dir):
-            logger.debug(f"Summaries directory not found: {summaries_dir}")
+        # Get regular summaries
+        regular_summaries = _get_summaries_from_dir(os.path.join(channel_dir, 'summaries'))
+        if regular_summaries:
+            summaries.extend(regular_summaries)
+        
+        if not summaries:
             return None
             
-        summary_file = os.path.join(summaries_dir, '1h_summaries.json')
-        if not os.path.exists(summary_file):
-            logger.debug(f"Summary file not found: {summary_file}")
-            return None
-        
-        # Get file modification time
-        mod_time = os.path.getmtime(summary_file)
-        if datetime.fromtimestamp(mod_time) < datetime.now() - timedelta(minutes=1):
-            # Clear cache if file is older than 1 minute
-            get_latest_summary.cache_clear()
-        
-        with open(summary_file) as f:
-            data = json.load(f)
-            
-        if not data.get('summaries'):
-            logger.debug("No summaries found in file")
-            return None
-            
-        # Get the most recent summary
-        latest_summary = data['summaries'][0]
+        # Find the most recent summary
+        latest_summary = max(summaries, key=lambda x: datetime.fromisoformat(x['period_end']))
         
         result = {
             'summary': latest_summary['content'],
-            'timestamp': datetime.fromisoformat(latest_summary['period_end']).strftime('%B %d, %Y %H:%M UTC')
+            'timestamp': datetime.fromisoformat(latest_summary['period_end']).strftime('%B %d, %Y %H:%M UTC'),
+            'timeframe': latest_summary.get('timeframe', '1h'),  # Default to 1h if not specified
+            'is_user_report': latest_summary.get('is_user_report', False)
         }
         logger.debug(f"Parsed summary: {str(result)[:100]}...")
         return result
@@ -100,6 +88,27 @@ def get_latest_summary(channel_dir: str) -> dict:
     except Exception as e:
         logger.error(f"Error reading summary for {channel_dir}: {str(e)}")
         return None
+
+def _get_summaries_from_dir(summaries_dir: str) -> List[Dict]:
+    """Helper function to get summaries from a directory"""
+    summaries = []
+    if not os.path.exists(summaries_dir):
+        return summaries
+        
+    for filename in os.listdir(summaries_dir):
+        if not filename.endswith('_summaries.json'):
+            continue
+            
+        filepath = os.path.join(summaries_dir, filename)
+        try:
+            with open(filepath) as f:
+                data = json.load(f)
+                if data.get('summaries'):
+                    summaries.extend(data['summaries'])
+        except Exception as e:
+            logger.error(f"Error reading {filepath}: {str(e)}")
+            
+    return summaries
 
 def get_channel_slug(name: str) -> str:
     """Convert any channel name to a URL-friendly slug.
@@ -152,7 +161,9 @@ def index():
                         'display_name': format_channel_name(channel_name),
                         'summary': latest_summary['summary'],
                         'timestamp': latest_summary['timestamp'],
-                        'priority': get_priority(channel_name)
+                        'priority': get_priority(channel_name),
+                        'timeframe': latest_summary['timeframe'],
+                        'is_user_report': latest_summary.get('is_user_report', False)
                     }
                     logger.debug(f"Created news item: {str(news_item)[:100]}...")
                     news_items.append(news_item)
@@ -168,43 +179,6 @@ def index():
         logger.error(f"Error in index route: {str(e)}")
         return render_template('index.html', news_items=[], error=str(e))
 
-def get_summary_for_timeframe(channel_name: str, timeframe: str) -> dict:
-    """Get summary for a specific timeframe from channel directory."""
-    try:
-        channel_dir = os.path.join(SUMMARIES_DIR, channel_name)
-        if not os.path.isdir(channel_dir):
-            return None
-            
-        # Get all summary files for the channel
-        summary_files = [f for f in os.listdir(channel_dir) if f.endswith('.json')]
-        if not summary_files:
-            return None
-            
-        # Get latest file
-        latest_file = sorted(summary_files)[-1]
-        with open(os.path.join(channel_dir, latest_file)) as f:
-            summary = json.load(f)
-            
-        # Use file timestamp as period end
-        period_end = datetime.strptime(latest_file[:-5], '%Y%m%d%H%M%S')
-        
-        # Calculate period start based on timeframe
-        if timeframe == '24h':
-            period_start = period_end - timedelta(days=1)
-        elif timeframe == '1h':
-            period_start = period_end - timedelta(hours=1)
-        else:  # 10m
-            period_start = period_end - timedelta(minutes=10)
-            
-        return {
-            'content': summary['content'],
-            'period_start': period_start.isoformat(),
-            'period_end': period_end.isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Error getting summary for timeframe {timeframe}: {str(e)}")
-        return None
-
 @app.route('/channel/<channel_slug>')
 def channel(channel_slug):
     try:
@@ -215,37 +189,62 @@ def channel(channel_slug):
         else:
             return "Channel not found", 404
         
-        # Get all summaries for a specific channel
+        # Get all summaries for the channel
         summaries = []
-        timeframes = ["24h", "1h", "10m"]
         now = datetime.now()
         
-        for timeframe in timeframes:
-            summary = get_summary_for_timeframe(channel_name, timeframe)
-            if summary:
-                period_start = datetime.fromisoformat(summary['period_start'])
-                period_end = datetime.fromisoformat(summary['period_end'])
-                
-                # Calculate minutes ago
-                minutes_ago = int((now - period_end).total_seconds() / 60)
-                
-                summaries.append({
-                    'timeframe': timeframe,
-                    'content': summary['content'],
-                    'period_start': period_start.strftime('%B %d, %Y %H:%M UTC'),
-                    'period_end': period_end.strftime('%B %d, %Y %H:%M UTC'),
-                    'minutes_ago': minutes_ago,
-                    'is_live': minutes_ago < 30  # Less than 30 minutes old
-                })
+        # Get regular summaries
+        channel_dir = os.path.join(SUMMARIES_DIR, channel_name)
+        regular_summaries = _get_summaries_from_dir(os.path.join(channel_dir, 'summaries'))
+        if regular_summaries:
+            summaries.extend(regular_summaries)
+        
+        # Process summaries
+        processed_summaries = []
+        for summary in summaries:
+            period_end = datetime.fromisoformat(summary['period_end'])
+            minutes_ago = int((now - period_end).total_seconds() / 60)
+            
+            processed_summaries.append({
+                'timeframe': summary.get('timeframe', '1h'),
+                'content': summary['content'],
+                'period_start': datetime.fromisoformat(summary['period_start']).strftime('%B %d, %Y %H:%M UTC'),
+                'period_end': period_end.strftime('%B %d, %Y %H:%M UTC'),
+                'minutes_ago': minutes_ago,
+                'is_live': minutes_ago < 30,  # Less than 30 minutes old
+                'is_user_report': summary.get('is_user_report', False)
+            })
+        
+        # Sort by timestamp
+        processed_summaries.sort(key=lambda x: x['minutes_ago'])
         
         return render_template('channel.html', 
                              channel_name=channel_name,
                              channel_slug=channel_slug,
                              display_name=format_channel_name(channel_name),
-                             summaries=summaries,
+                             summaries=processed_summaries,
                              datetime=datetime)
     except Exception as e:
         logger.error(f"Error in channel route: {str(e)}")
+        return f"An error occurred: {str(e)}", 500
+
+@app.route('/generate-report/<channel_slug>')
+def generate_report(channel_slug):
+    """Show the report generation form"""
+    try:
+        # Find the actual channel name from the slug
+        for channel_name in os.listdir(SUMMARIES_DIR):
+            if get_channel_slug(channel_name) == channel_slug:
+                break
+        else:
+            return "Channel not found", 404
+            
+        return render_template('generate_report.html',
+                             channel_name=channel_name,
+                             channel_slug=channel_slug,
+                             display_name=format_channel_name(channel_name))
+    except Exception as e:
+        logger.error(f"Error in generate_report route: {str(e)}")
         return f"An error occurred: {str(e)}", 500
 
 if __name__ == '__main__':

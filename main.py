@@ -15,7 +15,7 @@ from web.file_ops import FileOps
 from config import (
     DISCORD_TOKEN, GUILD_ID, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
     ANTHROPIC_API_KEY, REPORT_THRESHOLDS, LOG_FILE, LOG_FORMAT,
-    LOG_MAX_BYTES, LOG_BACKUP_COUNT
+    LOG_MAX_BYTES, LOG_BACKUP_COUNT, DATA_DIR
 )
 
 # Configure logging
@@ -346,7 +346,43 @@ def save_summary_to_storage(channel_name: str, summary: str, period_start: datet
             "channel": channel_name,
             "content": summary
         }
-        file_ops.save_summary(channel_name, summary_data)
+        
+        # Create summaries directory if it doesn't exist
+        channel_dir = os.path.join(DATA_DIR, channel_name)
+        summaries_dir = os.path.join(channel_dir, 'summaries')
+        os.makedirs(summaries_dir, exist_ok=True)
+        
+        # Determine the file path based on timeframe
+        file_name = f"{timeframe}_summaries.json"
+        file_path = os.path.join(summaries_dir, file_name)
+        
+        # Read existing summaries or create new list
+        existing_data = {"summaries": []}
+        if os.path.exists(file_path):
+            try:
+                with open(file_path, 'r') as f:
+                    existing_data = json.load(f)
+            except json.JSONDecodeError:
+                logger.error(f"Error reading {file_path}, creating new file")
+        
+        # Add new summary to the beginning of the list
+        if not isinstance(existing_data, dict):
+            existing_data = {"summaries": []}
+        if "summaries" not in existing_data:
+            existing_data["summaries"] = []
+            
+        existing_data["summaries"].insert(0, summary_data)
+        
+        # Keep only last 100 summaries
+        existing_data["summaries"] = existing_data["summaries"][:100]
+        
+        # Save updated summaries
+        try:
+            with open(file_path, 'w') as f:
+                json.dump(existing_data, f, indent=2)
+            logger.info(f"Saved summary to {file_path}")
+        except Exception as e:
+            logger.error(f"Error saving summary to {file_path}: {str(e)}")
 
 def clean_channel_name(name: str) -> str:
     """Clean channel name for Telegram display by removing problematic characters."""
@@ -614,38 +650,6 @@ def generate_report_if_threshold_met(channel_id: str, channel_name: str, timefra
         return message_count, True
     return message_count, False
 
-def execute_10min_reports() -> None:
-    """Execute 10-minute reports for all channels"""
-    logger.info("Running 10-minute reports...")
-    send_telegram_message("🔄 Running 10-minute report check...")
-    
-    channels = fetch_filtered_discord_channels(GUILD_ID)
-    if not channels:
-        logger.error("Failed to fetch channels")
-        send_telegram_message("❌ Error: Failed to fetch channels")
-        return
-    
-    channel_stats = {}
-    reports_saved = 0
-    
-    for channel in channels:
-        message_count, was_saved = generate_report_if_threshold_met(channel['id'], channel['name'], "10m", min_messages=3)
-        if message_count > 0:
-            channel_stats[channel['name']] = message_count
-        if was_saved:
-            reports_saved += 1
-        time.sleep(1)  # Rate limiting protection
-    
-    if channel_stats:
-        summary = "📊 10-minute Report Summary\n\n"
-        summary += "\n".join(f"• {name}: {count} messages" for name, count in channel_stats.items())
-        summary += f"\n\nReports saved for {reports_saved} channels"
-        if not any(count >= 3 for count in channel_stats.values()):
-            summary += "\nNo channels met threshold (3 messages) for sending report"
-        send_telegram_message(summary)
-    else:
-        send_telegram_message("ℹ️ No activity in any channel in the last 10 minutes")
-
 def execute_1h_reports() -> None:
     """Execute 1-hour reports for all channels"""
     logger.info("Running 1-hour reports...")
@@ -800,10 +804,7 @@ Available commands:
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        if sys.argv[1] == "--10min-report":
-            execute_10min_reports()
-            sys.exit(0)
-        elif sys.argv[1] == "--1h-report":
+        if sys.argv[1] == "--1h-report":
             execute_1h_reports()
             sys.exit(0)
         elif sys.argv[1] == "--24h-report":
