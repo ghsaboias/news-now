@@ -1,7 +1,6 @@
 import logging
 from datetime import datetime
-from typing import List, Dict, Optional, Tuple
-import time
+from typing import Dict, Optional
 
 class ReportManager:
     def __init__(self, discord_client, telegram_bot, report_generator, file_ops, logger=None):
