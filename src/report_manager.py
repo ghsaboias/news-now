@@ -85,4 +85,54 @@ class ReportManager:
             
     def format_summary_for_telegram(self, summary: Dict) -> str:
         """Format a summary for Telegram display"""
-        return f"{summary['headline']}\n{summary['location']}\n\n{summary['body']}" 
+        return f"{summary['headline']}\n{summary['location']}\n\n{summary['body']}"
+
+    def execute_1h_reports(self) -> None:
+        """Execute 1-hour reports for all channels"""
+        self.logger.info("Starting 1-hour reports execution")
+        channels = self.discord_client.fetch_channels()
+        
+        if not channels:
+            self.logger.error("Failed to fetch channels for 1-hour reports")
+            return
+            
+        for channel in channels:
+            try:
+                channel_name = self.telegram_bot._clean_channel_name(channel['name'])
+                self.logger.info(f"Generating 1-hour report for #{channel_name}")
+                
+                result = self.generate_report(channel['id'], channel_name, hours=1)
+                if result:
+                    message = self.format_summary_for_telegram(result['summary'])
+                    self.telegram_bot.send_message(f"1-hour update for #{channel_name}\n\n")
+                    self.telegram_bot.send_message(message)
+                    
+            except Exception as e:
+                self.logger.error(f"Error generating 1-hour report for {channel_name}: {str(e)}", exc_info=True)
+                
+        self.logger.info("Completed 1-hour reports execution")
+
+    def execute_24h_reports(self) -> None:
+        """Execute 24-hour reports for all channels"""
+        self.logger.info("Starting 24-hour reports execution")
+        channels = self.discord_client.fetch_channels()
+        
+        if not channels:
+            self.logger.error("Failed to fetch channels for 24-hour reports")
+            return
+            
+        for channel in channels:
+            try:
+                channel_name = self.telegram_bot._clean_channel_name(channel['name'])
+                self.logger.info(f"Generating 24-hour report for #{channel_name}")
+                
+                result = self.generate_report(channel['id'], channel_name, hours=24)
+                if result:
+                    message = self.format_summary_for_telegram(result['summary'])
+                    self.telegram_bot.send_message(f"24-hour summary for #{channel_name}\n\n")
+                    self.telegram_bot.send_message(message)
+                    
+            except Exception as e:
+                self.logger.error(f"Error generating 24-hour report for {channel_name}: {str(e)}", exc_info=True)
+                
+        self.logger.info("Completed 24-hour reports execution") 
