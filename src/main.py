@@ -24,13 +24,20 @@ from config import (
 )
 
 # Configure logging
+os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+
+# Clear existing handlers
+logging.getLogger().handlers.clear()
+
 logging.basicConfig(
     handlers=[
         RotatingFileHandler(
             LOG_FILE,
             maxBytes=LOG_MAX_BYTES,
             backupCount=LOG_BACKUP_COUNT,
-            delay=False
+            delay=False,
+            encoding='utf-8',
+            mode='a'
         ),
         logging.StreamHandler()
     ],
