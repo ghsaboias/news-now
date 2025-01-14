@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Change to project root directory (one level up from scripts)
+cd "$(dirname "$0")/.."
+
 # Load environment variables
 if [ -f .env ]; then
     export $(cat .env | grep -v '^#' | xargs)

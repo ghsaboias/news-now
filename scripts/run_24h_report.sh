@@ -8,7 +8,7 @@ source /var/www/news-now/.venv/bin/activate
 
 # Run the bot with 24h report flag (threshold: 10 messages)
 echo "[$(date)] Running 24-hour report..."
-python3 /var/www/news-now/main.py --24h-report 
+python3 /var/www/news-now/src/main.py --24h-report
 
 # Fix permissions after report generation
 echo "[$(date)] Fixing permissions..."
