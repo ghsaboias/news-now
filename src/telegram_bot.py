@@ -1,7 +1,7 @@
 import logging
 import json
 import requests
-from typing import Dict, Optional, Callable, List
+from typing import Dict, Callable, List
 
 class TelegramBot:
     def __init__(self, token: str, chat_id: str, logger=None):

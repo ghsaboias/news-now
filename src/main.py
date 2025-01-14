@@ -1,10 +1,5 @@
 import os
 import sys
-print(f"Python version: {sys.version}")
-print(f"PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}")
-print(f"Current directory: {os.getcwd()}")
-print(f"Directory contents: {os.listdir('.')}")
-
 from typing import Dict
 import anthropic
 import logging

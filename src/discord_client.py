@@ -1,5 +1,4 @@
 import logging
-import json
 import requests
 from typing import List, Dict, Optional
 from datetime import datetime, timezone, timedelta
