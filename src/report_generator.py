@@ -3,9 +3,10 @@ from datetime import datetime, timezone
 from typing import List, Dict, Optional, Tuple
 
 class ReportGenerator:
-    def __init__(self, claude_client, logger=None):
+    def __init__(self, claude_client, logger=None, file_ops=None):
         self.claude_client = claude_client
         self.logger = logger or logging.getLogger(__name__)
+        self.file_ops = file_ops
 
     def format_messages_for_claude(self, messages: List[dict]) -> str:
         """Format Discord messages for Claude AI processing"""
@@ -51,7 +52,8 @@ class ReportGenerator:
         return {
             "headline": headline,
             "location": location,
-            "body": body
+            "body": body,
+            "raw_response": text
         }
 
     def create_ai_summary(self, messages: List[dict], channel_name: str, requested_hours: int, previous_summary: Optional[Dict] = None) -> Tuple[Optional[Dict], Optional[datetime], Optional[datetime]]:
@@ -67,6 +69,9 @@ class ReportGenerator:
         period_end = max(timestamps)
 
         formatted_text = self.format_messages_for_claude(messages)
+        
+        # Save the formatted messages
+        self.file_ops.append_formatted_messages(channel_name, formatted_text, period_start, period_end)
         
         # Format previous summary context if available
         previous_summary_text = ""
@@ -87,7 +92,7 @@ class ReportGenerator:
 
         Requirements:
         - Start with ONE headline in ALL CAPS that captures the most significant development
-        - Second line must be in format: City, Month Day, Year (use location of main development)
+        - Second line must be in format: City • Month Day, Year (use location of main development)
         - First paragraph must summarize the most important verified development, including key names, numbers, locations, dates, etc.
         - Subsequent paragraphs should cover other significant developments
         - Do NOT include additional headlines - weave all events into a cohesive narrative
@@ -106,9 +111,10 @@ class ReportGenerator:
         
         Example format:
         MAJOR DEVELOPMENT OCCURS IN REGION
-        Tel Aviv, March 20, 2024 
+        Tel Aviv • March 20, 2024
         
-        First paragraph with main verified development..."""
+        First paragraph with main verified development...
+        """
         
         try:
             response = self.claude_client.messages.create(
@@ -127,6 +133,9 @@ class ReportGenerator:
                 error_msg = "Claude returned empty response"
                 self.logger.error(error_msg)
                 return None, None, None
+            
+            # Log the raw response for debugging
+            self.logger.debug(f"Raw Claude response:\n{response.content[0].text}")
                 
             # Parse the summary into structured format
             structured_summary = self.parse_ai_summary(response.content[0].text)

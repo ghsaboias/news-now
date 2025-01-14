@@ -59,7 +59,11 @@
                         <div class="p-6">
                             <div class="flex items-center justify-between mb-4">
                                 <div class="flex items-center space-x-3">
-                                    <span class="text-sm text-gray-400">{{ summary.minutes_ago // 60 }}h {{ summary.minutes_ago % 60 }}m ago</span>
+                                    {% if summary.minutes_ago >= 60 %}
+                                        <span class="text-sm text-gray-400">{{ summary.minutes_ago // 60 }}h {{ summary.minutes_ago % 60 }}m ago</span>
+                                    {% else %}
+                                        <span class="text-sm text-gray-400">{{ summary.minutes_ago }}m ago</span>
+                                    {% endif %}
                                 </div>
                             </div>
                             <div class="prose prose-sm max-w-none prose-invert">
@@ -67,7 +71,7 @@
                                 <div class="flex items-center space-x-2 text-sm text-gray-400 mb-4">
                                     <span>{{ summary.content.location }}</span>
                                 </div>
-                                <div class="text-gray-300 whitespace-pre-line leading-relaxed">{{ summary.content.body | safe }}</div>
+                                <div class="text-gray-300 whitespace-pre-line leading-relaxed text-justify">{{ summary.content.body | safe }}</div>
                             </div>
                         </div>
                     </div>
@@ -92,7 +96,11 @@
                         <div class="p-6">
                             <div class="flex items-center justify-between mb-4">
                                 <div class="flex items-center space-x-3">
-                                    <span class="text-sm text-gray-400">{{ summary.minutes_ago // 60 }}h ago</span>
+                                    {% if summary.minutes_ago >= 60 %}
+                                        <span class="text-sm text-gray-400">{{ summary.minutes_ago // 60 }}h ago</span>
+                                    {% else %}
+                                        <span class="text-sm text-gray-400">{{ summary.minutes_ago }}m ago</span>
+                                    {% endif %}
                                 </div>
                             </div>
                             <div class="prose prose-sm max-w-none prose-invert">
@@ -100,7 +108,7 @@
                                 <div class="flex items-center space-x-2 text-sm text-gray-400 mb-4">
                                     <span>{{ summary.content.location }}</span>
                                 </div>
-                                <div class="text-gray-300 whitespace-pre-line leading-relaxed">{{ summary.content.body | safe }}</div>
+                                <div class="text-gray-300 whitespace-pre-line leading-relaxed text-justify">{{ summary.content.body | safe }}</div>
                             </div>
                         </div>
                     </div>
@@ -133,7 +141,11 @@
                         <div class="p-6">
                             <div class="flex items-center justify-between mb-4">
                                 <div class="flex items-center space-x-3">
-                                    <span class="text-sm text-gray-400">{{ summary.minutes_ago // 60 }}h {{ summary.minutes_ago % 60 }}m ago</span>
+                                    {% if summary.minutes_ago >= 60 %}
+                                        <span class="text-sm text-gray-400">{{ summary.minutes_ago // 60 }}h {{ summary.minutes_ago % 60 }}m ago</span>
+                                    {% else %}
+                                        <span class="text-sm text-gray-400">{{ summary.minutes_ago }}m ago</span>
+                                    {% endif %}
                                     <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">User Generated</span>
                                 </div>
                             </div>
@@ -142,7 +154,7 @@
                                 <div class="flex items-center space-x-2 text-sm text-gray-400 mb-4">
                                     <span>{{ summary.content.location }}</span>
                                 </div>
-                                <div class="text-gray-300 whitespace-pre-line leading-relaxed">{{ summary.content.body | safe }}</div>
+                                <div class="text-gray-300 whitespace-pre-line leading-relaxed text-justify">{{ summary.content.body | safe }}</div>
                             </div>
                         </div>
                     </div>

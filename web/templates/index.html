@@ -10,6 +10,45 @@
         <p class="text-sm text-gray-500 dark:text-gray-500 mt-2">Last update: {{ datetime.now().strftime('%H:%M UTC') }}</p>
     </div>
 
+    <!-- Filter Section -->
+    <div class="mb-8 bg-white dark:bg-dark-200 rounded-xl p-4 border border-gray-100 dark:border-dark-300">
+        <form id="filter-form" class="space-y-4" method="GET">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Topics Filter -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Topics</label>
+                    <div class="flex flex-wrap gap-2">
+                        {% for topic in all_topics %}
+                        <label class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium {% if topic in selected_topics %}bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300{% else %}bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300{% endif %} cursor-pointer hover:opacity-80 transition-opacity">
+                            <input type="checkbox" name="topics" value="{{ topic }}" class="hidden" {% if topic in selected_topics %}checked{% endif %}>
+                            {{ topic }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Timeframe Filter -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Timeframe</label>
+                    <div class="flex gap-2">
+                        <label class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium {% if timeframe == '1h' %}bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300{% else %}bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300{% endif %} cursor-pointer hover:opacity-80 transition-opacity">
+                            <input type="radio" name="timeframe" value="1h" class="hidden" {% if timeframe == '1h' %}checked{% endif %}>
+                            1h Summaries
+                        </label>
+                        <label class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium {% if timeframe == '24h' %}bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300{% else %}bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300{% endif %} cursor-pointer hover:opacity-80 transition-opacity">
+                            <input type="radio" name="timeframe" value="24h" class="hidden" {% if timeframe == '24h' %}checked{% endif %}>
+                            24h Digests
+                        </label>
+                        <label class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium {% if timeframe is none or timeframe == '' %}bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300{% else %}bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300{% endif %} cursor-pointer hover:opacity-80 transition-opacity">
+                            <input type="radio" name="timeframe" value="" class="hidden" {% if timeframe is none or timeframe == '' %}checked{% endif %}>
+                            All Updates
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
     <!-- News Feed Section -->
     <div class="grid gap-6">
         {% for item in news_items %}
@@ -62,10 +101,10 @@
                 <div class="space-y-3">
                     <h3 class="text-base font-bold text-gray-900 dark:text-white leading-6">{{ item.headline }}</h3>
                     <div class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-                        <span>{{ item.location }}</span>
+                        <span>{{ item.location }} • {{ item.timestamp.strftime('%H:%M UTC') }}</span>
                     </div>
                     <div class="prose prose-gray dark:prose-invert prose-sm max-w-none text-gray-600 dark:text-gray-300">
-                        {{ item.body | safe }}
+                        <div class="whitespace-pre-line text-justify">{{ item.body | safe }}</div>
                     </div>
                 </div>
             </div>

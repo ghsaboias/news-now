@@ -52,10 +52,10 @@ logger.setLevel(logging.DEBUG)
 
 # Initialize components
 claude_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-report_gen = ReportGenerator(claude_client, logger)
 telegram_bot = TelegramBot(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, logger)
 discord_client = DiscordClient(DISCORD_TOKEN, GUILD_ID, logger)
 file_ops = FileOps()
+report_gen = ReportGenerator(claude_client, logger, file_ops)
 report_manager = ReportManager(discord_client, telegram_bot, report_gen, file_ops, logger)
 
 # Add graceful shutdown handling
