@@ -88,7 +88,7 @@ class ReportGenerator:
         Requirements:
         - Start with ONE headline in ALL CAPS that captures the most significant development
         - Second line must be in format: City, Month Day, Year (use location of main development)
-        - First paragraph must summarize the most important verified development
+        - First paragraph must summarize the most important verified development, including key names, numbers, locations, dates, etc.
         - Subsequent paragraphs should cover other significant developments
         - Do NOT include additional headlines - weave all events into a cohesive narrative
         - Maximum 4096 characters, average 2500 characters

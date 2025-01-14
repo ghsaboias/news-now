@@ -1,10 +1,9 @@
 import os
 import json
-import sys
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from functools import lru_cache
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template
 from typing import Optional, Dict, List
 import re
 import unicodedata
@@ -213,7 +212,7 @@ def channel(channel_slug):
         
         # Get all summaries for the channel
         summaries = []
-        now = datetime.now()
+        now = datetime.now(timezone.utc)  # Make now timezone-aware with UTC
         
         # Get regular summaries
         channel_dir = os.path.join(SUMMARIES_DIR, channel_name)
@@ -224,7 +223,11 @@ def channel(channel_slug):
         # Process summaries
         processed_summaries = []
         for summary in summaries:
+            # Ensure period_end is timezone-aware
             period_end = datetime.fromisoformat(summary['period_end'])
+            if period_end.tzinfo is None:
+                period_end = period_end.replace(tzinfo=timezone.utc)
+            
             minutes_ago = int((now - period_end).total_seconds() / 60)
             
             processed_summaries.append({
