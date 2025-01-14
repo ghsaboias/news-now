@@ -25,6 +25,7 @@ class ReportManager:
         try:
             timeframe_str = f"{hours}h"
             previous_summary = self.file_ops.get_latest_summary(channel_name, timeframe_str)
+            
             summary, period_start, period_end = self.report_generator.create_ai_summary(
                 messages, channel_name, hours, previous_summary
             )
@@ -42,6 +43,32 @@ class ReportManager:
             self.logger.error(f"Failed to generate report: {str(e)}", exc_info=True)
             
         return None
+        
+    def check_channel_activity(self, timeframe: str) -> None:
+        """Check activity across all channels for a given timeframe"""
+        try:
+            hours = float(timeframe.replace('h', ''))
+            channels = self.discord_client.fetch_channels()
+            
+            activity_report = []
+            for channel in channels:
+                messages = self.discord_client.fetch_messages_in_timeframe(channel['id'], hours)
+                message_count = len(messages) if messages else 0
+                
+                if message_count > 0:
+                    channel_name = self.telegram_bot._clean_channel_name(channel['name'])
+                    activity_report.append(f"#{channel_name}: {message_count} messages")
+            
+            if activity_report:
+                report_text = f"Activity in the last {timeframe}:\n\n" + "\n".join(activity_report)
+            else:
+                report_text = f"No activity found in any channel in the last {timeframe}"
+                
+            self.telegram_bot.send_message(report_text)
+            
+        except Exception as e:
+            self.logger.error(f"Error checking channel activity: {str(e)}", exc_info=True)
+            self.telegram_bot.send_message("❌ Error checking channel activity")
         
     def _save_summary_to_storage(self, channel_name: str, content: Dict, 
                                period_start: datetime, period_end: datetime, timeframe: str) -> None:

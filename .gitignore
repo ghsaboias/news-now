@@ -2,8 +2,6 @@
 .env
 bot.log
 DEPLOYMENT.md
-discord-bot-watchdog.service
-discord-report-bot.service
 formatted_text.txt
 __pycache__/
 .cursorrules

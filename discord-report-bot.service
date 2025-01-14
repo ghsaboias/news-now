@@ -1,0 +1,19 @@
+[Unit]
+Description=Discord Report Bot
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/news-now
+Environment=PYTHONPATH=/var/www/news-now/.venv/lib/python3.12/site-packages:/var/www/news-now:/var/www/news-now/src
+Environment=PYTHONUNBUFFERED=1
+ExecStart=python3 -u src/main.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/www/news-now/logs/bot.log
+StandardError=append:/var/www/news-now/logs/bot.log
+
+[Install]
+WantedBy=multi-user.target

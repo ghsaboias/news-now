@@ -1,18 +1,20 @@
 import os
-from datetime import datetime, timedelta, timezone
-import json
-from typing import List, Dict, Optional, Tuple
-import time
+import sys
+print(f"Python version: {sys.version}")
+print(f"PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')}")
+print(f"Current directory: {os.getcwd()}")
+print(f"Directory contents: {os.listdir('.')}")
+
+from typing import Dict
 import anthropic
 import logging
 from logging.handlers import RotatingFileHandler
 import signal
-import sys
-from src.file_ops import FileOps
-from src.report_generator import ReportGenerator
-from src.telegram_bot import TelegramBot
-from src.discord_client import DiscordClient
-from src.report_manager import ReportManager
+from file_ops import FileOps
+from report_generator import ReportGenerator
+from telegram_bot import TelegramBot
+from discord_client import DiscordClient
+from report_manager import ReportManager
 
 # Import configuration
 from config import (
@@ -27,13 +29,21 @@ logging.basicConfig(
         RotatingFileHandler(
             LOG_FILE,
             maxBytes=LOG_MAX_BYTES,
-            backupCount=LOG_BACKUP_COUNT
+            backupCount=LOG_BACKUP_COUNT,
+            delay=False
         ),
         logging.StreamHandler()
     ],
     format=LOG_FORMAT,
     level=logging.INFO
 )
+
+# Force immediate flush
+for handler in logging.root.handlers:
+    handler.flush()
+    if isinstance(handler, RotatingFileHandler):
+        handler.mode = 'a'
+        handler.encoding = 'utf-8'
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
