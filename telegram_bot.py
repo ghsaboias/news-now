@@ -1,7 +1,7 @@
 import logging
 import json
 import requests
-from typing import Dict, Optional, Callable
+from typing import Dict, Optional, Callable, List
 
 class TelegramBot:
     def __init__(self, token: str, chat_id: str, logger=None):
@@ -101,4 +101,56 @@ class TelegramBot:
                 delay = min(300, 2 ** consecutive_errors)
                 self.logger.info(f"Retrying in {delay} seconds...")
                 import time
-                time.sleep(delay) 
+                time.sleep(delay)
+                
+    def create_timeframe_keyboard(self) -> Dict:
+        """Create inline keyboard for timeframe selection"""
+        return {
+            "inline_keyboard": [
+                [
+                    {"text": "1 hour", "callback_data": "timeframe_1"},
+                    {"text": "24 hours", "callback_data": "timeframe_24"}
+                ]
+            ]
+        }
+
+    def create_channel_selection_keyboard(self, channels: List[Dict]) -> Dict:
+        """Create inline keyboard for channel selection"""
+        keyboard = []
+        row = []
+        
+        for channel in channels:
+            button = {
+                "text": f"#{self._clean_channel_name(channel['name'])}",
+                "callback_data": f"channel_{channel['id']}"
+            }
+            row.append(button)
+            
+            if len(row) == 2:  # 2 buttons per row
+                keyboard.append(row)
+                row = []
+        
+        if row:  # Add any remaining buttons
+            keyboard.append(row)
+            
+        return {"inline_keyboard": keyboard}
+        
+    def create_activity_timeframe_keyboard(self) -> Dict:
+        """Create inline keyboard for activity check timeframe selection"""
+        return {
+            "inline_keyboard": [
+                [
+                    {"text": "30 minutes", "callback_data": "activity_30m"},
+                    {"text": "1 hour", "callback_data": "activity_1h"}
+                ],
+                [
+                    {"text": "2 hours", "callback_data": "activity_2h"},
+                    {"text": "4 hours", "callback_data": "activity_4h"}
+                ]
+            ]
+        }
+        
+    @staticmethod
+    def _clean_channel_name(name: str) -> str:
+        """Clean channel name for Telegram display by removing problematic characters."""
+        return name.replace('-', ' ') 

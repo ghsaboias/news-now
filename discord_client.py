@@ -2,7 +2,7 @@ import logging
 import json
 import requests
 from typing import List, Dict, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 class DiscordClient:
     def __init__(self, token: str, guild_id: str, logger=None):
@@ -62,15 +62,20 @@ class DiscordClient:
             self.logger.error(f"Error fetching message batch: {str(e)}")
             return None
             
-    def fetch_messages_in_timeframe(self, channel_id: str, hours: float) -> List[Dict]:
+    def fetch_messages_in_timeframe(self, channel_id: str, hours: float = 24, minutes: float = None) -> List[Dict]:
         """Fetch bot messages from a Discord channel within specified timeframe"""
         messages = []
         last_message_id = None
         
-        # Calculate cutoff time
-        cutoff_time = datetime.now(timezone.utc).timestamp() - (hours * 3600)
+        # Calculate cutoff time based on hours or minutes
+        if minutes is not None:
+            cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+            time_str = f"{minutes} minutes"
+        else:
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+            time_str = f"{hours} hours"
         
-        self.logger.info(f"Fetching messages from channel {channel_id} for past {hours} hours")
+        self.logger.info(f"Fetching messages from channel {channel_id} for past {time_str}")
         
         while True:
             batch = self.fetch_message_batch(channel_id, last_message_id)
@@ -84,7 +89,7 @@ class DiscordClient:
                 msg_time = datetime.fromisoformat(msg['timestamp'].rstrip('Z')).replace(tzinfo=timezone.utc)
                 if (msg['author'].get('username') == 'FaytuksBot' and 
                     msg['author'].get('discriminator') == '7032' and 
-                    msg_time.timestamp() >= cutoff_time):
+                    msg_time >= cutoff_time):
                     messages.append(msg)
                     batch_bot_messages += 1
             
@@ -92,10 +97,24 @@ class DiscordClient:
             
             # Check if we should stop
             last_msg_time = datetime.fromisoformat(batch[-1]['timestamp'].rstrip('Z')).replace(tzinfo=timezone.utc)
-            if last_msg_time.timestamp() < cutoff_time:
+            if last_msg_time < cutoff_time:
                 break
                 
             last_message_id = batch[-1]['id']
         
         self.logger.info(f"Total bot messages found: {len(messages)}")
-        return messages 
+        return messages  # Always return the list, even if empty
+        
+    def format_raw_message_report(self, channel_name: str, messages: List[Dict]) -> str:
+        """Format raw messages into a basic report format"""
+        report = f"📊 Report for #{channel_name}\n\n"
+        
+        for msg in messages:
+            timestamp = datetime.fromisoformat(msg['timestamp'].rstrip('Z')).strftime('%Y-%m-%d %H:%M UTC')
+            content = msg.get('content', '')
+            report += f"🕒 `{timestamp}`\n{content}\n\n"
+        
+        if not messages:
+            report += "No messages found in the specified timeframe\\."
+        
+        return report 
