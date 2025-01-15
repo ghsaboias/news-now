@@ -78,8 +78,14 @@ $(document).ready(function() {
 
     // Filter form handling
     $('#filter-form input[type="checkbox"], #filter-form input[type="radio"]').on('change', function(e) {
+        // Prevent double-tap zoom on mobile
+        e.preventDefault();
+        
         // Update styles first
         updateFilterStyles();
+
+        // Update active filters display
+        updateActiveFilters();
 
         // Get all selected topics
         const selectedTopics = $('#filter-form input[name="topics"]:checked').map(function() {
@@ -134,6 +140,112 @@ $(document).ready(function() {
             placement: 'bottom',
             arrow: true,
             theme: 'light-border',
+        });
+    }
+
+    // Mobile menu functionality
+    $('.mobile-nav-toggle').on('click', function() {
+        $('.mobile-menu').addClass('active');
+        $('body').addClass('overflow-hidden');
+    });
+
+    $('.mobile-menu-close, .mobile-menu').on('click', function(e) {
+        if (e.target === this) {
+            $('.mobile-menu').removeClass('active');
+            $('body').removeClass('overflow-hidden');
+        }
+    });
+
+    // Prevent menu content clicks from closing the menu
+    $('.mobile-menu-content').on('click', function(e) {
+        e.stopPropagation();
+    });
+
+    // Handle window resize
+    $(window).on('resize', function() {
+        if ($(window).width() > 768) {
+            $('.mobile-menu').removeClass('active');
+            $('body').removeClass('overflow-hidden');
+        }
+    });
+
+    // Mobile filter toggle
+    $('#mobile-filter-toggle').on('click', function() {
+        const $content = $('#filter-content');
+        const $icon = $(this).find('svg');
+        $content.toggleClass('active');
+        $icon.toggleClass('rotate');
+    });
+
+    // Function to update active filters display
+    function updateActiveFilters() {
+        const $activeFilters = $('#active-filters');
+        const $filtersList = $('#active-filters-list');
+        const selectedTopics = $('#filter-form input[name="topics"]:checked').map(function() {
+            return this.value;
+        }).get();
+        const timeframe = $('#filter-form input[name="timeframe"]:checked').val();
+
+        $filtersList.empty();
+
+        // Add selected topics
+        selectedTopics.forEach(topic => {
+            $filtersList.append(`
+                <span class="inline-flex items-center gap-x-1 rounded-md px-2 py-1 text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
+                    ${topic}
+                    <button type="button" class="remove-filter ml-1" data-type="topic" data-value="${topic}">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </span>
+            `);
+        });
+
+        // Add timeframe if selected
+        if (timeframe) {
+            const timeframeText = timeframe === '1h' ? '1h Summaries' : '24h Digests';
+            $filtersList.append(`
+                <span class="inline-flex items-center gap-x-1 rounded-md px-2 py-1 text-xs font-medium bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400">
+                    ${timeframeText}
+                    <button type="button" class="remove-filter ml-1" data-type="timeframe" data-value="${timeframe}">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </span>
+            `);
+        }
+
+        // Show/hide active filters section
+        if (selectedTopics.length > 0 || timeframe) {
+            $activeFilters.removeClass('hidden');
+        } else {
+            $activeFilters.addClass('hidden');
+        }
+    }
+
+    // Handle removing filters
+    $(document).on('click', '.remove-filter', function() {
+        const type = $(this).data('type');
+        const value = $(this).data('value');
+
+        if (type === 'topic') {
+            $(`#filter-form input[name="topics"][value="${value}"]`).prop('checked', false).trigger('change');
+        } else if (type === 'timeframe') {
+            $(`#filter-form input[name="timeframe"][value=""]`).prop('checked', true).trigger('change');
+        }
+    });
+
+    // Initialize active filters display
+    updateActiveFilters();
+
+    // Add touch event handling for better mobile experience
+    if ('ontouchstart' in window) {
+        $('.mobile-touch-target').on('touchstart', function() {
+            $(this).addClass('active');
+        }).on('touchend touchcancel', function() {
+            $(this).removeClass('active');
         });
     }
 });

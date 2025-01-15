@@ -27,9 +27,241 @@
     color: #4b5563;
 }
 
-/* Responsive adjustments */
+/* Mobile Optimizations */
 @media (max-width: 640px) {
     .prose {
         font-size: 0.875rem;
+    }
+
+    /* Adjust padding for mobile */
+    .p-4 {
+        padding: 0.75rem !important;
+    }
+
+    .p-6 {
+        padding: 1rem !important;
+    }
+
+    /* Stack filter items vertically on mobile */
+    .filter-section .grid {
+        grid-template-columns: 1fr !important;
+        gap: 1rem !important;
+    }
+
+    /* Adjust news card spacing */
+    .news-card {
+        margin-bottom: 1rem;
+    }
+
+    /* Make tags and badges wrap better */
+    .flex.flex-wrap.gap-2 {
+        gap: 0.375rem !important;
+    }
+
+    /* Adjust text sizes */
+    .text-4xl {
+        font-size: 1.875rem !important;
+        line-height: 2.25rem !important;
+    }
+
+    .text-lg {
+        font-size: 1rem !important;
+        line-height: 1.5rem !important;
+    }
+
+    /* Improve touch targets */
+    button, 
+    .button,
+    a.button,
+    input[type="checkbox"] + label,
+    input[type="radio"] + label {
+        min-height: 44px;
+        padding: 0.625rem 1rem;
+    }
+
+    /* Adjust header for mobile */
+    .header-content {
+        padding: 0.5rem 1rem;
+    }
+
+    /* Improve mobile scrolling */
+    .overflow-auto {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Mobile Filter Styles */
+    #filter-content {
+        max-height: 0;
+        overflow: hidden;
+        opacity: 0;
+    }
+
+    #filter-content.active {
+        max-height: 1000px;
+        opacity: 1;
+        padding-top: 1rem;
+    }
+
+    #mobile-filter-toggle svg.rotate {
+        transform: rotate(180deg);
+    }
+
+    /* Improve touch targets */
+    .mobile-touch-target {
+        width: 100%;
+        justify-content: flex-start;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Stack timeframe buttons vertically on mobile */
+    #filter-form .flex.flex-wrap.gap-3 {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    /* Adjust spacing for mobile */
+    .space-y-6 > * + * {
+        margin-top: 1.25rem;
+    }
+
+    /* Make filter sections more distinct */
+    #filter-form > div {
+        padding: 1rem;
+        background-color: rgba(0, 0, 0, 0.02);
+        border-radius: 0.5rem;
+    }
+
+    /* Active filters display */
+    #active-filters {
+        margin-top: 1rem;
+        padding-top: 1rem;
+    }
+
+    #active-filters-list {
+        margin-top: 0.5rem;
+    }
+}
+
+/* Tablet Optimizations */
+@media (min-width: 641px) and (max-width: 1024px) {
+    .prose {
+        font-size: 0.9375rem;
+    }
+
+    /* Adjust grid columns for tablets */
+    .grid-cols-1 {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    /* Improve spacing on tablets */
+    .gap-6 {
+        gap: 1.25rem !important;
+    }
+}
+
+/* Touch Device Optimizations */
+@media (hover: none) {
+    /* Remove hover effects on touch devices */
+    .news-card:hover {
+        transform: none !important;
+    }
+
+    /* Increase touch targets */
+    .nav-link,
+    .button,
+    .interactive-element {
+        padding: 0.75rem 1rem;
+    }
+}
+
+/* Dark Mode Optimizations */
+@media (prefers-color-scheme: dark) {
+    .prose blockquote {
+        border-left-color: #4b5563;
+        color: #9ca3af;
+    }
+}
+
+/* Loading States */
+.loading {
+    opacity: 0.7;
+    pointer-events: none;
+    transition: opacity 0.2s ease-in-out;
+}
+
+/* Accessibility Improvements */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+/* Filter Styles */
+.mobile-touch-target {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+}
+
+#filter-content {
+    display: block;
+}
+
+@media (max-width: 768px) {
+    #filter-content {
+        display: none;
+        height: auto;
+        opacity: 1;
+    }
+
+    #filter-content.active {
+        display: block;
+        opacity: 1;
+        padding-top: 1rem;
+    }
+
+    /* Mobile touch targets */
+    .mobile-touch-target {
+        width: 100%;
+        justify-content: flex-start;
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Stack timeframe buttons */
+    #filter-form .flex.flex-wrap.gap-3 {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    /* Improve filter sections */
+    #filter-form > div:not(.md\:hidden) {
+        padding: 1rem;
+        background-color: rgba(0, 0, 0, 0.02);
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    /* Active filters */
+    #active-filters {
+        margin-top: 1rem;
+        padding-top: 1rem;
+    }
+
+    #active-filters-list {
+        margin-top: 0.5rem;
+    }
+
+    /* Filter toggle button */
+    #mobile-filter-toggle svg {
+        transition: transform 0.2s ease;
+    }
+
+    #mobile-filter-toggle svg.rotate {
+        transform: rotate(180deg);
     }
 } 
