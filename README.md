@@ -2,6 +2,10 @@
 
 A comprehensive news monitoring and summarization system that watches Discord channels for important messages. Reports are automatically generated and distributed through both Telegram and a web interface at [aiworld.com.br](https://aiworld.com.br).
 
+## Demo
+
+https://github.com/user-attachments/assets/5d9c33f4-53fc-493c-9c75-7e98c3b85eb8
+
 ## Features
 
 - Automated report generation (1h and 24h summaries)
