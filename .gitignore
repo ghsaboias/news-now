@@ -5,3 +5,4 @@ DEPLOYMENT.md
 formatted_text.txt
 __pycache__/
 .cursorrules
+.DS_Store
