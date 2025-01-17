@@ -5,6 +5,7 @@ import axios, { AxiosInstance } from 'axios';
 export class DiscordClient {
     private readonly api: AxiosInstance;
     private readonly baseUrl = 'https://discord.com/api/v10';
+    public onMessageBatch?: (batchSize: number, botMessages: number, messages: DiscordMessage[]) => Promise<void>;
 
     constructor() {
         this.api = axios.create({
@@ -92,6 +93,8 @@ export class DiscordClient {
 
             // Process batch and get bot messages
             let batchBotMessages = 0;
+            const batchMessages: DiscordMessage[] = [];
+
             for (const msg of batch) {
                 const msgTime = new Date(msg.timestamp);
                 if (
@@ -100,8 +103,14 @@ export class DiscordClient {
                     msgTime >= cutoffTime
                 ) {
                     messages.push(msg);
+                    batchMessages.push(msg);
                     batchBotMessages++;
                 }
+            }
+
+            // Notify about the batch if handler exists
+            if (this.onMessageBatch) {
+                await this.onMessageBatch(batch.length, batchBotMessages, batchMessages);
             }
 
             console.log(`Processed batch of ${batch.length} messages, found ${batchBotMessages} bot messages`);
