@@ -395,7 +395,7 @@ export default function DiscordTest() {
                 <div className="flex items-center gap-2 text-sm text-gray-400 mb-6">
                   <span className="font-semibold">{summary.location_and_period}</span>
                 </div>
-                <div className="prose prose-lg max-w-none text-gray-300 prose-headings:text-gray-100">
+                <div className="prose prose-lg max-w-none text-gray-300 prose-headings:text-gray-100 text-justify">
                   {summary.body.split('\n').map((paragraph, idx) => (
                     <p key={idx} className="mb-4">
                       {paragraph}
