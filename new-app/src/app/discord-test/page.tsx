@@ -1,7 +1,9 @@
 'use client';
 
-import { AISummary, DiscordChannel, DiscordMessage } from '@/types';
+import { ReportDrawer } from '@/components/ReportDrawer';
+import { AISummary, DiscordChannel, DiscordMessage, Report, ReportGroup } from '@/types';
 import { useEffect, useState } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 
 // Server Actions
 async function fetchChannelsAction(): Promise<DiscordChannel[]> {
@@ -54,6 +56,8 @@ export default function DiscordTest() {
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>('1h');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [reports, setReports] = useState<ReportGroup[]>([]);
   const [progress, setProgress] = useState<{
     batchCount: number;
     totalMessages: number;
@@ -64,10 +68,53 @@ export default function DiscordTest() {
     processing: false
   });
 
-  // Fetch channels on component mount
+  // Fetch channels and reports on component mount
   useEffect(() => {
     fetchChannels();
+    fetchReports();
   }, []);
+
+  const fetchReports = async () => {
+    try {
+      const response = await fetch('/api/reports');
+      if (!response.ok) throw new Error('Failed to fetch reports');
+      const data = await response.json();
+      
+      console.log('Fetched reports data:', data);
+      
+      if (!Array.isArray(data)) {
+        console.error('Expected array of report groups, got:', typeof data);
+        setReports([]);
+        return;
+      }
+
+      // Validate the data structure
+      const validReportGroups = data.filter((group): group is ReportGroup => {
+        if (!group || typeof group !== 'object') return false;
+        if (!('date' in group) || !('reports' in group)) return false;
+        if (!Array.isArray(group.reports)) return false;
+        
+        // Validate each report in the group
+        return group.reports.every((report: unknown) => 
+          report &&
+          typeof report === 'object' &&
+          report !== null &&
+          'id' in report &&
+          'channelId' in report &&
+          'channelName' in report &&
+          'timestamp' in report &&
+          'timeframe' in report &&
+          'messageCount' in report &&
+          'summary' in report
+        );
+      });
+
+      setReports(validReportGroups);
+    } catch (err) {
+      console.error('Error fetching reports:', err);
+      setReports([]);
+    }
+  };
 
   const fetchChannels = async () => {
     setLoading(true);
@@ -135,6 +182,24 @@ export default function DiscordTest() {
             if (finalMessages.length > 0) {
               const newSummary = await generateSummaryAction(selectedChannelId, selectedChannel, finalMessages);
               setSummary(newSummary);
+
+              // Create and save the report
+              const report: Report = {
+                id: uuidv4(),
+                channelId: selectedChannelId,
+                channelName: selectedChannel,
+                timestamp: new Date().toISOString(),
+                timeframe: {
+                  type: selectedTimeframe as '1h' | '4h' | '24h',
+                  start: new Date(Date.now() - getTimeframeMs(selectedTimeframe)).toISOString(),
+                  end: new Date().toISOString(),
+                },
+                messageCount: finalMessages.length,
+                summary: newSummary,
+              };
+
+              await saveReport(report);
+              await fetchReports(); // Refresh the reports list
             }
             break;
           
@@ -157,6 +222,59 @@ export default function DiscordTest() {
     }
   };
 
+  const getTimeframeMs = (timeframe: string): number => {
+    switch (timeframe) {
+      case '1h': return 60 * 60 * 1000;
+      case '4h': return 4 * 60 * 60 * 1000;
+      case '24h': return 24 * 60 * 60 * 1000;
+      default: return 60 * 60 * 1000;
+    }
+  };
+
+  const saveReport = async (report: Report) => {
+    try {
+      const response = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(report),
+      });
+      if (!response.ok) throw new Error('Failed to save report');
+    } catch (err) {
+      console.error('Error saving report:', err);
+      setError('Failed to save report');
+    }
+  };
+
+  const handleEditReport = async (report: Report) => {
+    try {
+      const response = await fetch(`/api/reports/${report.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(report),
+      });
+      if (!response.ok) throw new Error('Failed to update report');
+      await fetchReports();
+    } catch (err) {
+      console.error('Error updating report:', err);
+      setError('Failed to update report');
+    }
+  };
+
+  const handleDeleteReport = async (report: Report) => {
+    if (!confirm('Are you sure you want to delete this report?')) return;
+    
+    try {
+      const response = await fetch(`/api/reports/${report.id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete report');
+      await fetchReports();
+    } catch (err) {
+      console.error('Error deleting report:', err);
+      setError('Failed to delete report');
+    }
+  };
+
   const timeframeOptions = [
     { value: '1h', label: 'Last Hour' },
     { value: '4h', label: 'Last 4 Hours' },
@@ -168,6 +286,12 @@ export default function DiscordTest() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         <header className="mb-8 text-center">
           <h1 className="text-4xl font-bold text-white">News Now</h1>
+          <button
+            onClick={() => setIsDrawerOpen(true)}
+            className="mt-4 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            View Saved Reports
+          </button>
           {error && (
             <div className="mt-4 text-red-500 p-4 bg-red-900/20 rounded-lg border border-red-500/20">
               {error}
@@ -282,6 +406,14 @@ export default function DiscordTest() {
             )}
           </div>
         )}
+
+        <ReportDrawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          reports={reports}
+          onEditReport={handleEditReport}
+          onDeleteReport={handleDeleteReport}
+        />
       </div>
     </div>
   );

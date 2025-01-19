@@ -154,4 +154,23 @@ export interface ClaudeClient {
             messages: ClaudeMessage[];
         }) => Promise<ClaudeResponse>;
     };
+}
+
+export interface Report {
+    id: string;
+    channelId: string;
+    channelName: string;
+    timestamp: string;
+    timeframe: {
+        type: '1h' | '4h' | '24h';
+        start: string;
+        end: string;
+    };
+    messageCount: number;
+    summary: AISummary;
+}
+
+export interface ReportGroup {
+    date: string;
+    reports: Report[];
 } 
