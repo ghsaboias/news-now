@@ -2,6 +2,7 @@
 /node_modules
 /.pnp
 .pnp.js
+**/node_modules/
 
 # testing
 /coverage
@@ -10,12 +11,14 @@
 /.next/
 /out/
 /build
+**/.next/
+**/out/
+**/build/
 
 # production
 /build
 *.tar.gz
 build.tar.gz
-**/build/
 **/dist/
 
 # misc

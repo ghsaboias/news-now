@@ -1,0 +1,2 @@
+#!/bin/bash
+set -e && set -a && source .env.local && set +a && cp .env.local .env.production && sed -i "" "s#DATA_DIR=./data#DATA_DIR=/var/www/app.aiworld.com.br/data#" .env.production && sed -i "" "s#LOG_DIR=./logs#LOG_DIR=/var/www/app.aiworld.com.br/logs#" .env.production && rm -rf .next node_modules/.cache && npm ci && NODE_OPTIONS="--max-old-space-size=512" npm run build && tar -czf build.tar.gz .next package.json package-lock.json public .env.production
