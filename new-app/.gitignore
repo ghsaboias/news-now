@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+# memory
+memory/
+
+# deployment
+deploy.sh
+DEPLOYMENT_PROTOCOL.md
+CONFIGURATION.md

@@ -20,10 +20,9 @@ export default function Home() {
               <div className="flex gap-4">
                 <Link 
                   href="/discord-test" 
-                  className="text-gray-300 hover:text-white transition-colors flex items-center gap-2"
+                  className="text-gray-300 hover:text-white transition-colors flex items-center"
                 >
-                  <span>See it in Action</span>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  <span>Demo</span>
                 </Link>
                 <a 
                   href="https://github.com/ghsaboias/news-now" 
@@ -50,11 +49,10 @@ export default function Home() {
               <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8">
                 <div className="rounded-md shadow">
                   <Link
-                    href="https://app.aiworld.com.br"
+                    href="/summarizer"
                     className="group w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 md:py-4 md:text-lg md:px-10 transition-all"
                   >
-                    <span>Add to Discord</span>
-                    <span className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity">→</span>
+                    <span>Demo</span>
                   </Link>
                 </div>
               </div>

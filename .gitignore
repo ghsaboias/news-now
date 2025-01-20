@@ -57,3 +57,9 @@ formatted_text.txt
 __pycache__/
 .cursorrules
 data/
+
+# Sensitive deployment files
+memory/
+deploy.sh
+DEPLOYMENT_PROTOCOL.md
+CONFIGURATION.md
