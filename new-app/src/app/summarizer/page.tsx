@@ -1,5 +1,6 @@
 'use client';
 
+import { BulkGenerateButton } from '@/components/controls/BulkGenerateButton';
 import { ChannelSelect } from '@/components/controls/ChannelSelect';
 import { GenerateButton } from '@/components/controls/GenerateButton';
 import { TimeSelect, TimeframeOption } from '@/components/controls/TimeSelect';
@@ -256,6 +257,8 @@ function DiscordTestContent() {
         disabled={!selectedChannelId}
         loading={loading}
       />
+
+      <BulkGenerateButton onComplete={fetchReports} />
 
       {error && (
         <div className="text-red-500 p-4 bg-red-900/20 rounded-lg border border-red-500/20">

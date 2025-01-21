@@ -67,3 +67,23 @@ export interface ClaudeClient {
         }) => Promise<ClaudeResponse>;
     };
 }
+
+export interface ActivityThreshold {
+    timeframe: '1h' | '4h' | '24h';
+    minMessages: number;
+}
+
+export interface ChannelActivity {
+    channelId: string;
+    channelName: string;
+    messageCount: number;
+    status: 'pending' | 'processing' | 'success' | 'error' | 'skipped';
+    error?: string;
+}
+
+export interface BulkGenerationProgress {
+    thresholds: ActivityThreshold[];
+    channels: ChannelActivity[];
+    status: 'scanning' | 'generating' | 'complete' | 'error';
+    currentChannel?: string;
+}
