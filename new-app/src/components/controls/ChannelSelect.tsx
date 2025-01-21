@@ -14,26 +14,45 @@ export function ChannelSelect({
   disabled = false
 }: ChannelSelectProps) {
   return (
-    <div className="relative">
-      <select
-        value={selectedChannelId}
-        onChange={(e) => onSelect(e.target.value)}
-        disabled={disabled}
-        className="w-full pl-4 pr-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white 
-                  appearance-none cursor-pointer hover:bg-gray-750 focus:ring-2 focus:ring-blue-500 
-                  focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <option value="">Select a channel</option>
-        {channels.map((channel) => (
-          <option key={channel.id} value={channel.id}>
-            {channel.name}
-          </option>
-        ))}
-      </select>
-      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-        </svg>
+    <div className="w-full">
+      <label className="block text-sm font-medium text-gray-300 mb-2">
+        Select Channel
+      </label>
+      <div className="relative">
+        <select
+          value={selectedChannelId}
+          onChange={(e) => onSelect(e.target.value)}
+          disabled={disabled}
+          className="
+            w-full px-4 py-2.5 bg-gray-800/80 border border-gray-700 rounded-lg text-white
+            appearance-none cursor-pointer transition-colors
+            hover:bg-gray-700 hover:border-gray-600
+            focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none
+            disabled:opacity-50 disabled:cursor-not-allowed
+          "
+        >
+          <option value="">Select a channel</option>
+          {channels.map((channel) => (
+            <option key={channel.id} value={channel.id} className="bg-gray-800">
+              {channel.name}
+            </option>
+          ))}
+        </select>
+        <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+          <svg 
+            className="w-5 h-5 text-gray-400" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth="2" 
+              d="M19 9l-7 7-7-7" 
+            />
+          </svg>
+        </div>
       </div>
     </div>
   );

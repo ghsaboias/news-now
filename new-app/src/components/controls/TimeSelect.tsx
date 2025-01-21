@@ -12,21 +12,25 @@ export interface TimeSelectProps {
 
 export function TimeSelect({ value, onChange, options, disabled = false }: TimeSelectProps) {
   return (
-    <div>
-      <label className="block text-sm font-medium text-gray-400">
+    <div className="w-full">
+      <label className="block text-sm font-medium text-gray-300 mb-2">
         Time Range
       </label>
-      <div className="mt-1 flex flex-wrap gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {options.map((option) => (
           <button
             key={option.value}
             onClick={() => onChange(option.value)}
             disabled={disabled}
-            className={`rounded-full px-4 py-1 text-sm font-medium transition-colors ${
-              value === option.value
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
+            className={`
+              w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-all
+              ${value === option.value
+                ? 'bg-blue-600 text-white ring-2 ring-blue-500 ring-offset-2 ring-offset-gray-900'
+                : 'bg-gray-800/80 text-gray-300 hover:bg-gray-700 hover:text-white'
+              }
+              disabled:opacity-50 disabled:cursor-not-allowed
+              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900
+            `}
           >
             {option.label}
           </button>

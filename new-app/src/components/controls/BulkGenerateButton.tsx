@@ -1,7 +1,7 @@
 import { useReports } from '@/context/ReportsContext';
 import { ActivityThreshold, ChannelActivity } from '@/types';
 import { useRef, useState } from 'react';
-import { AlertCircle, Check, ChevronDown, ChevronUp, Loader, X } from 'react-feather';
+import { AlertCircle, Check, ChevronDown, ChevronUp, Loader } from 'react-feather';
 
 const DEFAULT_THRESHOLDS: ActivityThreshold[] = [
     { timeframe: '1h', minMessages: 3 },
@@ -119,155 +119,96 @@ export function BulkGenerateButton({ onComplete }: BulkGenerateButtonProps) {
     const errorCount = progress.channels.filter(c => c.status === 'error').length;
 
     return (
-        <div className="space-y-4 bg-gray-900/50 rounded-xl p-4">
-            {/* Configuration Section */}
-            <div className="space-y-2">
-                <h3 className="text-sm font-medium text-gray-400">Select Timeframe</h3>
-                <div className="grid grid-cols-3 gap-2 bg-gray-800/30 p-1.5 rounded-lg">
+        <div className="space-y-4">
+            <div className="w-full">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Minimum Messages
+                </label>
+                <div className="grid grid-cols-3 gap-2">
                     {TIMEFRAME_OPTIONS.map((option) => (
                         <button
                             key={option.value}
                             onClick={() => setSelectedTimeframe(option.value as '1h' | '4h' | '24h')}
-                            className={`px-3 py-2 text-sm font-medium rounded-md transition-all
-                                ${selectedTimeframe === option.value
-                                    ? 'bg-blue-600 text-white shadow-lg'
-                                    : 'bg-transparent text-gray-400 hover:bg-gray-700/50'
-                                }`}
                             disabled={loading}
+                            className={`
+                                w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-all
+                                ${selectedTimeframe === option.value
+                                    ? 'bg-blue-600 text-white ring-2 ring-blue-500 ring-offset-2 ring-offset-gray-900'
+                                    : 'bg-gray-800/80 text-gray-300 hover:bg-gray-700 hover:text-white'
+                                }
+                                disabled:opacity-50 disabled:cursor-not-allowed
+                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900
+                            `}
                         >
                             {option.label}
                         </button>
                     ))}
                 </div>
-                <div className="text-xs text-gray-500">
-                    Minimum messages: {DEFAULT_THRESHOLDS.find(t => t.timeframe === selectedTimeframe)?.minMessages}
-                </div>
             </div>
 
-            {/* Action Section */}
             <button
                 onClick={handleGenerate}
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 
-                    disabled:bg-blue-800 text-white rounded-lg px-4 py-3 font-medium transition-all
-                    shadow-lg hover:shadow-xl disabled:shadow-none"
+                className="
+                    w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium
+                    transition-all hover:bg-blue-700
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900
+                "
             >
-                {loading && <Loader className="w-4 h-4 animate-spin" />}
-                Generate Reports for Active Channels
+                {loading ? (
+                    <div className="flex items-center justify-center space-x-2">
+                        <Loader className="w-5 h-5 animate-spin" />
+                        <span>Generating Reports...</span>
+                    </div>
+                ) : (
+                    'Generate Reports for Active Channels'
+                )}
             </button>
 
             {/* Progress Section */}
             {progress.status !== 'idle' && (
-                <button
-                    onClick={() => setIsProgressExpanded(!isProgressExpanded)}
-                    className="space-y-3 bg-gray-800/30 rounded-lg p-4 hover:bg-gray-700/50 transition-colors"
-                >
-                    {/* Header with Status and Toggle */}
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="text-sm font-medium text-gray-300">
-                                {progress.status === 'scanning' && (
-                                    <div className="flex items-center gap-2">
-                                        <Loader className="w-4 h-4 animate-spin text-blue-400" />
-                                        <span>Scanning channels...</span>
-                                    </div>
-                                )}
-                                {progress.status === 'generating' && (
-                                    <div className="flex items-center gap-2">
-                                        <Loader className="w-4 h-4 animate-spin text-blue-400" />
-                                        <span>Generating reports...</span>
-                                    </div>
-                                )}
-                                {progress.status === 'complete' && (
-                                    <div className="flex items-center gap-2">
-                                        <Check className="w-4 h-4 text-green-400" />
-                                        <span>Generation complete</span>
-                                    </div>
-                                )}
-                                {progress.status === 'error' && (
-                                    <div className="flex items-center gap-2">
-                                        <X className="w-4 h-4 text-red-400" />
-                                        <span>Error generating reports</span>
-                                    </div>
-                                )}
-                            </div>
-                            {progress.channels.length > 0 && (
-                                <div className="flex items-center gap-2 text-xs">
-                                    {successCount > 0 && (
-                                        <span className="text-green-400">{successCount} generated</span>
-                                    )}
-                                    {skippedCount > 0 && (
-                                        <span className="text-yellow-400">{skippedCount} skipped</span>
-                                    )}
-                                    {errorCount > 0 && (
-                                        <span className="text-red-400">{errorCount} failed</span>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                        <div
-                            className="p-1.5 rounded-md transition-colors"
-                        >
-                            {isProgressExpanded ? (
-                                <ChevronUp className="w-4 h-4 text-gray-400" />
-                            ) : (
-                                <ChevronDown className="w-4 h-4 text-gray-400" />
-                            )}
+                <div className="bg-gray-800/50 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center space-x-2">
+                            {progress.status === 'scanning' && <Loader className="w-4 h-4 text-blue-400 animate-spin" />}
+                            {progress.status === 'generating' && <Loader className="w-4 h-4 text-green-400 animate-spin" />}
+                            {progress.status === 'complete' && <Check className="w-4 h-4 text-green-400" />}
+                            {progress.status === 'error' && <AlertCircle className="w-4 h-4 text-red-400" />}
+                            <span className="text-sm font-medium text-gray-300 capitalize">
+                                {progress.status}
+                            </span>
                         </div>
                         <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                resetProgress();
-                            }}
-                            className="ml-2 p-1.5 rounded-md hover:bg-gray-700/50 transition-colors"
+                            onClick={() => setIsProgressExpanded(!isProgressExpanded)}
+                            className="text-gray-400 hover:text-white transition-colors"
                         >
-                            <X className="w-4 h-4 text-gray-400" />
+                            {isProgressExpanded ? (
+                                <ChevronUp className="w-5 h-5" />
+                            ) : (
+                                <ChevronDown className="w-5 h-5" />
+                            )}
                         </button>
                     </div>
 
-                    {/* Channel List */}
-                    {isProgressExpanded && (
+                    {isProgressExpanded && progress.channels.length > 0 && (
                         <div className="space-y-2">
-                            {progress.currentChannel && (
-                                <div className="text-xs text-blue-400 flex items-center gap-2">
-                                    <Loader className="w-3 h-3 animate-spin" />
-                                    Processing: #{progress.currentChannel}
+                            {progress.channels.map((channel) => (
+                                <div
+                                    key={channel.channelId}
+                                    className="flex items-center justify-between p-2 rounded bg-gray-800/30"
+                                >
+                                    <span className="text-sm text-gray-300">
+                                        {channel.channelName}
+                                    </span>
+                                    <span className="text-sm text-gray-400">
+                                        {channel.messageCount} messages
+                                    </span>
                                 </div>
-                            )}
-
-                            <div className="space-y-1">
-                                {progress.channels.map(channel => (
-                                    <div
-                                        key={channel.channelId}
-                                        className="flex items-center justify-between py-1.5 px-2 rounded-md
-                                            bg-gray-800/30 hover:bg-gray-800/50 transition-colors min-w-0"
-                                    >
-                                        <span className="text-xs text-gray-300 truncate mr-3">#{channel.channelName}</span>
-                                        <div className="flex items-center gap-2 flex-shrink-0">
-                                            <span className={`text-xs flex items-center gap-1.5 ${
-                                                channel.status === 'success' ? 'text-green-400' :
-                                                channel.status === 'error' ? 'text-red-400' :
-                                                channel.status === 'processing' ? 'text-blue-400' :
-                                                channel.status === 'skipped' ? 'text-yellow-400' :
-                                                'text-gray-400'
-                                            }`}>
-                                                {channel.status === 'success' && <Check className="w-3 h-3" />}
-                                                {channel.status === 'error' && <X className="w-3 h-3" />}
-                                                {channel.status === 'processing' && <Loader className="w-3 h-3 animate-spin" />}
-                                                {channel.status === 'skipped' && <AlertCircle className="w-3 h-3" />}
-                                                {channel.status === 'success' && `${channel.messageCount} messages`}
-                                                {channel.status === 'error' && 'Error'}
-                                                {channel.status === 'processing' && 'Processing...'}
-                                                {channel.status === 'skipped' && `${channel.messageCount} messages`}
-                                                {channel.status === 'pending' && 'Pending'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                            ))}
                         </div>
                     )}
-                </button>
+                </div>
             )}
         </div>
     );

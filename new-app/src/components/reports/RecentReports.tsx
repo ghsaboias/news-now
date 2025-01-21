@@ -2,7 +2,7 @@ import { ErrorMessage } from '@/components/common/ErrorMessage';
 import { useReports } from '@/context/ReportsContext';
 import { useToast } from '@/context/ToastContext';
 import { useEffect } from 'react';
-import { Copy, Edit2, Trash2, X } from 'react-feather';
+import { Copy, Trash2, X } from 'react-feather';
 import { ReportSkeleton } from './ReportSkeleton';
 
 export function RecentReports() {
@@ -103,18 +103,13 @@ export function RecentReports() {
               {group.reports.map((report) => (
                 <div
                   key={report.id}
-                  className="flex items-center justify-between rounded-lg bg-gray-800 p-4 hover:bg-gray-750 cursor-pointer"
+                  className="flex flex-col items-center justify-between rounded-lg bg-gray-800 p-4 hover:bg-gray-750 cursor-pointer"
                   onClick={() => setCurrentReport(report)}
                 >
                   <div className="flex flex-col gap-1">
-                    <div className="font-medium text-white">
+                    <div className="font-medium text-white flex items-start justify-between">
                       {report.summary.headline}
-                    </div>
-                    <div className="text-sm text-gray-400">
-                      #{report.channelName} • {report.summary.location_and_period}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
+                      <div className="flex items-center">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();  // Prevent card click when clicking button
@@ -125,17 +120,7 @@ export function RecentReports() {
                       className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
                       title="Copy Report"
                     >
-                      <Copy className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();  // Prevent card click when clicking button
-                        updateReport(report);
-                      }}
-                      className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
-                      title="Edit Report"
-                    >
-                      <Edit2 className="w-5 h-5" />
+                      <Copy className="w-3 h-3" />
                     </button>
                     <button
                       onClick={async (e) => {
@@ -158,8 +143,13 @@ export function RecentReports() {
                       className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-lg transition-colors"
                       title="Delete Report"
                     >
-                      <Trash2 className="w-5 h-5" />
+                      <Trash2 className="w-3 h-3" />
                     </button>
+                  </div>
+                    </div>
+                    <div className="text-sm text-gray-400">
+                      #{report.channelName} • {report.summary.location_and_period}
+                    </div>
                   </div>
                 </div>
               ))}
