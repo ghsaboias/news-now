@@ -80,7 +80,7 @@ export function RecentReports() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();  // Prevent card click when clicking button
-                        const text = `${report.summary.headline}\n\n${report.summary.location_and_period}\n\n${report.summary.body}`;
+                        const text = `${report.summary.headline}\n\n${report.summary.location_and_period}\n\n${report.summary.body}\n\n${report.summary.sources ? 'Sources:\n' + report.summary.sources.join('\n') : ''}`;
                         navigator.clipboard.writeText(text);
                         showToast('Report copied to clipboard');
                       }}
@@ -103,6 +103,7 @@ export function RecentReports() {
                       onClick={(e) => {
                         e.stopPropagation();  // Prevent card click when clicking button
                         deleteReport(report.id);
+                        setCurrentReport(null);
                       }}
                       className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-lg transition-colors"
                       title="Delete Report"

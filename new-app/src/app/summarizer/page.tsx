@@ -7,7 +7,7 @@ import { SplitView } from '@/components/layout/SplitView';
 import { RecentReports } from '@/components/reports/RecentReports';
 import { ReportView } from '@/components/reports/ReportView';
 import { ReportsProvider, useReports } from '@/context/ReportsContext';
-import type { AISummary, DiscordChannel, DiscordMessage, Report, ReportGroup } from '@/types';
+import type { AISummary, DiscordChannel, DiscordMessage, Report } from '@/types';
 import { useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -71,7 +71,6 @@ function DiscordTestContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [reports, setReports] = useState<ReportGroup[]>([]);
   const [progress, setProgress] = useState<{
     batchCount: number;
     totalMessages: number;
@@ -82,55 +81,13 @@ function DiscordTestContent() {
     processing: false
   });
 
-  const { currentReport } = useReports();
+  const { currentReport, setCurrentReport, fetchReports } = useReports();
 
   // Fetch channels and reports on component mount
   useEffect(() => {
     fetchChannels();
     fetchReports();
-  }, []);
-
-  const fetchReports = async () => {
-    try {
-      const response = await fetch('/api/reports');
-      if (!response.ok) throw new Error('Failed to fetch reports');
-      const data = await response.json();
-      
-      console.log('Fetched reports data:', data);
-      
-      if (!Array.isArray(data)) {
-        console.error('Expected array of report groups, got:', typeof data);
-        setReports([]);
-        return;
-      }
-
-      // Validate the data structure
-      const validReportGroups = data.filter((group): group is ReportGroup => {
-        if (!group || typeof group !== 'object') return false;
-        if (!('date' in group) || !('reports' in group)) return false;
-        if (!Array.isArray(group.reports)) return false;
-        
-        // Validate each report in the group
-        return group.reports.every((report: unknown) => 
-          report &&
-          typeof report === 'object' &&
-          report !== null &&
-          'id' in report &&
-          'channelId' in report &&
-          'channelName' in report &&
-          'timestamp' in report &&
-          'timeframe' in report &&
-          'messageCount' in report &&
-          'summary' in report
-        );
-      });
-
-      setReports(validReportGroups);
-    } catch (err) {
-      console.error('Error fetching reports:', err);
-      setReports([]);
-    }
-  };
+  }, [fetchReports]);
 
   const fetchChannels = async () => {
     setLoading(true);
@@ -215,7 +172,8 @@ function DiscordTestContent() {
               };
 
               await saveReport(report);
-              await fetchReports(); // Refresh the reports list
+              await fetchReports(); // Refresh the reports list in context
+              setCurrentReport(report); // Select the newly created report
             }
             break;
           
@@ -261,38 +219,8 @@ function DiscordTestContent() {
     }
   };
 
-  const handleEditReport = async (report: Report) => {
-    try {
-      const response = await fetch(`/api/reports/${report.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(report),
-      });
-      if (!response.ok) throw new Error('Failed to update report');
-      await fetchReports();
-    } catch (err) {
-      console.error('Error updating report:', err);
-      setError('Failed to update report');
-    }
-  };
-
-  const handleDeleteReport = async (report: Report) => {
-    if (!confirm('Are you sure you want to delete this report?')) return;
-    
-    try {
-      const response = await fetch(`/api/reports/${report.id}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) throw new Error('Failed to delete report');
-      await fetchReports();
-    } catch (err) {
-      console.error('Error deleting report:', err);
-      setError('Failed to delete report');
-    }
-  };
-
   const handleCopyReport = async (report: Report) => {
-    const text = `${report.summary.headline}\n\n${report.summary.location_and_period}\n\n${report.summary.body}`;
+    const text = `${report.summary.headline}\n\n${report.summary.location_and_period}\n\n${report.summary.body}\n\n${report.summary.sources ? 'Sources:\n' + report.summary.sources.join('\n') : ''}`;
     await navigator.clipboard.writeText(text);
   };
 
@@ -353,7 +281,7 @@ function DiscordTestContent() {
       )}
 
       {/* Recent Reports */}
-      {reports.length > 0 && <RecentReports />}
+      <RecentReports />
     </div>
   );
 

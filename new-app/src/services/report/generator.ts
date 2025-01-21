@@ -70,14 +70,22 @@ export class ReportGenerator {
             throw new Error('Invalid summary format: no location/date line found');
         }
 
+        // Find the sources section
+        const sourcesIndex = lines.findIndex((line, index) =>
+            index > locationIndex && line.toLowerCase().startsWith('sources:')
+        );
+
+        if (sourcesIndex === -1) {
+            throw new Error('Invalid summary format: no sources section found');
+        }
+
         const headline = lines[headlineIndex];
         const location = lines[locationIndex];
-
-        // Everything after location line is the body
-        const body = lines.slice(locationIndex + 1).join('\n');
+        const body = lines.slice(locationIndex + 1, sourcesIndex).join('\n');
+        const sources = lines.slice(sourcesIndex + 1);
 
         // Validate required components
-        if (!headline || !location || !body) {
+        if (!headline || !location || !body || !sources.length) {
             throw new Error('Invalid summary format: missing required components');
         }
 
@@ -85,6 +93,7 @@ export class ReportGenerator {
             headline,
             location_and_period: location,
             body,
+            sources,
             raw_response: text,
             timestamp: new Date().toISOString()
         };
@@ -139,6 +148,9 @@ export class ReportGenerator {
     - NO analysis, commentary, or speculation
     - NO use of terms like "likely", "appears to", or "is seen as"
     - Remove any # that might be in the developments
+    - For each factual claim, add a superscript number (e.g. "text¹") that references the source
+    - At the end of the report, add a "Sources:" section listing all referenced sources with their corresponding numbers
+    - Format sources as: "¹[Timestamp] Message content"
     `;
 
         try {

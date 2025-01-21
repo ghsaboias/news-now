@@ -2,7 +2,11 @@ export interface AISummary {
     headline: string;
     location_and_period: string;
     body: string;
+    sources: string[];
+    raw_response: string;
     timestamp: string;
+    period_start?: string;
+    period_end?: string;
 }
 
 export interface DiscordMessage {
@@ -42,4 +46,24 @@ export interface Report {
 export interface ReportGroup {
     date: string;
     reports: Report[];
-} 
+}
+
+export interface ClaudeMessage {
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+}
+
+export interface ClaudeResponse {
+    content: { text: string }[];
+}
+
+export interface ClaudeClient {
+    messages: {
+        create: (options: {
+            model: string;
+            max_tokens: number;
+            system: string;
+            messages: ClaudeMessage[];
+        }) => Promise<ClaudeResponse>;
+    };
+}
