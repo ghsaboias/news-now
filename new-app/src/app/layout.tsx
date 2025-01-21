@@ -1,3 +1,5 @@
+import { ReportsProvider } from '@/context/ReportsContext';
+import { ToastProvider } from '@/context/ToastContext';
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -30,7 +32,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <ReportsProvider>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </ReportsProvider>
       </body>
     </html>
   );

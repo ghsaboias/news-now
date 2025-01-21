@@ -1,5 +1,4 @@
 import { DiscordChannel } from '@/types';
-import { Hash } from 'react-feather';
 
 interface ChannelSelectProps {
   channels: DiscordChannel[];
@@ -16,14 +15,11 @@ export function ChannelSelect({
 }: ChannelSelectProps) {
   return (
     <div className="relative">
-      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-        <Hash className="w-4 h-4 text-gray-400" />
-      </div>
       <select
         value={selectedChannelId}
         onChange={(e) => onSelect(e.target.value)}
         disabled={disabled}
-        className="w-full pl-9 pr-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white 
+        className="w-full pl-4 pr-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white 
                   appearance-none cursor-pointer hover:bg-gray-750 focus:ring-2 focus:ring-blue-500 
                   focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
       >

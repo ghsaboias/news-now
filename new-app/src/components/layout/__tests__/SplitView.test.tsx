@@ -6,8 +6,8 @@ describe('SplitView', () => {
   it('renders sidebar and main content', () => {
     render(
       <SplitView
-        sidebar={<div>Sidebar Content</div>}
-        main={<div>Main Content</div>}
+        sidebarContent={<div>Sidebar Content</div>}
+        mainContent={<div>Main Content</div>}
       />
     );
 
@@ -18,8 +18,8 @@ describe('SplitView', () => {
   it('has correct layout classes', () => {
     const { container } = render(
       <SplitView
-        sidebar={<div>Sidebar</div>}
-        main={<div>Main</div>}
+        sidebarContent={<div>Sidebar</div>}
+        mainContent={<div>Main</div>}
       />
     );
 

@@ -1,9 +1,13 @@
 'use client';
 
 import { ChannelSelect } from '@/components/controls/ChannelSelect';
+import { GenerateButton } from '@/components/controls/GenerateButton';
+import { TimeSelect, TimeframeOption } from '@/components/controls/TimeSelect';
 import { SplitView } from '@/components/layout/SplitView';
-import { ReportDrawer } from '@/components/ReportDrawer';
-import { AISummary, DiscordChannel, DiscordMessage, Report, ReportGroup } from '@/types';
+import { RecentReports } from '@/components/reports/RecentReports';
+import { ReportView } from '@/components/reports/ReportView';
+import { ReportsProvider, useReports } from '@/context/ReportsContext';
+import type { AISummary, DiscordChannel, DiscordMessage, Report, ReportGroup } from '@/types';
 import { useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -50,12 +54,20 @@ function formatTimestamp(timestamp: string): string {
 }
 
 export default function DiscordTest() {
+  return (
+    <ReportsProvider>
+      <DiscordTestContent />
+    </ReportsProvider>
+  );
+}
+
+function DiscordTestContent() {
   const [channels, setChannels] = useState<DiscordChannel[]>([]);
   const [messages, setMessages] = useState<DiscordMessage[]>([]);
   const [summary, setSummary] = useState<AISummary | null>(null);
   const [selectedChannel, setSelectedChannel] = useState<string>('');
   const [selectedChannelId, setSelectedChannelId] = useState<string>('');
-  const [selectedTimeframe, setSelectedTimeframe] = useState<string>('1h');
+  const [selectedTimeframe, setSelectedTimeframe] = useState<TimeframeOption['value']>('1h');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -69,6 +81,8 @@ export default function DiscordTest() {
     totalMessages: 0,
     processing: false
   });
+
+  const { currentReport } = useReports();
 
   // Fetch channels and reports on component mount
   useEffect(() => {
@@ -163,7 +177,7 @@ export default function DiscordTest() {
         
         switch (data.type) {
           case 'batch':
-            setProgress(prev => ({
+            setProgress((prev: { batchCount: number; totalMessages: number; processing: boolean; }) => ({
               ...prev,
               batchCount: data.batchCount,
               totalMessages: data.totalMessages
@@ -173,7 +187,7 @@ export default function DiscordTest() {
           case 'complete':
             finalMessages = data.messages;
             setMessages(data.messages);
-            setProgress(prev => ({
+            setProgress((prev: { batchCount: number; totalMessages: number; processing: boolean; }) => ({
               ...prev,
               processing: false,
               totalMessages: data.totalMessages
@@ -277,7 +291,12 @@ export default function DiscordTest() {
     }
   };
 
-  const timeframeOptions = [
+  const handleCopyReport = async (report: Report) => {
+    const text = `${report.summary.headline}\n\n${report.summary.location_and_period}\n\n${report.summary.body}`;
+    await navigator.clipboard.writeText(text);
+  };
+
+  const timeframeOptions: TimeframeOption[] = [
     { value: '1h', label: 'Last Hour' },
     { value: '4h', label: 'Last 4 Hours' },
     { value: '24h', label: 'Last 24 Hours' },
@@ -294,42 +313,18 @@ export default function DiscordTest() {
         disabled={loading}
       />
 
-      {/* Time Controls */}
-      <div className="flex gap-2">
-        {timeframeOptions.map((option) => (
-          <button
-            key={option.value}
-            onClick={() => setSelectedTimeframe(option.value)}
-            disabled={loading}
-            className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors
-                      ${selectedTimeframe === option.value
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-800 text-gray-300 hover:bg-gray-750'
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      <TimeSelect
+        options={timeframeOptions}
+        value={selectedTimeframe}
+        onChange={setSelectedTimeframe}
+        disabled={loading}
+      />
 
-      {/* Generate Button */}
-      <button
+      <GenerateButton
         onClick={handleCreateReport}
-        disabled={loading || !selectedChannelId}
-        className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-medium
-                 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 
-                 focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed
-                 transition-colors"
-      >
-        {loading ? (
-          <div className="flex items-center justify-center gap-2">
-            <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-            <span>Processing...</span>
-          </div>
-        ) : (
-          'Create Report'
-        )}
-      </button>
+        disabled={!selectedChannelId}
+        loading={loading}
+      />
 
       {error && (
         <div className="text-red-500 p-4 bg-red-900/20 rounded-lg border border-red-500/20">
@@ -356,42 +351,43 @@ export default function DiscordTest() {
           </div>
         </div>
       )}
+
+      {/* Recent Reports */}
+      {reports.length > 0 && <RecentReports />}
     </div>
   );
 
   const mainContent = (
-    <div className="p-6">
-      {summary && (
-        <div className="bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-700">
-          <h2 className="text-3xl font-bold text-white mb-4">{summary.headline}</h2>
-          <div className="flex items-center gap-2 text-sm text-gray-400 mb-6">
-            <span className="font-semibold">{summary.location_and_period}</span>
-          </div>
-          <div className="prose prose-lg max-w-none text-gray-300 prose-headings:text-gray-100 text-justify">
-            {summary.body.split('\n').map((paragraph, idx) => (
-              <p key={idx} className="mb-4">
-                {paragraph}
-              </p>
-            ))}
-          </div>
-        </div>
+    <div className="h-full">
+      {currentReport ? (
+        <ReportView report={currentReport} />
+      ) : summary && (
+        <ReportView
+          report={{
+            id: 'draft',
+            channelId: selectedChannelId,
+            channelName: selectedChannel,
+            timestamp: new Date().toISOString(),
+            timeframe: {
+              type: selectedTimeframe,
+              start: new Date(Date.now() - getTimeframeMs(selectedTimeframe)).toISOString(),
+              end: new Date().toISOString(),
+            },
+            messageCount: messages.length,
+            summary: {
+              ...summary,
+              timestamp: new Date().toISOString()
+            }
+          }}
+        />
       )}
     </div>
   );
 
   return (
-    <>
-      <SplitView
-        sidebar={sidebarContent}
-        main={mainContent}
-      />
-      <ReportDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        reports={reports}
-        onEditReport={handleEditReport}
-        onDeleteReport={handleDeleteReport}
-      />
-    </>
+    <SplitView
+      sidebarContent={sidebarContent}
+      mainContent={mainContent}
+    />
   );
 } 

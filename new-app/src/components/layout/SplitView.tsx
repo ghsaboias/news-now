@@ -1,19 +1,19 @@
 import { ReactNode } from 'react';
 
-interface SplitViewProps {
-  sidebar: ReactNode;
-  main: ReactNode;
+export interface SplitViewProps {
+  sidebarContent: ReactNode;
+  mainContent: ReactNode;
 }
 
-export function SplitView({ sidebar, main }: SplitViewProps) {
+export function SplitView({ sidebarContent, mainContent }: SplitViewProps) {
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-gray-900">
-      <aside className="w-full md:w-[30%] md:max-w-md border-r border-gray-800">
-        {sidebar}
-      </aside>
-      <main className="flex-1 min-w-0">
-        {main}
-      </main>
+    <div className="flex h-screen">
+      <div className="w-96 overflow-y-auto border-r border-gray-800 bg-gray-900">
+        {sidebarContent}
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {mainContent}
+      </div>
     </div>
   );
 } 
