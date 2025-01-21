@@ -14,9 +14,10 @@ const DEFAULT_THRESHOLDS: ActivityThreshold[] = [
 
 export async function GET(request: NextRequest) {
     try {
-        // Get timeframe from query params
+        // Get timeframe and minMessages from query params
         const searchParams = request.nextUrl.searchParams;
         const timeframe = searchParams.get('timeframe') as '1h' | '4h' | '24h';
+        const minMessagesParam = searchParams.get('minMessages');
 
         if (!timeframe || !['1h', '4h', '24h'].includes(timeframe)) {
             return NextResponse.json(
@@ -25,14 +26,11 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // Get threshold for selected timeframe
-        const threshold = DEFAULT_THRESHOLDS.find(t => t.timeframe === timeframe);
-        if (!threshold) {
-            return NextResponse.json(
-                { error: 'Invalid timeframe configuration' },
-                { status: 500 }
-            );
-        }
+        // Get threshold for selected timeframe and override minMessages if provided
+        const threshold = {
+            ...DEFAULT_THRESHOLDS.find(t => t.timeframe === timeframe)!,
+            minMessages: minMessagesParam ? parseInt(minMessagesParam) : DEFAULT_THRESHOLDS.find(t => t.timeframe === timeframe)!.minMessages
+        };
 
         // Initialize clients
         if (!process.env.DISCORD_TOKEN || !process.env.ANTHROPIC_API_KEY) {
@@ -69,7 +67,7 @@ export async function GET(request: NextRequest) {
                     const channelActivity: ChannelActivity = {
                         channelId: channel.id,
                         channelName: channel.name,
-                        messageCount: 0,
+                        messageCount: undefined,
                         status: 'pending'
                     };
                     activeChannels.push(channelActivity);
@@ -90,13 +88,32 @@ export async function GET(request: NextRequest) {
                         }
 
                         channelActivity.status = 'processing';
+
+                        // Send scanning update
+                        await writer.write(
+                            encoder.encode(`data: ${JSON.stringify({
+                                type: 'scanning',
+                                channels: activeChannels
+                            })}\n\n`)
+                        );
+
                         const messages = await discordClient.fetchMessagesInTimeframe(
                             channel.id,
                             timeframe === '24h' ? 24 : timeframe === '4h' ? 4 : 1
                         );
 
+                        // Set the actual message count after fetching
+                        channelActivity.messageCount = messages.length;
+
+                        // Send scanning update with message count
+                        await writer.write(
+                            encoder.encode(`data: ${JSON.stringify({
+                                type: 'scanning',
+                                channels: activeChannels
+                            })}\n\n`)
+                        );
+
                         if (messages.length >= threshold.minMessages) {
-                            channelActivity.messageCount = messages.length;
                             channelActivity.status = 'success';
 
                             // Generate report
@@ -133,21 +150,27 @@ export async function GET(request: NextRequest) {
                             }
                         } else {
                             channelActivity.status = 'skipped';
-                            channelActivity.messageCount = messages.length;
+
+                            // Send scanning update with skipped status
+                            await writer.write(
+                                encoder.encode(`data: ${JSON.stringify({
+                                    type: 'scanning',
+                                    channels: activeChannels
+                                })}\n\n`)
+                            );
                         }
                     } catch (error) {
                         console.error(`Error processing channel ${channel.name}:`, error);
                         channelActivity.status = 'error';
-                    }
 
-                    // Send progress update
-                    await writer.write(
-                        encoder.encode(`data: ${JSON.stringify({
-                            type: 'progress',
-                            channel: channel.name,
-                            channels: activeChannels
-                        })}\n\n`)
-                    );
+                        // Send scanning update with error status
+                        await writer.write(
+                            encoder.encode(`data: ${JSON.stringify({
+                                type: 'scanning',
+                                channels: activeChannels
+                            })}\n\n`)
+                        );
+                    }
                 }
 
                 // Send completion

@@ -140,13 +140,8 @@ function SummarizerContent() {
                         {loading ? 'Generating...' : 'Create Report'}
                     </button>
 
-                    <div className="mt-8">
-                        <BulkGenerateButton />
-                    </div>
-
-                    <div className="mt-8">
-                        <RecentReports />
-                    </div>
+                    <BulkGenerateButton />
+                    <RecentReports />
                 </ControlsContainer>
             }
             mainContent={<ReportView />}

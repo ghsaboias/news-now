@@ -76,9 +76,8 @@ export interface ActivityThreshold {
 export interface ChannelActivity {
     channelId: string;
     channelName: string;
-    messageCount: number;
-    status: 'pending' | 'processing' | 'success' | 'error' | 'skipped';
-    error?: string;
+    messageCount?: number;
+    status: 'pending' | 'processing' | 'success' | 'skipped' | 'error';
 }
 
 export interface BulkGenerationProgress {

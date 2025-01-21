@@ -25,11 +25,10 @@ export function TimeSelect({ value, onChange, options, disabled = false }: TimeS
             className={`
               w-full rounded-lg px-4 py-2.5 text-sm font-medium transition-all
               ${value === option.value
-                ? 'bg-blue-600 text-white ring-2 ring-blue-500 ring-offset-2 ring-offset-gray-900'
+                ? 'bg-blue-600 text-white'
                 : 'bg-gray-800/80 text-gray-300 hover:bg-gray-700 hover:text-white'
               }
               disabled:opacity-50 disabled:cursor-not-allowed
-              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900
             `}
           >
             {option.label}
