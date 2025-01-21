@@ -1,3 +1,54 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+**/node_modules/
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+/build
+**/.next/
+**/out/
+**/build/
+
+# production
+/build
+*.tar.gz
+build.tar.gz
+**/dist/
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+.env
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# IDE
+.idea
+.vscode
+
+# Default Next.js assets we don't need
+/public/next.svg
+/public/vercel.svg
+
 .venv
 .env
 bot.log
@@ -5,4 +56,14 @@ DEPLOYMENT.md
 formatted_text.txt
 __pycache__/
 .cursorrules
-.DS_Store
+data/
+
+# Sensitive deployment files
+memory/
+deploy.sh
+DEPLOYMENT_PROTOCOL.md
+CONFIGURATION.md
+
+# UI Improvement Plan
+UI_IMPROVEMENT_PLAN.md
+UI_IMPROVEMENT_PLAN.md
