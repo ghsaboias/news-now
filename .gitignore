@@ -63,3 +63,6 @@ memory/
 deploy.sh
 DEPLOYMENT_PROTOCOL.md
 CONFIGURATION.md
+
+# UI Improvement Plan
+UI_IMPROVEMENT_PLAN.md
