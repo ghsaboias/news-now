@@ -5,7 +5,7 @@ import { ReportsProvider, useReports } from '../ReportsContext';
 
 const mockReport: Report = {
   id: '1',
-  channelId: 'ch1',
+  channelId: 'ch1',      
   channelName: 'general',
   timestamp: '2024-01-20T10:00:00Z',
   timeframe: {
@@ -17,6 +17,8 @@ const mockReport: Report = {
   summary: {
     headline: 'Test Report',
     location_and_period: 'General Channel • Last Hour',
+    sources: [],
+    raw_response: '',
     body: 'Test report content',
     timestamp: '2024-01-20T10:00:00Z'
   }

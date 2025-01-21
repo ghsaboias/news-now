@@ -15,9 +15,6 @@ export function ChannelSelect({
 }: ChannelSelectProps) {
   return (
     <div className="w-full">
-      <label className="block text-sm font-medium text-gray-300 mb-2">
-        Select Channel
-      </label>
       <div className="relative">
         <select
           value={selectedChannelId}
@@ -31,7 +28,7 @@ export function ChannelSelect({
             disabled:opacity-50 disabled:cursor-not-allowed
           "
         >
-          <option value="">Select a channel</option>
+          <option value="">Select a topic</option>
           {channels.map((channel) => (
             <option key={channel.id} value={channel.id} className="bg-gray-800">
               {channel.name}

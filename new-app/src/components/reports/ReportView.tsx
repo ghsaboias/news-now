@@ -1,5 +1,5 @@
 import { useReports } from '@/context/ReportsContext';
-import { Copy, Edit2, Trash2 } from 'react-feather';
+import { Copy, Trash2 } from 'react-feather';
 
 export function ReportView() {
   const { currentReport: report, addReport, updateReport, deleteReport, setCurrentReport } = useReports();
@@ -42,7 +42,7 @@ export function ReportView() {
                 {report.summary.headline}
               </h1>
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-400">
-                <span className="truncate max-w-[200px]">#{report.channelName}</span>
+                <span className="truncate max-w-[200px]">{report.channelName}</span>
                 <span className="hidden sm:inline">•</span>
                 <span className="truncate max-w-[300px]">{report.summary.location_and_period}</span>
                 <span className="hidden sm:inline">•</span>
@@ -59,13 +59,6 @@ export function ReportView() {
                 title="Copy Report"
               >
                 <Copy className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => updateReport(report)}
-                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-                title="Edit Report"
-              >
-                <Edit2 className="w-5 h-5" />
               </button>
               <button
                 onClick={handleDelete}

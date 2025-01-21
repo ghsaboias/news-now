@@ -13,9 +13,6 @@ export interface TimeSelectProps {
 export function TimeSelect({ value, onChange, options, disabled = false }: TimeSelectProps) {
   return (
     <div className="w-full">
-      <label className="block text-sm font-medium text-gray-300 mb-2">
-        Time Range
-      </label>
       <div className="grid grid-cols-3 gap-2">
         {options.map((option) => (
           <button

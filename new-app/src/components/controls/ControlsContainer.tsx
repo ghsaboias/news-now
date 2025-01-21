@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import React, { ReactNode, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'react-feather';
 
@@ -39,8 +40,10 @@ export function ControlsContainer({ children }: ControlsContainerProps) {
     <div className="h-full flex flex-col">
       {/* Sticky Header */}
       <div className="flex-none">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-white">News Now</h1>
+        <div className="flex items-center justify-center">
+            <Link href="/">
+                <h1 className="text-2xl font-bold text-white">NewsNow</h1>
+            </Link>
         </div>
       </div>
 

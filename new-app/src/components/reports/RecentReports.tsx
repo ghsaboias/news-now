@@ -11,8 +11,6 @@ export function RecentReports() {
     loading,
     error,
     fetchReports,
-    addReport,
-    updateReport,
     deleteReport,
     setCurrentReport
   } = useReports();
@@ -114,7 +112,7 @@ export function RecentReports() {
                   {/* Header with Headline and Actions */}
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center rounded bg-gray-700/50 px-2 py-1 text-xs font-medium text-gray-300">
-                      #{report.channelName}
+                      {report.channelName}
                     </span>
                   </div>
                   <div className="flex items-start gap-2">
