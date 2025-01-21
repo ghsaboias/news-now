@@ -1,21 +1,34 @@
 // Discord Types
-export interface DiscordChannel {
-    id: string;
+export interface DiscordAuthor {
+    username: string;
+    discriminator: string;
+}
+
+export interface DiscordEmbedField {
     name: string;
-    type: number;
-    position?: number;
-    parent_id?: string;
+    value: string;
+}
+
+export interface DiscordEmbed {
+    title?: string;
+    description?: string;
+    fields?: DiscordEmbedField[];
 }
 
 export interface DiscordMessage {
     id: string;
     content: string;
     timestamp: string;
-    author?: {
-        username: string;
-        discriminator: string;
-    };
+    author?: DiscordAuthor;
     embeds: DiscordEmbed[];
+}
+
+export interface DiscordChannel {
+    id: string;
+    name: string;
+    type: number;
+    position?: number;
+    parent_id?: string;
 }
 
 // Report Types
@@ -56,15 +69,6 @@ export interface ReportResponse {
     report: ReportResult;
 }
 
-export interface DiscordEmbed {
-    title?: string;
-    description?: string;
-    fields?: Array<{
-        name: string;
-        value: string;
-    }>;
-}
-
 export interface FormattedMessage {
     timestamp: string;
     content: string;
@@ -73,38 +77,6 @@ export interface FormattedMessage {
         username: string;
         discriminator: string;
     };
-}
-
-export interface DiscordAuthor {
-    username: string;
-    discriminator: string;
-}
-
-export interface DiscordEmbedField {
-    name: string;
-    value: string;
-}
-
-export interface DiscordEmbed {
-    title?: string;
-    description?: string;
-    fields?: DiscordEmbedField[];
-}
-
-export interface DiscordMessage {
-    id: string;
-    content: string;
-    timestamp: string;
-    author?: DiscordAuthor;
-    embeds: DiscordEmbed[];
-}
-
-export interface DiscordChannel {
-    id: string;
-    type: number;
-    name: string;
-    position?: number;
-    parent_id?: string;
 }
 
 export interface FormattedMessageOutput {
@@ -173,4 +145,12 @@ export interface Report {
 export interface ReportGroup {
     date: string;
     reports: Report[];
+}
+
+export type TimeframeType = '1h' | '4h' | '24h';
+
+export interface Timeframe {
+    type: TimeframeType;
+    start: string;
+    end: string;
 } 

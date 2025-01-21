@@ -1,3 +1,5 @@
+import { MessageCountBadge } from '@/components/common/MessageCountBadge';
+import { TimeframeBadge } from '@/components/common/TimeframeBadge';
 import { useReports } from '@/context/ReportsContext';
 import { Copy, Trash2 } from 'react-feather';
 
@@ -43,6 +45,8 @@ export function ReportView() {
               </h1>
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-400">
                 <span className="truncate max-w-[200px]">{report.channelName}</span>
+                <TimeframeBadge timeframe={report.timeframe.type} className="ml-1" />
+                <MessageCountBadge count={report.messageCount} />
                 <span className="hidden sm:inline">•</span>
                 <span className="truncate max-w-[300px]">{report.summary.location_and_period}</span>
                 <span className="hidden sm:inline">•</span>

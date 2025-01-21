@@ -21,12 +21,70 @@ async function fetchChannelsAction(): Promise<DiscordChannel[]> {
   return response.json();
 }
 
-async function fetchMessagesAction(channelId: string, timeframe: string): Promise<DiscordMessage[]> {
-  const response = await fetch(`/api/discord/messages?channelId=${channelId}&timeframe=${timeframe}`);
-  if (!response.ok) {
-    throw new Error('Failed to fetch messages', { cause: response });
-  }
-  return response.json();
+async function fetchMessagesAction(
+    channelId: string,
+    timeframe: string,
+    onProgress?: (messageCount: number) => void
+): Promise<DiscordMessage[]> {
+    const response = await fetch(`/api/discord/messages?channelId=${channelId}&timeframe=${timeframe}`);
+    if (!response.ok) {
+        throw new Error('Failed to fetch messages', { cause: response });
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+        throw new Error('Failed to get response reader');
+    }
+
+    const decoder = new TextDecoder();
+    let messages: DiscordMessage[] = [];
+    let buffer = '';
+
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+                if (!line.trim() || !line.startsWith('data: ')) continue;
+                
+                try {
+                    const data = JSON.parse(line.replace('data: ', ''));
+                    
+                    if (data.type === 'batch') {
+                        onProgress?.(data.botMessages);
+                    } else if (data.type === 'complete') {
+                        messages = data.messages;
+                        return messages;
+                    } else if (data.type === 'error') {
+                        throw new Error(data.error || 'Failed to fetch messages');
+                    }
+                } catch (parseError) {
+                    console.warn('Failed to parse SSE message:', parseError);
+                    continue;
+                }
+            }
+        }
+
+        if (buffer.trim() && buffer.startsWith('data: ')) {
+            try {
+                const data = JSON.parse(buffer.replace('data: ', ''));
+                if (data.type === 'complete') {
+                    messages = data.messages;
+                }
+            } catch (parseError) {
+                console.warn('Failed to parse final SSE message:', parseError);
+            }
+        }
+    } finally {
+        reader.releaseLock();
+    }
+
+    return messages;
 }
 
 async function generateSummaryAction(channelId: string, channelName: string, messages: DiscordMessage[]): Promise<AISummary> {
@@ -59,7 +117,8 @@ function SummarizerContent() {
     const [selectedChannelId, setSelectedChannelId] = useState('');
     const [selectedTimeframe, setSelectedTimeframe] = useState<'1h' | '4h' | '24h'>('1h');
     const [loading, setLoading] = useState(false);
-    const { setCurrentReport } = useReports();
+    const [progress, setProgress] = useState<{ step: string; percent?: number; messageCount?: number } | null>(null);
+    const { setCurrentReport, fetchReports } = useReports();
 
     const timeframeOptions: TimeframeOption[] = [
         { value: '1h', label: 'Last Hour' },
@@ -75,18 +134,48 @@ function SummarizerContent() {
         if (!selectedChannelId) return;
 
         setLoading(true);
+        setProgress({ step: 'Fetching messages', percent: 0, messageCount: 0 });
         try {
-            const messages = await fetchMessagesAction(selectedChannelId, selectedTimeframe);
+            let currentMessageCount = 0;
+            const messages = await fetchMessagesAction(
+                selectedChannelId, 
+                selectedTimeframe,
+                (batchCount: number) => {
+                    currentMessageCount += batchCount;
+                    setProgress(prev => ({
+                        ...prev!,
+                        step: 'Fetching messages',
+                        messageCount: currentMessageCount,
+                        percent: Math.min(45, Math.round((currentMessageCount / 50) * 45)),
+                    }));
+                }
+            );
+            
             if (messages.length === 0) {
                 console.log('No messages found');
+                setProgress({ step: 'No messages found in the selected timeframe', percent: 100 });
                 return;
             }
 
             const channel = channels.find(c => c.id === selectedChannelId);
             if (!channel) return;
 
+            setProgress(prev => ({
+                ...prev!,
+                step: 'Generating summary',
+                percent: 50,
+                messageCount: messages.length
+            }));
+            
             const summary = await generateSummaryAction(selectedChannelId, channel.name, messages);
             
+            setProgress(prev => ({
+                ...prev!,
+                step: 'Saving report',
+                percent: 90,
+                messageCount: messages.length
+            }));
+
             const report = {
                 id: uuidv4(),
                 channelId: selectedChannelId,
@@ -101,11 +190,29 @@ function SummarizerContent() {
                 summary,
             };
 
+            // Save the report to storage
+            await fetch('/api/reports', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(report),
+            });
+
             setCurrentReport(report);
+            await fetchReports();
+            setProgress(prev => ({
+                ...prev!,
+                step: 'Complete',
+                percent: 100,
+                messageCount: messages.length
+            }));
         } catch (error) {
             console.error('Error generating report:', error);
+            setProgress({ step: 'Error generating report', percent: 100 });
         } finally {
             setLoading(false);
+            setTimeout(() => setProgress(null), 2000);
         }
     };
 
@@ -127,18 +234,38 @@ function SummarizerContent() {
                         disabled={loading}
                     />
 
-                    <button
-                        onClick={handleGenerateReport}
-                        disabled={!selectedChannelId || loading}
-                        className="
-                            w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium
-                            transition-all hover:bg-blue-700
-                            disabled:opacity-50 disabled:cursor-not-allowed
-                            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900
-                        "
-                    >
-                        {loading ? 'Generating...' : 'Create Report'}
-                    </button>
+                    <div className="space-y-2">
+                        <button
+                            onClick={handleGenerateReport}
+                            disabled={!selectedChannelId || loading}
+                            className="
+                                w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium
+                                transition-all hover:bg-blue-700
+                                disabled:opacity-50 disabled:cursor-not-allowed
+                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900
+                            "
+                        >
+                            {loading ? 'Generating...' : 'Create Report'}
+                        </button>
+                        {progress && (
+                            <div className="space-y-1">
+                                <div className="flex justify-between text-sm text-gray-400">
+                                    <span>
+                                        {progress.step}
+                                        {progress.messageCount ? ` (${progress.messageCount} messages)` : ''}
+                                    </span>
+                                </div>
+                                {progress.percent !== undefined && (
+                                    <div className="h-1 bg-gray-700 rounded-full overflow-hidden">
+                                        <div 
+                                            className="h-full bg-blue-600 transition-all duration-500 ease-out"
+                                            style={{ width: `${Math.round(progress.percent)}%` }}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
 
                     <BulkGenerateButton />
                     <RecentReports />

@@ -1,4 +1,6 @@
 import { ErrorMessage } from '@/components/common/ErrorMessage';
+import { MessageCountBadge } from '@/components/common/MessageCountBadge';
+import { TimeframeBadge } from '@/components/common/TimeframeBadge';
 import { useReports } from '@/context/ReportsContext';
 import { useToast } from '@/context/ToastContext';
 import { useEffect } from 'react';
@@ -114,6 +116,8 @@ export function RecentReports() {
                     <span className="inline-flex items-center rounded bg-gray-700/50 px-2 py-1 text-xs font-medium text-gray-300">
                       {report.channelName}
                     </span>
+                    <TimeframeBadge timeframe={report.timeframe.type} />
+                    <MessageCountBadge count={report.messageCount} />
                   </div>
                   <div className="flex items-start gap-2">
                     <h3 className="text-base sm:text-lg font-medium text-white leading-tight group-hover:text-blue-400 transition-colors text-left">

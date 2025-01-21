@@ -1,6 +1,8 @@
 import { AISummary, ClaudeClient, DiscordMessage } from '@/types';
 
 export class ReportGenerator {
+    private readonly MAX_TOKENS = 1500;
+
     constructor(
         private readonly claudeClient: ClaudeClient,
         private readonly logger: Console = console
@@ -42,8 +44,13 @@ export class ReportGenerator {
             .join('\n---\n');
     }
 
+    private validateSource(source: string): boolean {
+        // Source format: "¹[YYYY-MM-DD HH:mm:ss UTC] content" or "¹⁰[YYYY-MM-DD HH:mm:ss UTC] content"
+        const sourcePattern = /^(?:[¹²³⁴⁵⁶⁷⁸⁹][⁰¹²³⁴⁵⁶⁷⁸⁹]?)\[\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\s+UTC\]/;
+        return sourcePattern.test(source);
+    }
+
     private parseAISummary(text: string): AISummary {
-        // Split into lines and remove empty lines
         const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
 
         if (lines.length < 3) {
@@ -63,7 +70,7 @@ export class ReportGenerator {
         const locationIndex = lines.findIndex((line, index) =>
             index > headlineIndex &&
             line.includes('•') &&
-            /\d{1,2},?\s+\d{4}/.test(line) // Matches date formats
+            /\d{1,2},?\s+\d{4}/.test(line)
         );
 
         if (locationIndex === -1) {
@@ -82,9 +89,17 @@ export class ReportGenerator {
         const headline = lines[headlineIndex];
         const location = lines[locationIndex];
         const body = lines.slice(locationIndex + 1, sourcesIndex).join('\n');
-        const sources = lines.slice(sourcesIndex + 1);
+        let sources = lines.slice(sourcesIndex + 1);
 
-        // Validate required components
+        // Validate and clean sources
+        sources = sources.filter(source => {
+            const isValid = this.validateSource(source);
+            if (!isValid) {
+                this.logger.warn('Invalid or truncated source found:', source);
+            }
+            return isValid;
+        });
+
         if (!headline || !location || !body || !sources.length) {
             throw new Error('Invalid summary format: missing required components');
         }
@@ -99,7 +114,6 @@ export class ReportGenerator {
         };
     }
 
-
     async createAISummary(
         messages: DiscordMessage[],
         channelName: string,
@@ -108,60 +122,17 @@ export class ReportGenerator {
     ): Promise<AISummary | null> {
         if (!messages.length) return null;
 
-        // Calculate time period
-        const timestamps = messages.map((msg) => new Date(msg.timestamp));
-        const periodStart = new Date(Math.min(...timestamps.map(t => t.getTime())));
-        const periodEnd = new Date(Math.max(...timestamps.map(t => t.getTime())));
-
         const formattedText = this.formatMessagesForClaude(messages);
-
-        // Format previous summary context
-        let previousSummaryText = '';
-        if (previousSummary && previousSummary.period_start && previousSummary.period_end) {
-            const prevStart = new Date(previousSummary.period_start);
-            const prevEnd = new Date(previousSummary.period_end);
-
-            previousSummaryText = `CONTEXT FROM PREVIOUS REPORT
-      Time period: ${prevStart.toLocaleString()} to ${prevEnd.toLocaleString()} UTC
-
-      ${previousSummary.raw_response}
-
-      -------------------
-      NEW UPDATES TO INCORPORATE
-      `;
-        }
-
-        const prompt = `Create a concise, journalistic report covering the key developments, incorporating context from the previous report when relevant.
-
-    ${previousSummaryText} Updates to analyze:
-    ${formattedText}
-
-    Requirements:
-    - Start with ONE headline in ALL CAPS that captures the most significant development
-    - Second line must be in format: City • Month Day, Year (use location of main development)
-    - First paragraph must summarize the most important verified development, including key names, numbers, locations, dates, etc.
-    - Subsequent paragraphs should cover other significant developments
-    - Do NOT include additional headlines - weave all events into a cohesive narrative
-    - Maximum 4096 characters, average 2500 characters
-    - Only include verified facts and direct quotes from official statements
-    - Maintain strictly neutral tone - avoid loaded terms or partisan framing
-    - NO analysis, commentary, or speculation
-    - NO use of terms like "likely", "appears to", or "is seen as"
-    - Remove any # that might be in the developments
-    - For each factual claim, add a superscript number (e.g. "text¹") that references the source
-    - At the end of the report, add a "Sources:" section listing all referenced sources with their corresponding numbers
-    - Format sources as: "¹[Timestamp] Message content"
-    `;
 
         try {
             const response = await this.claudeClient.messages.create({
                 model: 'claude-3-haiku-20240307',
-                max_tokens: 800,
+                max_tokens: this.MAX_TOKENS,
                 system: 'You are an experienced news wire journalist creating concise, clear updates. Your task is to report the latest developments while maintaining narrative continuity with previous coverage. Focus on what\'s new and noteworthy, using prior context only when it enhances understanding of current events.',
                 messages: [
                     {
                         role: 'user',
-                        content: prompt,
+                        content: this.createPrompt(formattedText, previousSummary),
                     },
                 ],
             });
@@ -171,16 +142,50 @@ export class ReportGenerator {
                 return null;
             }
 
-            this.logger.debug(`Raw Claude response:\n${response.content[0].text}`);
-
-            const summary = this.parseAISummary(response.content[0].text);
-            summary.period_start = periodStart.toISOString();
-            summary.period_end = periodEnd.toISOString();
-
-            return summary;
+            return this.parseAISummary(response.content[0].text);
         } catch (error) {
-            this.logger.error('Unexpected error generating summary:', error);
+            this.logger.error('Error generating summary:', error);
             return null;
         }
+    }
+
+    private createPrompt(formattedText: string, previousSummary?: AISummary): string {
+        let previousSummaryText = '';
+        if (previousSummary?.period_start && previousSummary?.period_end) {
+            const prevStart = new Date(previousSummary.period_start);
+            const prevEnd = new Date(previousSummary.period_end);
+            previousSummaryText = `CONTEXT FROM PREVIOUS REPORT
+                Time period: ${prevStart.toLocaleString()} to ${prevEnd.toLocaleString()} UTC
+
+                ${previousSummary.raw_response}
+
+                -------------------
+                NEW UPDATES TO INCORPORATE
+            `;
+        }
+
+        return `Create a concise, journalistic report covering the key developments, incorporating context from the previous report when relevant.
+
+            ${previousSummaryText} Updates to analyze:
+            ${formattedText}
+
+            Requirements:
+            - Start with ONE headline in ALL CAPS that captures the most significant development
+            - Second line must be in format: City • Month Day, Year (use location of main development)
+            - First paragraph must summarize the most important verified development, including key names, numbers, locations, dates, etc.
+            - Subsequent paragraphs should cover other significant developments
+            - Do NOT include additional headlines - weave all events into a cohesive narrative
+            - Maximum 4096 characters, average 2500 characters
+            - Only include verified facts and direct quotes from official statements
+            - Maintain strictly neutral tone - avoid loaded terms or partisan framing
+            - NO analysis, commentary, or speculation
+            - NO use of terms like "likely", "appears to", or "is seen as"
+            - Remove any # that might be in the developments
+            - For each factual claim, add a superscript number (e.g. "text¹") that references the source
+            - At the end of the report, add a "Sources:" section listing all referenced sources with their corresponding numbers
+            - Format sources as: "¹[Timestamp] Message content"
+            - Ensure each source entry is complete with timestamp and content
+            - Each source MUST follow the exact format: superscript number + [YYYY-MM-DD HH:mm:ss UTC] + content
+        `;
     }
 } 

@@ -1,4 +1,5 @@
 import { DiscordClient } from '@/services/discord/client';
+import { DiscordMessage } from '@/types';
 import { NextRequest } from 'next/server';
 
 export async function GET(request: NextRequest) {
@@ -39,10 +40,10 @@ export async function GET(request: NextRequest) {
         try {
             let totalMessages = 0;
             let batchCount = 0;
-            let allMessages: any[] = [];
+            let allMessages: DiscordMessage[] = [];
 
             // Override the client's message batch handler
-            client.onMessageBatch = async (batchSize: number, botMessages: number, messages: any[]) => {
+            client.onMessageBatch = async (batchSize: number, botMessages: number, messages: DiscordMessage[]) => {
                 batchCount++;
                 totalMessages += botMessages;
                 allMessages = allMessages.concat(messages);
