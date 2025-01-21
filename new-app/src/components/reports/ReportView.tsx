@@ -77,7 +77,7 @@ export function ReportView({ report }: ReportViewProps) {
       <div className="p-8">
         <div className="max-w-none text-gray-100 prose-headings:text-gray-100 space-y-6">
           {report.summary.body.split('\n').map((line, index) => (
-            <p key={`line-${index}`} className="whitespace-pre-line">
+            <p key={`line-${index}`} className="whitespace-pre-line text-justify">
               {line}
             </p>
           ))}
