@@ -1,6 +1,6 @@
 import { useReports } from '@/context/ReportsContext';
 import { ActivityThreshold, ChannelActivity } from '@/types';
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { AlertCircle, Check, ChevronDown, ChevronUp, Loader } from 'react-feather';
 
 const DEFAULT_THRESHOLDS: ActivityThreshold[] = [
@@ -20,7 +20,7 @@ interface BulkGenerateButtonProps {
 }
 
 export function BulkGenerateButton({ onComplete }: BulkGenerateButtonProps) {
-    const { setCurrentReport } = useReports();
+    const { setCurrentReport, fetchReports } = useReports();
     const [loading, setLoading] = useState(false);
     const [selectedTimeframe, setSelectedTimeframe] = useState<'1h' | '4h' | '24h'>('1h');
     const [minMessages, setMinMessages] = useState(3);
@@ -33,6 +33,14 @@ export function BulkGenerateButton({ onComplete }: BulkGenerateButtonProps) {
         status: 'idle',
         channels: [],
     });
+
+    // Use a debounced update function
+    const updateChannels = useCallback((newChannels: ChannelActivity[]) => {
+        setProgress(prev => ({
+            ...prev,
+            channels: newChannels
+        }));
+    }, []);
 
     const resetProgress = () => {
         setProgress({
@@ -48,21 +56,23 @@ export function BulkGenerateButton({ onComplete }: BulkGenerateButtonProps) {
 
         try {
             const eventSource = new EventSource(`/api/reports/bulk-generate?timeframe=${selectedTimeframe}&minMessages=${minMessages}`);
+            
+            let updateTimeout: NodeJS.Timeout;
 
             eventSource.onmessage = (event) => {
                 const data = JSON.parse(event.data);
                 
                 switch (data.type) {
                     case 'scanning':
-                        // Update channel list and status
-                        setProgress(prev => ({
-                            ...prev,
-                            channels: data.channels,
-                        }));
+                        // Clear any pending updates
+                        clearTimeout(updateTimeout);
+                        // Schedule update in 100ms
+                        updateTimeout = setTimeout(() => {
+                            updateChannels(data.channels);
+                        }, 100);
                         break;
                     
                     case 'report':
-                        // Update channel status and select first report
                         if (!hasSelectedFirstReportRef.current) {
                             setCurrentReport(data.report);
                             hasSelectedFirstReportRef.current = true;
@@ -75,6 +85,7 @@ export function BulkGenerateButton({ onComplete }: BulkGenerateButtonProps) {
                                     : ch
                             )
                         }));
+                        fetchReports();
                         onComplete?.();
                         break;
                     
@@ -176,7 +187,7 @@ export function BulkGenerateButton({ onComplete }: BulkGenerateButtonProps) {
             {/* Progress Section */}
             {progress.status !== 'idle' && (
                 <div className="bg-gray-800/50 rounded-lg p-4">
-                    <div className={`flex items-center justify-between ${isProgressExpanded ? 'mb-4' : ''}`}>
+                    <div className={`flex items-center justify-between ${isProgressExpanded && progress.channels.length > 0 ? 'mb-4' : ''}`}>
                         <div className="flex items-center space-x-2">
                             {progress.status === 'scanning' && <Loader className="w-4 h-4 text-blue-400 animate-spin" />}
                             {progress.status === 'complete' && <Check className="w-4 h-4 text-green-400" />}

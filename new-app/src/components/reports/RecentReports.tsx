@@ -54,7 +54,6 @@ export function RecentReports() {
   if (loading) {
     return (
       <div className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold text-white">Recent Reports</h2>
         <ReportSkeleton />
       </div>
     );
@@ -63,7 +62,6 @@ export function RecentReports() {
   if (error) {
     return (
       <div className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold text-white">Recent Reports</h2>
         <ErrorMessage message={error} onRetry={fetchReports} />
       </div>
     );
@@ -72,7 +70,6 @@ export function RecentReports() {
   if (!reports.length) {
     return (
       <div className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold text-white">Recent Reports</h2>
         <div className="flex items-center justify-center py-8 text-gray-400">
           No reports yet
         </div>
