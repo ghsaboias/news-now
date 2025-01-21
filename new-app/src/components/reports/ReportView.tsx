@@ -9,9 +9,20 @@ interface ReportViewProps {
 export function ReportView({ report }: ReportViewProps) {
   const { addReport, updateReport, deleteReport, setCurrentReport } = useReports();
 
-  const handleDelete = () => {
-    deleteReport(report.id);
-    setCurrentReport(null);
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this report?')) return;
+    
+    try {
+      const response = await fetch(`/api/reports/${report.id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete report');
+      
+      deleteReport(report.id);
+      setCurrentReport(null);
+    } catch (err) {
+      console.error('Error deleting report:', err);
+    }
   };
 
   return (

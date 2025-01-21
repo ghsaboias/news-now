@@ -2,7 +2,7 @@ import { ErrorMessage } from '@/components/common/ErrorMessage';
 import { useReports } from '@/context/ReportsContext';
 import { useToast } from '@/context/ToastContext';
 import { useEffect } from 'react';
-import { Copy, Edit2, Trash2 } from 'react-feather';
+import { Copy, Edit2, Trash2, X } from 'react-feather';
 import { ReportSkeleton } from './ReportSkeleton';
 
 export function RecentReports() {
@@ -17,6 +17,34 @@ export function RecentReports() {
     setCurrentReport
   } = useReports();
   const { showToast } = useToast();
+
+  const handleClearDate = async (date: string, reportsInGroup: number) => {
+    if (!confirm(`Are you sure you want to delete all ${reportsInGroup} reports from ${new Date(date).toLocaleDateString()}?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/reports/bulk-delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date }),
+      });
+
+      if (!response.ok) throw new Error('Failed to delete reports');
+
+      // Clear current report if it's from this date
+      const currentReport = reports.find(group => group.date === date)?.reports[0];
+      if (currentReport) {
+        setCurrentReport(null);
+      }
+
+      await fetchReports();
+      showToast('Reports cleared successfully');
+    } catch (err) {
+      console.error('Error clearing reports:', err);
+      showToast('Failed to clear reports');
+    }
+  };
 
   // Fetch reports on mount
   useEffect(() => {
@@ -58,8 +86,18 @@ export function RecentReports() {
       <div className="flex flex-col gap-2">
         {reports.map((group) => (
           <div key={group.date}>
-            <div className="mb-2 text-sm font-medium text-gray-400">
-              {new Date(group.date).toLocaleDateString()}
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-sm font-medium text-gray-400">
+                {new Date(group.date).toLocaleDateString()}
+              </div>
+              <button
+                onClick={() => handleClearDate(group.date, group.reports.length)}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-red-400 hover:bg-gray-800 rounded transition-colors"
+                title="Clear all reports from this date"
+              >
+                <X className="w-3 h-3" />
+                <span>Clear All</span>
+              </button>
             </div>
             <div className="flex flex-col gap-2">
               {group.reports.map((report) => (
@@ -100,10 +138,22 @@ export function RecentReports() {
                       <Edit2 className="w-5 h-5" />
                     </button>
                     <button
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();  // Prevent card click when clicking button
-                        deleteReport(report.id);
-                        setCurrentReport(null);
+                        if (!confirm('Are you sure you want to delete this report?')) return;
+                        
+                        try {
+                          const response = await fetch(`/api/reports/${report.id}`, {
+                            method: 'DELETE',
+                          });
+                          if (!response.ok) throw new Error('Failed to delete report');
+                          
+                          deleteReport(report.id);
+                          setCurrentReport(null);
+                        } catch (err) {
+                          console.error('Error deleting report:', err);
+                          showToast('Failed to delete report');
+                        }
                       }}
                       className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-lg transition-colors"
                       title="Delete Report"

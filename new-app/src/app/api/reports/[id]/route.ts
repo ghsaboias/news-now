@@ -3,12 +3,12 @@ import { Report } from '@/types';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function PUT(
-    request: NextRequest,
-    { params }: { params: { id: string } }
+    request: NextRequest
 ) {
     try {
+        const id = request.url.split('/').pop();
         const report: Report = await request.json();
-        if (report.id !== params.id) {
+        if (report.id !== id) {
             return NextResponse.json(
                 { error: 'Report ID mismatch' },
                 { status: 400 }
@@ -26,11 +26,17 @@ export async function PUT(
 }
 
 export async function DELETE(
-    request: NextRequest,
-    { params }: { params: { id: string } }
+    request: NextRequest
 ) {
     try {
-        await ReportStorage.deleteReport(params.id);
+        const id = request.url.split('/').pop();
+        if (!id) {
+            return NextResponse.json(
+                { error: 'Report ID is required' },
+                { status: 400 }
+            );
+        }
+        await ReportStorage.deleteReport(id);
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error('Error deleting report:', error);

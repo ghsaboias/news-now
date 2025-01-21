@@ -53,6 +53,17 @@ export class ReportStorage {
         }
     }
 
+    static async deleteReportsByDate(date: string): Promise<void> {
+        const files = await fs.promises.readdir(DATA_DIR);
+        const reportsToDelete = files.filter(file => file.startsWith(date));
+
+        await Promise.all(
+            reportsToDelete.map(file =>
+                fs.promises.unlink(path.join(DATA_DIR, file))
+            )
+        );
+    }
+
     static async updateReport(report: Report): Promise<void> {
         // First delete the old report file
         await this.deleteReport(report.id);

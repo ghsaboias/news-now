@@ -8,6 +8,7 @@ import { RecentReports } from '@/components/reports/RecentReports';
 import { ReportView } from '@/components/reports/ReportView';
 import { ReportsProvider, useReports } from '@/context/ReportsContext';
 import type { AISummary, DiscordChannel, DiscordMessage, Report } from '@/types';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -232,7 +233,9 @@ function DiscordTestContent() {
 
   const sidebarContent = (
     <div className="p-4 space-y-4">
-      <h1 className="text-2xl font-bold text-white">News Now</h1>
+      <Link href="/"> 
+        <h1 className="text-2xl font-bold text-white">News Now</h1>
+      </Link>
       
       <ChannelSelect
         channels={channels}
