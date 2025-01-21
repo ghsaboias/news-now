@@ -7,8 +7,8 @@ export default function Home() {
     return (
         <ReportsProvider>
             <Head>
-                <title>NewsNow - Transform Discord Chaos into Clear Updates</title>
-                <meta name="description" content="Turn busy Discord channels into clear, actionable updates. Stay on top of your communities without the overwhelm." />
+                <title>NewsNow - Real-time updates about what matters</title>
+                <meta name="description" content="Stay on top of current events without the overwhelm." />
             </Head>
             <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -18,7 +18,7 @@ export default function Home() {
                             <div className="text-2xl font-bold text-white">NewsNow</div>
                             <div className="flex gap-4">
                                 <Link 
-                                    href="/discord-test" 
+                                    href="/summarizer" 
                                     className="text-gray-300 hover:text-white transition-colors flex items-center"
                                 >
                                     <span>Demo</span>
