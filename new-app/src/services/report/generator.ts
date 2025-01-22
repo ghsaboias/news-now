@@ -16,30 +16,33 @@ export class ReportGenerator {
                     .replace('T', ' ')
                     .replace(/\.\d+Z$/, ' UTC');
 
-                const content = msg.content || '';
+                const parts = [`[${timestamp}]`];
+
+                // Add URL (from content)
+                if (msg.content) {
+                    parts.push(msg.content);
+                }
+
+                // Add embed information
                 const embeds = (msg as any).embeds || [];
+                embeds.forEach((embed: any) => {
+                    if (embed.title) parts.push(`Channel: ${embed.title}`);
+                    if (embed.description) parts.push(`Content: ${embed.description}`);
+                });
 
-                const embedText = embeds
-                    .map((embed: any) => {
-                        const parts = [];
-                        if (embed.title) parts.push(`Title: ${embed.title}`);
-                        if (embed.description) parts.push(`Description: ${embed.description}`);
+                // Add fields (quotes, translations, etc.)
+                const fields = (msg as any).fields || [];
+                fields.forEach((field: any) => {
+                    if (field.name.toLowerCase() === 'quote from') {
+                        parts.push(`Quote from ${field.value}`);
+                    } else if (field.name.toLowerCase() === 'translated from') {
+                        parts.push(`[Translated from ${field.value}]`);
+                    } else if (field.name.toLowerCase() !== 'source') { // Skip source as we have the URL
+                        parts.push(`${field.name}: ${field.value}`);
+                    }
+                });
 
-                        const fields = embed.fields || [];
-                        fields.forEach((field: any) => {
-                            if (field.name.toLowerCase() !== 'source') {
-                                parts.push(`${field.name}: ${field.value}`);
-                            }
-                        });
-
-                        return parts.join('\n');
-                    })
-                    .filter(Boolean)
-                    .join('\n');
-
-                const messageText = `[${timestamp}]\n${content}${embedText ? '\n' + embedText : ''
-                    }`;
-                return messageText;
+                return parts.join('\n');
             })
             .join('\n---\n');
     }

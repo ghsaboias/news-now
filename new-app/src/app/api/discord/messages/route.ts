@@ -1,15 +1,28 @@
+import { DatabaseService } from '@/services/db';
 import { DiscordClient } from '@/services/discord/client';
 import { DiscordMessage } from '@/types';
 import { NextRequest } from 'next/server';
+import { v4 as uuidv4 } from 'uuid';
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const channelId = searchParams.get('channelId');
+    const channelName = searchParams.get('channelName');
     const timeframe = searchParams.get('timeframe') || '24h';
 
     if (!channelId) {
         return new Response(
             JSON.stringify({ error: 'Channel ID is required' }),
+            {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            }
+        );
+    }
+
+    if (!channelName) {
+        return new Response(
+            JSON.stringify({ error: 'Channel name is required' }),
             {
                 status: 400,
                 headers: { 'Content-Type': 'application/json' }
@@ -24,7 +37,17 @@ export async function GET(request: NextRequest) {
     const stream = new TransformStream();
     const writer = stream.writable.getWriter();
 
-    const client = new DiscordClient();
+    // Initialize database and client
+    const db = new DatabaseService();
+    db.initialize();
+    const client = new DiscordClient(db);
+
+    // Create a topic for this channel and timeframe
+    const topicId = uuidv4();
+    db.insertTopic({
+        id: topicId,
+        name: `${channelName}|${channelId}-${timeframe}-${new Date().toISOString()}`
+    });
 
     // Create response with appropriate headers for SSE
     const response = new Response(stream.readable, {
@@ -61,7 +84,7 @@ export async function GET(request: NextRequest) {
                 );
             };
 
-            await client.fetchMessagesInTimeframe(channelId, hours);
+            await client.fetchMessagesInTimeframe(channelId, hours, undefined, topicId);
 
             // Send final update with all accumulated messages
             await writer.write(
@@ -81,6 +104,7 @@ export async function GET(request: NextRequest) {
                 })}\n\n`)
             );
         } finally {
+            db.close();
             await writer.close();
         }
     })();

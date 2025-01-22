@@ -1,4 +1,5 @@
 import { AnthropicClient } from '@/services/claude/client';
+import { DatabaseService } from '@/services/db';
 import { DiscordClient } from '@/services/discord/client';
 import { ReportGenerator } from '@/services/report/generator';
 import { ReportStorage } from '@/services/report/storage';
@@ -40,7 +41,11 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        const discordClient = new DiscordClient();
+        // Initialize database
+        const db = new DatabaseService();
+        db.initialize();
+
+        const discordClient = new DiscordClient(db);
         const claudeClient = new AnthropicClient(process.env.ANTHROPIC_API_KEY);
         const reportGenerator = new ReportGenerator(claudeClient);
         const channels = await discordClient.fetchChannels();
@@ -97,9 +102,19 @@ export async function GET(request: NextRequest) {
                             })}\n\n`)
                         );
 
+                        // Create a topic for this channel with descriptive ID
+                        const channelPrefix = channel.name.split('|')[0].replace(/[^a-zA-Z0-9-]/g, '');
+                        const topicId = `topic_${channelPrefix}_${uuidv4()}`;
+                        db.insertTopic({
+                            id: topicId,
+                            name: `${channel.name}|${channel.id}-${timeframe}-${new Date().toISOString()}`
+                        });
+
                         const messages = await discordClient.fetchMessagesInTimeframe(
                             channel.id,
-                            timeframe === '24h' ? 24 : timeframe === '4h' ? 4 : 1
+                            timeframe === '24h' ? 24 : timeframe === '4h' ? 4 : 1,
+                            undefined,
+                            topicId  // Pass the topicId here
                         );
 
                         // Set the actual message count after fetching
@@ -189,6 +204,9 @@ export async function GET(request: NextRequest) {
                     })}\n\n`)
                 );
             } finally {
+                if (db) {
+                    db.close();
+                }
                 await writer.close();
             }
         })();

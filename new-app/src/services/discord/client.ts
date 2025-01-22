@@ -1,13 +1,16 @@
 import { DiscordChannel, DiscordMessage } from '@/types';
 import { config } from '@/utils/config';
 import axios, { AxiosInstance } from 'axios';
+import { DatabaseService } from '../db';
+import { MessageProcessor } from '../message/processor';
 
 export class DiscordClient {
     private readonly api: AxiosInstance;
     private readonly baseUrl = 'https://discord.com/api/v10';
+    private messageProcessor?: MessageProcessor;
     public onMessageBatch?: (batchSize: number, botMessages: number, messages: DiscordMessage[]) => Promise<void>;
 
-    constructor() {
+    constructor(dbService?: DatabaseService) {
         this.api = axios.create({
             baseURL: this.baseUrl,
             headers: {
@@ -16,6 +19,10 @@ export class DiscordClient {
             },
             timeout: config.REQUEST_TIMEOUT,
         });
+
+        if (dbService) {
+            this.messageProcessor = new MessageProcessor(dbService);
+        }
     }
 
     async fetchChannels(): Promise<DiscordChannel[]> {
@@ -69,7 +76,8 @@ export class DiscordClient {
     async fetchMessagesInTimeframe(
         channelId: string,
         hours: number = 24,
-        minutes?: number
+        minutes?: number,
+        topicId?: string
     ): Promise<DiscordMessage[]> {
         const messages: DiscordMessage[] = [];
         let lastMessageId: string | undefined;
@@ -106,6 +114,11 @@ export class DiscordClient {
                     batchMessages.push(msg);
                     batchBotMessages++;
                 }
+            }
+
+            // Process messages in database if messageProcessor exists and topicId is provided
+            if (this.messageProcessor && topicId && batchMessages.length > 0) {
+                await this.messageProcessor.processBatch(batchMessages, topicId);
             }
 
             // Notify about the batch if handler exists

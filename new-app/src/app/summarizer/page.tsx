@@ -23,10 +23,11 @@ async function fetchChannelsAction(): Promise<DiscordChannel[]> {
 
 async function fetchMessagesAction(
     channelId: string,
+    channelName: string,
     timeframe: string,
     onProgress?: (messageCount: number) => void
 ): Promise<DiscordMessage[]> {
-    const response = await fetch(`/api/discord/messages?channelId=${channelId}&timeframe=${timeframe}`);
+    const response = await fetch(`/api/discord/messages?channelId=${channelId}&channelName=${encodeURIComponent(channelName)}&timeframe=${timeframe}`);
     if (!response.ok) {
         throw new Error('Failed to fetch messages', { cause: response });
     }
@@ -133,12 +134,16 @@ function SummarizerContent() {
     const handleGenerateReport = async () => {
         if (!selectedChannelId) return;
 
+        const channel = channels.find(c => c.id === selectedChannelId);
+        if (!channel) return;
+
         setLoading(true);
         setProgress({ step: 'Fetching messages', percent: 0, messageCount: 0 });
         try {
             let currentMessageCount = 0;
             const messages = await fetchMessagesAction(
-                selectedChannelId, 
+                selectedChannelId,
+                channel.name,
                 selectedTimeframe,
                 (batchCount: number) => {
                     currentMessageCount += batchCount;
@@ -156,9 +161,6 @@ function SummarizerContent() {
                 setProgress({ step: 'No messages found in the selected timeframe', percent: 100 });
                 return;
             }
-
-            const channel = channels.find(c => c.id === selectedChannelId);
-            if (!channel) return;
 
             setProgress(prev => ({
                 ...prev!,

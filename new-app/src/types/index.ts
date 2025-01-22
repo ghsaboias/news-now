@@ -18,9 +18,19 @@ export interface DiscordEmbed {
 export interface DiscordMessage {
     id: string;
     content: string;
+    author?: {
+        username: string;
+        discriminator: string;
+    };
     timestamp: string;
-    author?: DiscordAuthor;
-    embeds: DiscordEmbed[];
+    embeds: Array<{
+        title?: string;
+        description?: string;
+        fields?: Array<{
+            name: string;
+            value: string;
+        }>;
+    }>;
 }
 
 export interface DiscordChannel {
