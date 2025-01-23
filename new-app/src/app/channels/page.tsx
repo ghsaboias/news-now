@@ -1,6 +1,7 @@
 'use client';
 
 import { Card } from '@/components/layout/Card';
+import { Grid } from '@/components/layout/Grid';
 import { DiscordChannel } from '@/types';
 import { useEffect, useState } from 'react';
 
@@ -89,19 +90,27 @@ export default function ChannelsPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[var(--bg-dark)] to-[color-mix(in_srgb,var(--bg-dark),#000_15%)]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
-        <div className="text-center mb-6 sm:mb-8 lg:mb-10">
-          <h1 className="text-xl sm:text-2xl lg:text-[2rem] font-medium text-[var(--text-primary)] mb-2">
+    <div className="min-h-screen bg-background">
+      <div className="max-w-container mx-auto px-page-x py-page-y">
+        <div className="text-center mb-8 sm:mb-12 lg:mb-16">
+          <h1 className="
+            text-h2 sm:text-h1
+            font-medium text-primary
+            mb-3
+            animate-fade-in
+          ">
             Discord Channels
           </h1>
-          <p className="text-[var(--text-secondary)] text-sm max-w-2xl mx-auto">
+          <p className="text-secondary text-sm sm:text-base max-w-2xl mx-auto animate-fade-in">
             Real-time message activity across all monitored channels
           </p>
         </div>
         
         <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+          <Grid 
+            columns={{ sm: 1, md: 2, lg: 3 }} 
+            spacing="relaxed"
+          >
             {channels.map((channel) => (
               <Card 
                 key={channel.id}
@@ -111,7 +120,7 @@ export default function ChannelsPage() {
                 className="h-full"
               />
             ))}
-          </div>
+          </Grid>
         </div>
       </div>
     </div>

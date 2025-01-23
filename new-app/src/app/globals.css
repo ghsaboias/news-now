@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Base Styles */
+body {
+  @apply text-gray-50 bg-gray-900;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Animation Keyframes */
 @layer utilities {
   @keyframes slideUp {
     from {
@@ -15,53 +22,15 @@
   }
 
   @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   .animate-slide-up {
-    animation: none;
-    opacity: 1;
-    transform: none;
+    animation: slideUp 200ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .animate-fade-in {
-    animation: none;
-    opacity: 1;
+    animation: fadeIn 200ms cubic-bezier(0.4, 0, 0.2, 1);
   }
-}
-
-:root {
-  /* Light theme */
-  --background: #ffffff;
-  --foreground: #171717;
-  
-  /* Dark theme colors */
-  --bg-dark: #0a0b0f;  /* Deep charcoal */
-  --card-bg: #1c1f26;  /* Slightly lighter on hover */
-  --card-hover: #2a2f3a;  /* Slightly lighter on hover */
-  --text-primary: #f8f9fa;  /* Soft white */
-  --text-secondary: #9ca3af;  /* Neutral gray */
-  --pill-bg: #232731;  /* Deep slate */
-  --pill-text: #e5e7eb;  /* Light gray */
-  --border-color: #c0c0c0;  /* Refined border */
-  --card-shadow: rgba(0, 0, 0, 0.7);  /* Deeper shadow */
-  --accent: #c4b5a6;  /* Warm stone accent */
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: var(--bg-dark);
-    --foreground: var(--text-primary);
-  }
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }

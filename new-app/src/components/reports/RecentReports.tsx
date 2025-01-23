@@ -1,13 +1,14 @@
-import { ErrorMessage } from '@/components/common/ErrorMessage';
-import { MessageCountBadge } from '@/components/common/MessageCountBadge';
-import { TimeframeBadge } from '@/components/common/TimeframeBadge';
+import { MessageCountBadge } from '@/components/common/badges/MessageCountBadge';
+import { TimeframeBadge } from '@/components/common/badges/TimeframeBadge';
+import { ErrorMessage } from '@/components/common/messages/ErrorMessage';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 import { useReports } from '@/context/ReportsContext';
 import { useToast } from '@/context/ToastContext';
 import { useEffect } from 'react';
 import { Copy, Trash2, X } from 'react-feather';
 import { ReportSkeleton } from './ReportSkeleton';
 
-export function RecentReports() {
+function RecentReportsContent() {
   const {
     reports,
     loading,
@@ -101,10 +102,10 @@ export function RecentReports() {
                   key={report.id}
                   onClick={() => setCurrentReport(report)}
                   className="
-                    group flex flex-col gap-3 p-4 rounded-lg
-                    bg-gray-800/50 hover:bg-gray-800 
-                    cursor-pointer transition-all
-                    border border-gray-700/50 hover:border-gray-700
+                    group flex flex-col gap-4 p-4 rounded-lg
+                    bg-gray-800/50 hover:bg-gray-700
+                    cursor-pointer transition-colors duration-DEFAULT
+                    border border-gray-600/50 hover:border-gray-600
                     backdrop-blur-sm
                   "
                 >
@@ -117,7 +118,7 @@ export function RecentReports() {
                     <MessageCountBadge count={report.messageCount} />
                   </div>
                   <div className="flex items-start gap-2">
-                    <h3 className="text-base sm:text-lg font-medium text-white leading-tight group-hover:text-blue-400 transition-colors text-left">
+                    <h3 className="text-base sm:text-lg font-medium text-gray-50 leading-tight group-hover:text-blue-400 transition-colors duration-DEFAULT text-left">
                       {report.summary.headline}
                     </h3>
                     <div className="flex items-center gap-1 flex-shrink-0">
@@ -129,9 +130,10 @@ export function RecentReports() {
                           showToast('Report copied to clipboard');
                         }}
                         className="
-                          p-2 text-gray-400 rounded-lg transition-all
-                          hover:text-white hover:bg-gray-700
-                          focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800
+                          p-2 text-gray-400 rounded-lg 
+                          transition-colors duration-DEFAULT
+                          hover:text-gray-50 hover:bg-gray-700
+                          focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800
                         "
                         title="Copy Report"
                       >
@@ -156,9 +158,10 @@ export function RecentReports() {
                           }
                         }}
                         className="
-                          p-2 text-gray-400 rounded-lg transition-all
-                          hover:text-red-400 hover:bg-gray-700
-                          focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800
+                          p-2 text-gray-400 rounded-lg 
+                          transition-colors duration-DEFAULT
+                          hover:text-error-500 hover:bg-gray-700
+                          focus:outline-none focus-visible:ring-2 focus-visible:ring-error-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800
                         "
                         title="Delete Report"
                       >
@@ -185,5 +188,13 @@ export function RecentReports() {
         ))}
       </div>
     </div>
+  );
+}
+
+export function RecentReports() {
+  return (
+    <ErrorBoundary>
+      <RecentReportsContent />
+    </ErrorBoundary>
   );
 } 

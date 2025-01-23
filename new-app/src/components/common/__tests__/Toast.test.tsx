@@ -12,6 +12,32 @@ describe('Toast', () => {
     expect(screen.getByRole('button')).toBeInTheDocument();
   });
 
+  it('uses theme spacing and colors', () => {
+    const onClose = jest.fn();
+    render(<Toast message="Test message" onClose={onClose} />);
+    
+    const toast = screen.getByText('Test message').closest('div');
+    expect(toast).toHaveClass(
+      'gap-3',
+      'px-4',
+      'py-3',
+      'bg-gray-800/95',
+      'text-gray-50'
+    );
+  });
+
+  it('uses theme transitions and animations', () => {
+    const onClose = jest.fn();
+    render(<Toast message="Test message" onClose={onClose} />);
+    
+    const toast = screen.getByText('Test message').closest('div');
+    expect(toast).toHaveClass(
+      'transition-all',
+      'duration-DEFAULT',
+      'animate-[slide-up_0.2s_ease-out,fade-out_0.15s_ease-in_forwards]'
+    );
+  });
+
   it('calls onClose when close button is clicked', () => {
     const onClose = jest.fn();
     render(<Toast message="Test message" onClose={onClose} />);

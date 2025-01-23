@@ -14,12 +14,37 @@ export function Toast({ message, onClose, duration = 3000 }: ToastProps) {
   }, [duration, onClose]);
 
   return (
-    <div className="fixed bottom-4 right-4 flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg shadow-lg border border-gray-700 animate-slide-up">
-      <Check className="w-4 h-4 text-green-400" />
-      <span>{message}</span>
+    <div className="
+      fixed bottom-4 right-4 
+      flex items-center gap-3 px-4 py-3
+      bg-gray-800/95
+      text-gray-50
+      rounded-lg 
+      border border-gray-600/50
+      shadow-lg
+      backdrop-blur-md
+      transition-all duration-DEFAULT
+      animate-[slide-up_0.2s_ease-out,fade-out_0.15s_ease-in_forwards]
+      motion-reduce:animate-none
+    ">
+      <Check className="w-4 h-4 text-emerald-400" />
+      <span className="text-sm font-medium">{message}</span>
       <button
         onClick={onClose}
-        className="ml-2 p-1 hover:bg-gray-700 rounded-full transition-colors"
+        className="
+          ml-2 p-1.5
+          text-gray-400
+          hover:text-gray-50
+          hover:bg-gray-700/50
+          active:bg-gray-600
+          rounded-full 
+          transition-colors duration-DEFAULT
+          focus:outline-none
+          focus-visible:ring-2
+          focus-visible:ring-blue-500
+          focus-visible:ring-offset-2
+          focus-visible:ring-offset-gray-800
+        "
       >
         <X className="w-4 h-4" />
       </button>

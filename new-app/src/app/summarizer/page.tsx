@@ -1,9 +1,12 @@
 'use client';
 
-import { BulkGenerateButton } from '@/components/controls/BulkGenerateButton';
+import { Button } from '@/components/common/Button';
+import { Progress } from '@/components/common/Progress';
+import { BulkGenerateButton } from '@/components/controls/bulk-generate/BulkGenerateButton';
+import { TimeSelect, TimeframeOption } from '@/components/controls/bulk-generate/TimeSelect';
 import { ChannelSelect } from '@/components/controls/ChannelSelect';
 import { ControlsContainer } from '@/components/controls/ControlsContainer';
-import { TimeSelect, TimeframeOption } from '@/components/controls/TimeSelect';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 import { SplitView } from '@/components/layout/SplitView';
 import { RecentReports } from '@/components/reports/RecentReports';
 import { ReportView } from '@/components/reports/ReportView';
@@ -115,6 +118,7 @@ function formatTimestamp(timestamp: string): string {
 
 function SummarizerContent() {
     const [channels, setChannels] = useState<DiscordChannel[]>([]);
+    const [isLoadingChannels, setIsLoadingChannels] = useState(true);
     const [selectedChannelId, setSelectedChannelId] = useState('');
     const [selectedTimeframe, setSelectedTimeframe] = useState<'1h' | '4h' | '24h'>('1h');
     const [loading, setLoading] = useState(false);
@@ -128,7 +132,11 @@ function SummarizerContent() {
     ];
 
     useEffect(() => {
-        fetchChannelsAction().then(setChannels).catch(console.error);
+        setIsLoadingChannels(true);
+        fetchChannelsAction()
+            .then(setChannels)
+            .catch(console.error)
+            .finally(() => setIsLoadingChannels(false));
     }, []);
 
     const handleGenerateReport = async () => {
@@ -221,57 +229,55 @@ function SummarizerContent() {
     return (
         <SplitView
             sidebarContent={
-                <ControlsContainer>
-                    <ChannelSelect
-                        channels={channels}
-                        selectedChannelId={selectedChannelId}
-                        onSelect={setSelectedChannelId}
-                        disabled={loading}
-                    />
-                    
-                    <TimeSelect
-                        value={selectedTimeframe}
-                        onChange={setSelectedTimeframe}
-                        options={timeframeOptions}
-                        disabled={loading}
-                    />
-
-                    <div className="space-y-2">
-                        <button
-                            onClick={handleGenerateReport}
-                            disabled={!selectedChannelId || loading}
-                            className="
-                                w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium
-                                transition-all hover:bg-blue-700
-                                disabled:opacity-50 disabled:cursor-not-allowed
-                                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900
-                            "
-                        >
-                            {loading ? 'Generating...' : 'Create Report'}
-                        </button>
-                        {progress && (
-                            <div className="space-y-1">
-                                <div className="flex justify-between text-sm text-gray-400">
-                                    <span>
-                                        {progress.step}
-                                        {progress.messageCount ? ` (${progress.messageCount} messages)` : ''}
-                                    </span>
+                <ControlsContainer
+                    mainControls={
+                        <>
+                            {isLoadingChannels ? (
+                                <div className="space-y-4 animate-pulse">
+                                    <div className="h-10 bg-gray-700/50 rounded-lg" />
+                                    <div className="h-10 bg-gray-700/50 rounded-lg" />
+                                    <div className="h-10 bg-gray-700/50 rounded-lg" />
                                 </div>
-                                {progress.percent !== undefined && (
-                                    <div className="h-1 bg-gray-700 rounded-full overflow-hidden">
-                                        <div 
-                                            className="h-full bg-blue-600 transition-all duration-500 ease-out"
-                                            style={{ width: `${Math.round(progress.percent)}%` }}
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                            ) : (
+                                <>
+                                    <ChannelSelect
+                                        channels={channels}
+                                        selectedChannelId={selectedChannelId}
+                                        onSelect={setSelectedChannelId}
+                                        disabled={loading}
+                                    />
+                                    
+                                    <TimeSelect
+                                        value={selectedTimeframe}
+                                        onChange={setSelectedTimeframe}
+                                        options={timeframeOptions}
+                                        disabled={loading}
+                                    />
 
-                    <BulkGenerateButton />
-                    <RecentReports />
-                </ControlsContainer>
+                                    <div className="space-y-3">
+                                        <Button
+                                            onClick={handleGenerateReport}
+                                            disabled={!selectedChannelId}
+                                            loading={loading}
+                                            fullWidth
+                                        >
+                                            {loading ? 'Generating...' : 'Create Report'}
+                                        </Button>
+                                        {progress && (
+                                            <Progress
+                                                step={progress.step}
+                                                percent={progress.percent}
+                                                messageCount={progress.messageCount}
+                                            />
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </>
+                    }
+                    bulkControls={<BulkGenerateButton />}
+                    recentReports={<RecentReports />}
+                />
             }
             mainContent={<ReportView report={currentReport} />}
         />
@@ -281,7 +287,9 @@ function SummarizerContent() {
 export default function SummarizerPage() {
     return (
         <ReportsProvider>
-            <SummarizerContent />
+            <ErrorBoundary>
+                <SummarizerContent />
+            </ErrorBoundary>
         </ReportsProvider>
     );
 } 
