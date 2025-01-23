@@ -78,6 +78,8 @@ export interface StoredMessage {
     source_id: string;
     discord_message_id: string;
     content: string;
+    embed_title?: string;
+    embed_description?: string;
     embed_fields?: {
         name: string;
         value: string;

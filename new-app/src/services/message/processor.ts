@@ -32,6 +32,8 @@ export class MessageProcessor {
                 discord_message_id: message.id,
                 source_id: source?.id || '',
                 content: message.content,
+                embed_title: message.embeds?.[0]?.title || '',
+                embed_description: message.embeds?.[0]?.description || '',
                 embed_fields: message.embeds?.[0]?.fields,
                 timestamp: message.timestamp
             };
