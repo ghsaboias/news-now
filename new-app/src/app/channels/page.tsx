@@ -33,18 +33,15 @@ export default function ChannelsPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      // Fetch channels first
       const channelData = await getChannels();
       setChannels(channelData);
 
-      // Initialize loading states for all channels and periods
       const initialLoadingStates: LoadingState = {};
       channelData.forEach(channel => {
         initialLoadingStates[channel.id] = new Set(['1h', '4h', '24h']);
       });
       setLoadingStates(initialLoadingStates);
 
-      // Start SSE connection for message counts
       const eventSource = new EventSource(
         `http://localhost:3000/api/discord/channels/messages?channelIds=${channelData.map(c => c.id).join(',')}&periods=1h,4h,24h`
       );
@@ -53,7 +50,6 @@ export default function ChannelsPage() {
         const data = JSON.parse(event.data);
 
         if (data.type === 'update') {
-          // Update message counts
           setMessageCounts(prev => {
             const newCounts = { ...prev };
             data.results.forEach(({ channelId, period, count }: any) => {
@@ -65,7 +61,6 @@ export default function ChannelsPage() {
             return newCounts;
           });
 
-          // Update loading states
           setLoadingStates(prev => {
             const newStates = { ...prev };
             data.results.forEach(({ channelId, period }: any) => {
@@ -94,18 +89,30 @@ export default function ChannelsPage() {
   }, []);
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold text-gray-100 mb-6">Discord Channels</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {channels.map((channel) => (
-          <Card 
-            key={channel.id} 
-            title={channel.name}
-            messageCounts={messageCounts[channel.id]}
-            loadingPeriods={loadingStates[channel.id] || new Set()}
-            className="cursor-pointer hover:border-gray-600 transition-colors"
-          />
-        ))}
+    <div className="min-h-screen bg-gradient-to-b from-[var(--bg-dark)] to-[color-mix(in_srgb,var(--bg-dark),#000_15%)]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+        <div className="text-center mb-6 sm:mb-8 lg:mb-10">
+          <h1 className="text-xl sm:text-2xl lg:text-[2rem] font-medium text-[var(--text-primary)] mb-2">
+            Discord Channels
+          </h1>
+          <p className="text-[var(--text-secondary)] text-sm max-w-2xl mx-auto">
+            Real-time message activity across all monitored channels
+          </p>
+        </div>
+        
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+            {channels.map((channel) => (
+              <Card 
+                key={channel.id}
+                title={channel.name}
+                messageCounts={messageCounts[channel.id]}
+                loadingPeriods={loadingStates[channel.id] || new Set()}
+                className="h-full"
+              />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
