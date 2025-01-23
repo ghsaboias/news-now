@@ -178,7 +178,7 @@ export class ReportGenerator {
             - First paragraph must summarize the most important verified development, including key names, numbers, locations, dates, etc.
             - Subsequent paragraphs should cover other significant developments
             - Do NOT include additional headlines - weave all events into a cohesive narrative
-            - Maximum 4096 characters, average 2500 characters
+            - Maximum 4096 characters, average 3200 characters
             - Only include verified facts and direct quotes from official statements
             - Maintain strictly neutral tone - avoid loaded terms or partisan framing
             - NO analysis, commentary, or speculation

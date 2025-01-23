@@ -43,7 +43,8 @@ export async function GET(request: NextRequest) {
     const client = new DiscordClient(db);
 
     // Create a topic for this channel and timeframe
-    const topicId = uuidv4();
+    const channelPrefix = channelName.split('|')[0].replace(/[^a-zA-Z0-9-]/g, '');
+    const topicId = `topic_${channelPrefix}_${uuidv4()}`;
     db.insertTopic({
         id: topicId,
         name: `${channelName}|${channelId}-${timeframe}-${new Date().toISOString()}`
