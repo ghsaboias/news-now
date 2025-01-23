@@ -1,3 +1,37 @@
+// Discord Types
+export interface DiscordAuthor {
+    username: string;
+    discriminator: string;
+}
+
+export interface DiscordEmbedField {
+    name: string;
+    value: string;
+}
+
+export interface DiscordEmbed {
+    title?: string;
+    description?: string;
+    fields?: DiscordEmbedField[];
+}
+
+export interface DiscordMessage {
+    id: string;
+    content: string;
+    author: DiscordAuthor;
+    timestamp: string;
+    embeds?: DiscordEmbed[];
+}
+
+export interface DiscordChannel {
+    id: string;
+    name: string;
+    type: number;
+    position?: number;
+    parent_id?: string;
+}
+
+// Report Types
 export interface AISummary {
     headline: string;
     location_and_period: string;
@@ -7,24 +41,6 @@ export interface AISummary {
     timestamp: string;
     period_start?: string;
     period_end?: string;
-}
-
-export interface DiscordMessage {
-    id: string;
-    content: string;
-    author: {
-        username: string;
-        discriminator: string;
-    };
-    timestamp: string;
-}
-
-export interface DiscordChannel {
-    id: string;
-    name: string;
-    type: number;
-    position?: number;
-    parent_id?: string;
 }
 
 export interface Timeframe {
@@ -48,6 +64,48 @@ export interface ReportGroup {
     reports: Report[];
 }
 
+// Source Types
+export interface ExtractedSource {
+    id: string;
+    platform: 'telegram' | 'x';
+    handle: string;
+    timestamp: string;
+}
+
+export interface StoredMessage {
+    id: string;
+    topic_id: string;
+    source_id: string;
+    discord_message_id: string;
+    content: string;
+    embed_fields?: {
+        name: string;
+        value: string;
+    }[];
+    timestamp: string;
+}
+
+export interface MessageProcessingResult {
+    messageId: string;
+    sourceId?: string;
+    embedCount: number;
+    success: boolean;
+    error?: string;
+}
+
+// Message Processing Types
+export type MessageProcessingStatus = 'pending' | 'processing' | 'success' | 'error';
+
+export interface ProcessedMessage {
+    id: string;
+    content: string;
+    hasEmbeds: boolean;
+    embedCount: number;
+    sourceInfo?: ExtractedSource;
+    status: MessageProcessingStatus;
+}
+
+// Claude AI Types
 export interface ClaudeMessage {
     role: 'user' | 'assistant' | 'system';
     content: string;
@@ -68,6 +126,7 @@ export interface ClaudeClient {
     };
 }
 
+// Activity Types
 export interface ActivityThreshold {
     timeframe: '1h' | '4h' | '24h';
     minMessages: number;
@@ -85,4 +144,29 @@ export interface BulkGenerationProgress {
     channels: ChannelActivity[];
     status: 'scanning' | 'generating' | 'complete' | 'error';
     currentChannel?: string;
+}
+
+// API Types
+export interface ApiResponse<T> {
+    success: boolean;
+    data?: T;
+    error?: string;
+}
+
+export interface ChannelListResponse {
+    channels: DiscordChannel[];
+}
+
+export interface ReportResponse {
+    report: {
+        summary: {
+            headline: string;
+            location: string;
+            body: string;
+            raw_response: string;
+        };
+        message_count: number;
+        period_start: Date;
+        period_end: Date;
+    };
 }

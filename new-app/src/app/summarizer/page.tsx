@@ -119,7 +119,7 @@ function SummarizerContent() {
     const [selectedTimeframe, setSelectedTimeframe] = useState<'1h' | '4h' | '24h'>('1h');
     const [loading, setLoading] = useState(false);
     const [progress, setProgress] = useState<{ step: string; percent?: number; messageCount?: number } | null>(null);
-    const { setCurrentReport, fetchReports } = useReports();
+    const { setCurrentReport, fetchReports, currentReport } = useReports();
 
     const timeframeOptions: TimeframeOption[] = [
         { value: '1h', label: 'Last Hour' },
@@ -273,7 +273,7 @@ function SummarizerContent() {
                     <RecentReports />
                 </ControlsContainer>
             }
-            mainContent={<ReportView />}
+            mainContent={<ReportView report={currentReport} />}
         />
     );
 }

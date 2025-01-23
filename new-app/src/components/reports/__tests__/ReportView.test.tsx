@@ -19,7 +19,9 @@ const mockReport: Report = {
     headline: 'Test Report',
     location_and_period: 'General Channel • Last Hour',
     body: 'First paragraph\n\nSecond paragraph',
-    timestamp: '2024-01-20T10:00:00Z'
+    timestamp: '2024-01-20T10:00:00Z',
+    sources: [],
+    raw_response: '',
   }
 };
 

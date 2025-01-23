@@ -1,10 +1,15 @@
 import { MessageCountBadge } from '@/components/common/MessageCountBadge';
 import { TimeframeBadge } from '@/components/common/TimeframeBadge';
 import { useReports } from '@/context/ReportsContext';
+import { Report } from '@/types';
 import { Copy, Trash2 } from 'react-feather';
 
-export function ReportView() {
-  const { currentReport: report, addReport, updateReport, deleteReport, setCurrentReport } = useReports();
+interface ReportViewProps {
+  report?: Report | null;
+}
+
+export function ReportView({ report }: ReportViewProps) {
+  const { addReport, updateReport, deleteReport, setCurrentReport } = useReports();
 
   if (!report) {
     return (

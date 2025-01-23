@@ -1,15 +1,20 @@
-import { ExtractedSource, SourceExtractorMessage } from '@/types/source';
+import { DiscordMessage, ExtractedSource } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { DatabaseService } from '../db';
 
 export class SourceExtractor {
     constructor(private db: DatabaseService) { }
 
-    extractFromMessage(message: SourceExtractorMessage): ExtractedSource | null {
+    extractFromMessage(message: DiscordMessage): ExtractedSource | null {
         console.log('Attempting to extract source from message:', {
             content: message.content,
-            hasEmbeds: message.embeds?.length > 0
+            hasEmbeds: (message.embeds?.length || 0) > 0
         });
+
+        // Only process messages with embeds
+        if (!message.embeds?.length) {
+            return null;
+        }
 
         // Extract from URL in content
         if (message.content.includes('twitter.com/')) {
@@ -68,5 +73,9 @@ export class SourceExtractor {
             handle,
             timestamp
         };
+    }
+
+    async getSourceById(id: string): Promise<ExtractedSource | undefined> {
+        return this.db.getSourceById(id);
     }
 } 

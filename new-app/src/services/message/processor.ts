@@ -1,5 +1,4 @@
-import { DiscordMessage } from '@/types';
-import { SourceExtractorMessage } from '@/types/source';
+import { DiscordMessage, MessageProcessingResult, ProcessedMessage, StoredMessage } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { DatabaseService } from '../db';
 import { SourceExtractor } from '../source/extractor';
@@ -11,66 +10,94 @@ export class MessageProcessor {
         this.sourceExtractor = new SourceExtractor(db);
     }
 
-    async processMessage(message: DiscordMessage, topicId: string): Promise<void> {
-        // Cast message to SourceExtractorMessage since we know it has embeds
-        const extractorMessage = message as unknown as SourceExtractorMessage;
+    async processMessage(message: DiscordMessage, topicId: string): Promise<MessageProcessingResult> {
+        console.log('Processing message:', {
+            id: message.id,
+            embeds: message.embeds?.length
+        });
 
-        console.log('Processing message:', { id: message.id, embeds: extractorMessage.embeds?.length });
+        try {
+            // Extract source information
+            const source = this.sourceExtractor.extractFromMessage(message);
+            console.log('Source extracted:', source);
 
-        // Extract source information
-        const source = this.sourceExtractor.extractFromMessage(extractorMessage);
-        if (!source) {
-            console.log('No source extracted from message');
-            return;
+            // Get topic prefix from topic_id for message ID
+            const topicPrefix = topicId.split('_')[1] || 'unknown'; // Gets the channel name part
+            const messageId = `msg_${topicPrefix}_${message.id}_${uuidv4()}`;
+
+            // Create message record
+            const storedMessage: StoredMessage = {
+                id: messageId,
+                topic_id: topicId,
+                discord_message_id: message.id,
+                source_id: source?.id || '',
+                content: message.content,
+                embed_fields: message.embeds?.[0]?.fields,
+                timestamp: message.timestamp
+            };
+
+            // Extract fields from embeds with descriptive IDs
+            const fields = message.embeds?.[0]?.fields?.map(field => ({
+                message_id: messageId,
+                name: field.name,
+                value: field.value
+            })) || [];
+
+            console.log('Storing message:', { id: messageId, fields: fields.length });
+
+            // Store message and fields in database
+            await this.db.insertMessage(storedMessage, fields);
+
+            return {
+                messageId,
+                sourceId: source?.id,
+                embedCount: message.embeds?.length || 0,
+                success: true
+            };
+        } catch (error) {
+            console.error('Error processing message:', error);
+            return {
+                messageId: message.id,
+                embedCount: message.embeds?.length || 0,
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            };
         }
-        console.log('Source extracted:', source);
-
-        // Get topic prefix from topic_id for message ID
-        const topicPrefix = topicId.split('_')[1]; // Gets the channel name part
-        const messageId = `msg_${topicPrefix}_${uuidv4()}`;
-
-        // Create message record
-        const dbMessage = {
-            id: messageId,
-            topic_id: topicId,
-            source_id: source.id,
-            content: message.content,
-            embed_title: extractorMessage.embeds[0]?.title || '',
-            embed_description: extractorMessage.embeds[0]?.description || '',
-            timestamp: message.timestamp
-        };
-
-        // Extract fields from embeds with descriptive IDs
-        const fields = extractorMessage.embeds[0]?.fields?.map(field => ({
-            message_id: messageId,
-            name: field.name,
-            value: field.value
-        })) || [];
-
-        console.log('Storing message:', { id: messageId, fields: fields.length });
-
-        // Store message and fields in database
-        this.db.insertMessage(dbMessage, fields);
     }
 
-    async processBatch(messages: DiscordMessage[], topicId: string): Promise<number> {
-        let processedCount = 0;
+    async processBatch(messages: DiscordMessage[], topicId: string): Promise<ProcessedMessage[]> {
+        const results: ProcessedMessage[] = [];
         console.log(`Starting to process batch of ${messages.length} messages for topic ${topicId}`);
 
         for (const message of messages) {
             try {
-                await this.processMessage(message, topicId);
-                processedCount++;
-                if (processedCount % 10 === 0) {
-                    console.log(`Processed ${processedCount}/${messages.length} messages`);
+                const result = await this.processMessage(message, topicId);
+                results.push({
+                    id: result.messageId,
+                    content: message.content,
+                    hasEmbeds: (message.embeds?.length || 0) > 0,
+                    embedCount: message.embeds?.length || 0,
+                    sourceInfo: result.sourceId ? await this.sourceExtractor.getSourceById(result.sourceId) : undefined,
+                    status: result.success ? 'success' : 'error'
+                });
+
+                if (results.length % 10 === 0) {
+                    console.log(`Processed ${results.length}/${messages.length} messages`);
                 }
             } catch (error) {
                 console.error('Error processing message:', error);
-                // Continue processing other messages even if one fails
+                results.push({
+                    id: message.id,
+                    content: message.content,
+                    hasEmbeds: (message.embeds?.length || 0) > 0,
+                    embedCount: message.embeds?.length || 0,
+                    status: 'error'
+                });
             }
         }
 
-        console.log(`Completed processing batch. Successfully processed ${processedCount}/${messages.length} messages`);
-        return processedCount;
+        const successCount = results.filter(r => r.status === 'success').length;
+        console.log(`Completed processing batch. Successfully processed ${successCount}/${messages.length} messages`);
+        return results;
     }
 } 

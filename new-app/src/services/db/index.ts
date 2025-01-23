@@ -1,3 +1,4 @@
+import { ExtractedSource } from '@/types';
 import Database, { Database as DatabaseType } from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
@@ -126,6 +127,11 @@ export class DatabaseService {
     getSourceByHandle(platform: 'telegram' | 'x', handle: string): DBSource | undefined {
         const stmt = this.db.prepare('SELECT * FROM sources WHERE platform = ? AND handle = ?');
         return stmt.get(platform, handle) as DBSource | undefined;
+    }
+
+    getSourceById(id: string): Promise<ExtractedSource | undefined> {
+        const source = this.db.prepare('SELECT * FROM sources WHERE id = ?').get(id);
+        return source ? Promise.resolve(source as ExtractedSource) : Promise.resolve(undefined);
     }
 
     // Message operations

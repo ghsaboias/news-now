@@ -22,15 +22,37 @@ export class ReportStorage {
 
         for (const file of files) {
             if (!file.endsWith('.json')) continue;
-            const content = await fs.promises.readFile(path.join(DATA_DIR, file), 'utf-8');
-            reports.push(JSON.parse(content));
+            try {
+                const content = await fs.promises.readFile(path.join(DATA_DIR, file), 'utf-8');
+                const report = JSON.parse(content);
+
+                // Validate report has required fields
+                if (!report || !report.timestamp) {
+                    console.error(`Invalid report in file ${file}, missing timestamp`);
+                    continue;
+                }
+
+                reports.push(report);
+            } catch (error) {
+                console.error(`Error reading report file ${file}:`, error);
+                continue;
+            }
         }
 
-        // Group by date
+        // Group by date, with validation
         const groupedReports = reports.reduce((groups: { [key: string]: Report[] }, report) => {
-            const date = report.timestamp.split('T')[0];
-            if (!groups[date]) groups[date] = [];
-            groups[date].push(report);
+            try {
+                const date = report.timestamp?.split('T')?.[0];
+                if (!date) {
+                    console.error('Invalid timestamp in report:', report.id);
+                    return groups;
+                }
+
+                if (!groups[date]) groups[date] = [];
+                groups[date].push(report);
+            } catch (error) {
+                console.error('Error processing report for grouping:', error);
+            }
             return groups;
         }, {});
 
@@ -38,11 +60,21 @@ export class ReportStorage {
         return Object.entries(groupedReports)
             .map(([date, reports]) => ({
                 date,
-                reports: reports.sort((a, b) =>
-                    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-                )
+                reports: reports.sort((a, b) => {
+                    try {
+                        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+                    } catch {
+                        return 0; // Keep order unchanged if dates are invalid
+                    }
+                })
             }))
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            .sort((a, b) => {
+                try {
+                    return new Date(b.date).getTime() - new Date(a.date).getTime();
+                } catch {
+                    return 0; // Keep order unchanged if dates are invalid
+                }
+            });
     }
 
     static async deleteReport(id: string): Promise<void> {
