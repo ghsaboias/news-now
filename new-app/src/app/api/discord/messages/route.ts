@@ -42,6 +42,9 @@ export async function GET(request: NextRequest) {
     db.initialize();
     const client = new DiscordClient(db);
 
+    // Fetch channels first to ensure we have the channel names
+    await client.fetchChannels();
+
     // Create a topic for this channel and timeframe
     const channelPrefix = channelName.split('|')[0].replace(/[^a-zA-Z0-9-]/g, '');
     const topicId = `topic_${channelPrefix}_${uuidv4()}`;
