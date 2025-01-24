@@ -49,44 +49,32 @@ next-env.d.ts
 /public/next.svg
 /public/vercel.svg
 
+# Python legacy
 .venv
-.env
-bot.log
-DEPLOYMENT.md
-formatted_text.txt
 __pycache__/
-.cursorrules
-data/
+bot.log
+formatted_text.txt
 
-# Sensitive deployment files
+# Data and logs
+data/
+logs/
 memory/
-deploy.sh
+
+# Sensitive files
+.env*
+.cursorrules
+
+# Old documentation files (now consolidated in docs/)
+DEPLOYMENT.md
 DEPLOYMENT_PROTOCOL.md
 CONFIGURATION.md
-
-# UI Improvement Plan
 UI_IMPROVEMENT_PLAN.md
-
-# check_prod_db.sh
-check_prod_db.sh
-
-# TODO.md
 TODO.md
-
-# Structure
 STRUCTURE.md
-
-# THEME_DOC.md
 THEME_DOC.md
-
-# COMPONENT_COMPOSITION.md
 COMPONENT_COMPOSITION.md
-
-# THEME_DOC.md
-THEME_DOC.md
-
-# nginx
-nginx.conf
-
-# DB_INTEGRATION.md
 DB_INTEGRATION.md
+DB_DOCUMENTATION.md
+docs/
+
+scripts/

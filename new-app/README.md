@@ -1,36 +1,108 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NewsNow Next.js Implementation
 
-## Getting Started
+Modern, production-ready implementation of NewsNow using Next.js and TypeScript. For the complete project documentation, see the [root README](../README.md).
 
-First, run the development server:
+## Quick Start
 
 ```bash
+# Install dependencies
+npm install
+
+# Set up environment variables
+cp .env.example .env.local
+# Edit .env.local with your credentials
+
+# Start development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Development
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Key Technologies
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Next.js 15** with App Router
+- **TypeScript** for type safety
+- **Tailwind CSS** for styling
+- **SQLite** with better-sqlite3
+- **Jest** for testing
 
-## Learn More
+### Available Scripts
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run dev          # Start development server
+npm run build        # Build for production
+npm start           # Start production server
+npm test           # Run tests
+npm run lint        # Run linting
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Environment Variables
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Required environment variables:
 
-## Deploy on Vercel
+```env
+DISCORD_TOKEN=       # Discord bot token
+ANTHROPIC_API_KEY=   # Anthropic API key for Claude
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Project Structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/
+├── app/             # Next.js pages and API routes
+├── components/      # React components
+│   ├── common/      # Shared UI components
+│   ├── controls/    # Application controls
+│   ├── layout/      # Layout components
+│   └── reports/     # Report-related components
+├── context/         # React context providers
+├── hooks/           # Custom React hooks
+├── services/        # Business logic
+└── types/          # TypeScript definitions
+```
+
+### Component Architecture
+
+- **Atomic Design** principles
+- Composition over inheritance
+- Custom hooks for reusable logic
+- Context for state management
+
+### Testing Strategy
+
+- Jest + React Testing Library
+- Unit tests for components
+- Integration tests for features
+- E2E tests for critical flows
+
+### Performance Optimizations
+
+- Server components where possible
+- Optimized images and fonts
+- Code splitting and lazy loading
+- Efficient database queries
+
+### Style Guide
+
+- ESLint + Prettier configuration
+- TypeScript strict mode
+- Tailwind CSS class ordering
+- Component composition patterns
+
+## Deployment
+
+For detailed deployment instructions, see the [Deployment Guide](../docs/DEPLOYMENT.md).
+
+Quick deployment checklist:
+
+1. Build the application
+2. Set up environment variables
+3. Configure database
+4. Start the server
+
+## Contributing
+
+1. Follow the style guide
+2. Write tests for new features
+3. Update documentation
+4. Create focused pull requests

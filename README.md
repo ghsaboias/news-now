@@ -2,6 +2,10 @@
 
 Transform real-time discussions into clear, concise summaries powered by AI. Stay on top of your communities without the overwhelm.
 
+## Project Evolution
+
+NewsNow has evolved from a Python-based application to a modern Next.js implementation, focusing on improved performance, better user experience, and maintainable code. The project maintains both implementations:
+
 ## Features
 
 - **Real-Time Processing**: Stream and process messages in real-time
@@ -18,6 +22,7 @@ Transform real-time discussions into clear, concise summaries powered by AI. Sta
 - **State Management**: React Context
 - **UI Components**: Custom components with Tailwind
 - **Icons**: Feather Icons
+- **Database**: SQLite with better-sqlite3
 
 ## Getting Started
 
@@ -60,15 +65,16 @@ yarn dev
 
 ```
 news-now/
-└── new-app/
+├── docs/               # Detailed documentation
+└── new-app/           # Next.js implementation
     ├── src/
-    │   ├── app/              # Next.js app router pages
-    │   ├── components/       # React components
-    │   ├── context/         # React context providers
-    │   ├── services/        # Business logic and services
-    │   └── types/           # TypeScript type definitions
-    ├── public/              # Static assets
-    └── data/               # Local data storage
+    │   ├── app/       # Next.js app router pages
+    │   ├── components/# React components
+    │   ├── context/   # React context providers
+    │   ├── services/  # Business logic and services
+    │   └── types/     # TypeScript type definitions
+    ├── public/        # Static assets
+    └── data/          # Local data storage
 ```
 
 ## Key Components
