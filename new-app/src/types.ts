@@ -172,3 +172,11 @@ export interface ReportResponse {
         period_end: Date;
     };
 }
+
+export interface SourceExtractorMessage {
+    id: string;
+    content: string;
+    timestamp: string;
+    author: DiscordAuthor;
+    embeds: DiscordEmbed[];
+}

@@ -8,10 +8,18 @@ function BrokenComponent(): React.ReactNode {
   return <div />;
 }
 
+// Working component for testing recovery
+function WorkingComponent() {
+  return <div>Working content</div>;
+}
+
 describe('ErrorBoundary', () => {
   // Prevent console.error from cluttering test output
   beforeEach(() => {
     jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'group').mockImplementation(() => {});
+    jest.spyOn(console, 'info').mockImplementation(() => {});
+    jest.spyOn(console, 'groupEnd').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -36,7 +44,7 @@ describe('ErrorBoundary', () => {
     );
 
     expect(screen.getByText('Test error')).toBeInTheDocument();
-    expect(screen.getByText('Try Again')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
   });
 
   it('renders fallback component when provided and error occurs', () => {
@@ -50,22 +58,33 @@ describe('ErrorBoundary', () => {
   });
 
   it('resets error state when retry is clicked', () => {
+    const TestComponent = ({ shouldThrow = true }) => {
+      if (shouldThrow) {
+        throw new Error('Test error');
+      }
+      return <div>Working content</div>;
+    };
+
     const { rerender } = render(
       <ErrorBoundary>
-        <BrokenComponent />
+        <TestComponent shouldThrow={true} />
       </ErrorBoundary>
     );
 
-    // Click retry button
-    fireEvent.click(screen.getByText('Try Again'));
+    // Verify error state
+    expect(screen.getByText('Test error')).toBeInTheDocument();
+    const retryButton = screen.getByRole('button', { name: /try again/i });
+    expect(retryButton).toBeInTheDocument();
 
-    // Rerender with working component
+    // Update props to not throw and click retry
     rerender(
       <ErrorBoundary>
-        <div>Working content</div>
+        <TestComponent shouldThrow={false} />
       </ErrorBoundary>
     );
+    fireEvent.click(retryButton);
 
+    // Verify recovery
     expect(screen.getByText('Working content')).toBeInTheDocument();
   });
 }); 

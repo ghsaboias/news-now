@@ -9,93 +9,83 @@ const mockOptions: TimeframeOption[] = [
 ];
 
 describe('TimeSelect', () => {
-  const onChange = jest.fn();
-
-  beforeEach(() => {
-    onChange.mockClear();
-  });
-
   it('renders all options', () => {
+    const onChange = jest.fn();
     render(
       <TimeSelect
         value="1h"
         onChange={onChange}
         options={mockOptions}
+        disabled={false}
       />
     );
 
-    expect(screen.getByText('Last Hour')).toBeInTheDocument();
-    expect(screen.getByText('Last 4 Hours')).toBeInTheDocument();
-    expect(screen.getByText('Last 24 Hours')).toBeInTheDocument();
+    mockOptions.forEach(option => {
+      expect(screen.getByText(option.label)).toBeInTheDocument();
+    });
   });
 
-  it('shows selected option with primary variant', () => {
+  it('highlights selected option', () => {
+    const onChange = jest.fn();
     render(
       <TimeSelect
         value="4h"
         onChange={onChange}
         options={mockOptions}
+        disabled={false}
       />
     );
 
     const selectedButton = screen.getByText('Last 4 Hours').closest('button');
-    expect(selectedButton).toHaveClass('bg-blue-600');
+    const unselectedButton = screen.getByText('Last Hour').closest('button');
+    
+    expect(selectedButton).toHaveClass('bg-blue-600', 'text-gray-50');
+    expect(unselectedButton).toHaveClass('bg-gray-700/50', 'text-gray-200');
   });
 
-  it('shows unselected options with secondary variant', () => {
+  it('calls onChange when option clicked', () => {
+    const onChange = jest.fn();
     render(
       <TimeSelect
         value="4h"
         onChange={onChange}
         options={mockOptions}
+        disabled={false}
       />
     );
 
-    const unselectedButton = screen.getByText('Last Hour').closest('button');
-    expect(unselectedButton).toHaveClass('bg-gray-600/20');
-  });
-
-  it('calls onChange when option is clicked', () => {
-    render(
-      <TimeSelect
-        value="1h"
-        onChange={onChange}
-        options={mockOptions}
-      />
-    );
-
-    fireEvent.click(screen.getByText('Last 4 Hours'));
-    expect(onChange).toHaveBeenCalledWith('4h');
+    fireEvent.click(screen.getByText('Last Hour'));
+    expect(onChange).toHaveBeenCalledWith('1h');
   });
 
   it('disables all buttons when disabled', () => {
+    const onChange = jest.fn();
     render(
       <TimeSelect
         value="1h"
         onChange={onChange}
         options={mockOptions}
-        disabled
+        disabled={true}
       />
     );
 
-    const buttons = screen.getAllByRole('button');
-    buttons.forEach(button => {
+    mockOptions.forEach(option => {
+      const button = screen.getByText(option.label).closest('button');
       expect(button).toBeDisabled();
     });
   });
 
-  it('renders Clock icon for each option', () => {
+  it('has correct ARIA attributes', () => {
     const onChange = jest.fn();
     render(
       <TimeSelect
         options={mockOptions}
         value="1h"
         onChange={onChange}
+        disabled={false}
       />
     );
 
-    // Clock icons are SVGs
-    const icons = document.querySelectorAll('svg');
-    expect(icons).toHaveLength(mockOptions.length);
+    expect(screen.getByRole('group')).toBeInTheDocument();
   });
 }); 

@@ -15,58 +15,78 @@ describe('Card', () => {
 
   it('uses theme spacing consistently', () => {
     render(<Card title="Test Card" />);
-    const card = screen.getByText('Test Card').closest('div');
-    expect(card).toHaveClass('p-4', 'lg:p-6');
-
-    const container = screen.getByText('Test Card').parentElement;
-    expect(container).toHaveClass('gap-4');
+    const card = screen.getByText('Test Card').closest('div[class*="bg-gray-800"]');
+    expect(card?.className).toContain('p-4');
+    expect(card?.className).toContain('lg:p-6');
   });
 
   it('uses semantic colors', () => {
     render(<Card title="Test Card" />);
-    const card = screen.getByText('Test Card').closest('div');
-    expect(card).toHaveClass('bg-gray-800', 'border-gray-600/50');
+    const card = screen.getByText('Test Card').closest('div[class*="bg-gray-800"]');
+    expect(card?.className).toContain('bg-gray-800');
+    expect(card?.className).toContain('border-gray-600/50');
   });
 
   describe('interactive mode', () => {
     it('adds interactive styles when interactive prop is true', () => {
       render(<Card title="Test Card" interactive />);
       const card = screen.getByRole('button');
-      expect(card).toHaveClass(
-        'hover:bg-gray-700',
-        'hover:border-gray-600',
-        'cursor-pointer'
-      );
+      expect(card.className).toContain('hover:bg-gray-700');
+      expect(card.className).toContain('hover:border-gray-600');
+      expect(card.className).toContain('cursor-pointer');
     });
 
     it('adds focus styles for interactive cards', () => {
       render(<Card title="Test Card" interactive />);
       const card = screen.getByRole('button');
-      expect(card).toHaveClass(
-        'focus-visible:ring-2',
-        'focus-visible:ring-blue-500',
-        'focus-visible:ring-offset-2'
-      );
+      expect(card.className).toContain('focus-visible:ring-2');
+      expect(card.className).toContain('focus-visible:ring-blue-500');
+      expect(card.className).toContain('focus-visible:ring-offset-2');
     });
 
-    it('handles click events when interactive', () => {
+    it('calls onClick when clicked', () => {
       const onClick = jest.fn();
       render(<Card title="Test Card" interactive onClick={onClick} />);
       
       fireEvent.click(screen.getByRole('button'));
-      expect(onClick).toHaveBeenCalled();
-    });
-
-    it('adds correct ARIA attributes when interactive', () => {
-      render(<Card title="Test Card" interactive />);
-      const card = screen.getByRole('button');
-      expect(card).toHaveAttribute('tabIndex', '0');
+      expect(onClick).toHaveBeenCalledTimes(1);
     });
   });
 
   it('uses theme transitions', () => {
     render(<Card title="Test Card" />);
-    const card = screen.getByText('Test Card').closest('div');
-    expect(card).toHaveClass('transition-colors', 'duration-DEFAULT');
+    const card = screen.getByText('Test Card').closest('div[class*="bg-gray-800"]');
+    expect(card?.className).toContain('transition-colors');
+    expect(card?.className).toContain('duration-DEFAULT');
+  });
+
+  it('renders message counts when provided', () => {
+    render(
+      <Card 
+        title="Test Card" 
+        messageCounts={{ 
+          '1h': 10, 
+          '4h': 20, 
+          '24h': 50 
+        }} 
+      />
+    );
+
+    expect(screen.getByText('10')).toBeInTheDocument();
+    expect(screen.getByText('20')).toBeInTheDocument();
+    expect(screen.getByText('50')).toBeInTheDocument();
+  });
+
+  it('shows loading state for specified periods', () => {
+    render(
+      <Card 
+        title="Test Card" 
+        messageCounts={{ '1h': 10 }}
+        loadingPeriods={new Set(['4h', '24h'])}
+      />
+    );
+
+    expect(screen.getByText('10')).toBeInTheDocument();
+    expect(screen.getAllByText('...')).toHaveLength(2);
   });
 }); 

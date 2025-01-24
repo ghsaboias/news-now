@@ -43,10 +43,10 @@
 - [x] Add basic error handling and logging
 
 ## 7. Cleanup & Optimization
-- [ ] Add database indexes for performance
-  - [ ] Index on sources(platform, handle)
-  - [ ] Index on messages(topic_id, timestamp)
-  - [ ] Index on message_fields(message_id)
+- [x] Add database indexes for performance
+  - [x] Index on sources(platform, handle)
+  - [x] Index on messages(topic_id, timestamp)
+  - [x] Index on message_fields(message_id)
 - [ ] Implement cleanup for old data
   - [ ] Define data retention policy
   - [ ] Add cleanup procedures

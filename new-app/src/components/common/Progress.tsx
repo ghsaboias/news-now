@@ -1,4 +1,3 @@
-
 interface ProgressProps {
   /** Current progress value (0-100) */
   value?: number;
@@ -15,9 +14,9 @@ interface ProgressProps {
 }
 
 const stageLabels = {
-  setup: 'Setting up...',
-  fetching: 'Fetching messages...',
-  processing: 'Processing...'
+  setup: 'Setting up',
+  fetching: 'Fetching messages',
+  processing: 'Processing'
 };
 
 /**
@@ -31,25 +30,38 @@ export function Progress({
   messageCount,
   className = ''
 }: ProgressProps) {
-  const stageLabel = stage || 'Processing...';
+  const stageLabel = stage ? stageLabels[stage as keyof typeof stageLabels] || stage : 'Processing';
+  const statusMessage = `${stageLabel}${messageCount ? ` - ${messageCount} messages` : ''} - ${value}% complete`;
   
   return (
-    <div className={`space-y-2 ${className}`}>
+    <div 
+      className={`space-y-3 ${className}`}
+      role="status"
+      aria-label={statusMessage}
+    >
       <div className="flex justify-between text-sm text-gray-400">
         <div>{stageLabel}</div>
         <div>{value}%</div>
       </div>
-      <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+      <div 
+        className="h-2 bg-gray-700/50 rounded-full overflow-hidden"
+        role="progressbar"
+        aria-valuenow={value}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
         <div
-          className="h-full bg-blue-500 transition-all duration-500 ease-out"
+          className="h-full bg-blue-600 transition-all duration-DEFAULT ease-out"
           style={{ width: `${value}%` }}
         />
       </div>
-      {(status || messageCount) && (
+      {messageCount && (
         <div className="text-sm text-gray-400">
-          {status}
-          {messageCount && ` (${messageCount} messages)`}
+          ({messageCount} messages)
         </div>
+      )}
+      {status && (
+        <div className="text-sm text-gray-400">{status}</div>
       )}
       {error && <div className="text-sm text-red-500">{error}</div>}
     </div>

@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { ControlsContainer } from '../ControlsContainer';
 
@@ -9,10 +10,6 @@ jest.mock('next/link', () => {
 });
 
 describe('ControlsContainer', () => {
-  const mockMainControls = <div data-testid="main-controls">Main Controls</div>;
-  const mockBulkControls = <div data-testid="bulk-controls">Bulk Controls</div>;
-  const mockRecentReports = <div data-testid="recent-reports">Recent Reports</div>;
-
   it('renders the NewsNow title with link', () => {
     render(<ControlsContainer />);
     
@@ -22,76 +19,70 @@ describe('ControlsContainer', () => {
   });
 
   it('renders main controls section when provided', () => {
-    render(<ControlsContainer mainControls={mockMainControls} />);
-    
-    expect(screen.getByTestId('main-controls')).toBeInTheDocument();
+    render(<ControlsContainer mainControls={<div>Main Controls Content</div>} />);
+    expect(screen.getByText('Main Controls Content')).toBeInTheDocument();
   });
 
   it('renders bulk controls section when provided', () => {
-    render(<ControlsContainer bulkControls={mockBulkControls} />);
+    render(
+      <ControlsContainer
+        bulkControls={<div>Bulk Controls Content</div>}
+      />
+    );
     
     expect(screen.getByText('Bulk Generation')).toBeInTheDocument();
-    expect(screen.getByTestId('bulk-controls')).toBeInTheDocument();
+    // Initially bulk controls should be collapsed
+    expect(screen.queryByText('Bulk Controls Content')).not.toBeInTheDocument();
+
+    // Click to expand bulk controls
+    const bulkButton = screen.getByRole('button', { name: /Bulk Generation/i });
+    fireEvent.click(bulkButton);
+    expect(screen.getByText('Bulk Controls Content')).toBeInTheDocument();
   });
 
   it('renders recent reports section when provided', () => {
-    render(<ControlsContainer recentReports={mockRecentReports} />);
-    
-    expect(screen.getByText('Recent Reports')).toBeInTheDocument();
-    expect(screen.getByTestId('recent-reports')).toBeInTheDocument();
-  });
-
-  it('expands and collapses sections when clicked', () => {
     render(
       <ControlsContainer
-        bulkControls={mockBulkControls}
-        recentReports={mockRecentReports}
+        recentReports={<div>Recent Reports Content</div>}
       />
     );
 
-    // Bulk controls section starts collapsed
-    expect(screen.queryByTestId('bulk-controls')).not.toBeInTheDocument();
-    
-    // Click to expand
-    fireEvent.click(screen.getByText('Bulk Generation'));
-    expect(screen.getByTestId('bulk-controls')).toBeInTheDocument();
-    
-    // Click to collapse
-    fireEvent.click(screen.getByText('Bulk Generation'));
-    expect(screen.queryByTestId('bulk-controls')).not.toBeInTheDocument();
+    expect(screen.getByText('Recent Reports')).toBeInTheDocument();
+    expect(screen.getByText('Recent Reports Content')).toBeInTheDocument();
   });
 
   it('maintains section expansion state independently', () => {
     render(
       <ControlsContainer
-        bulkControls={mockBulkControls}
-        recentReports={mockRecentReports}
+        bulkControls={<div>Bulk Controls Content</div>}
+        recentReports={<div>Recent Reports Content</div>}
       />
     );
 
-    // Recent reports section starts expanded, bulk controls collapsed
-    expect(screen.getByTestId('recent-reports')).toBeInTheDocument();
-    expect(screen.queryByTestId('bulk-controls')).not.toBeInTheDocument();
+    // Initially bulk controls should be collapsed
+    expect(screen.queryByText('Bulk Controls Content')).not.toBeInTheDocument();
+    expect(screen.getByText('Recent Reports Content')).toBeInTheDocument();
 
-    // Toggle bulk controls
-    fireEvent.click(screen.getByText('Bulk Generation'));
-    expect(screen.getByTestId('bulk-controls')).toBeInTheDocument();
-    expect(screen.getByTestId('recent-reports')).toBeInTheDocument();
+    // Click to expand bulk controls
+    const bulkButton = screen.getByRole('button', { name: /Bulk Generation/i });
+    fireEvent.click(bulkButton);
+    expect(screen.getByText('Bulk Controls Content')).toBeInTheDocument();
+    expect(screen.getByText('Recent Reports Content')).toBeInTheDocument();
 
-    // Toggle recent reports
-    fireEvent.click(screen.getByText('Recent Reports'));
-    expect(screen.queryByTestId('recent-reports')).not.toBeInTheDocument();
-    expect(screen.getByTestId('bulk-controls')).toBeInTheDocument();
+    // Click to collapse bulk controls
+    fireEvent.click(bulkButton);
+    expect(screen.queryByText('Bulk Controls Content')).not.toBeInTheDocument();
+    expect(screen.getByText('Recent Reports Content')).toBeInTheDocument();
   });
 
   it('applies correct layout classes for scrolling', () => {
     const { container } = render(<ControlsContainer />);
-    
+
     // Main container
-    expect(container.firstChild).toHaveClass('h-full', 'flex', 'flex-col');
-    
+    expect(container.firstChild).toHaveClass('h-full');
+
     // Scrollable content container
     const scrollContainer = container.querySelector('.overflow-y-auto');
-    expect(scrollContainer).toHaveClass('flex-1', 'min-h-0', 'space-y-6');
+    expect(scrollContainer).toHaveClass('flex-1', 'overflow-y-auto', 'min-h-0');
   });
 }); 

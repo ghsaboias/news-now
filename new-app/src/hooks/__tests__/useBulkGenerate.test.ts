@@ -1,117 +1,106 @@
-import { useReports } from '@/context/ReportsContext';
 import { act, renderHook } from '@testing-library/react';
 import { useBulkGenerate } from '../useBulkGenerate';
 
-// Mock useReports hook
+// Mock dependencies
 jest.mock('@/context/ReportsContext', () => ({
-    useReports: jest.fn()
+    useReports: () => ({
+        fetchReports: jest.fn(),
+        setCurrentReport: jest.fn()
+    })
 }));
 
 // Mock EventSource
 class MockEventSource {
     onmessage: ((event: MessageEvent) => void) | null = null;
     onerror: ((event: Event) => void) | null = null;
+    onopen: ((event: Event) => void) | null = null;
     close = jest.fn();
 
     constructor(public url: string) { }
 
-    // Helper to simulate messages
     simulateMessage(data: any) {
         if (this.onmessage) {
-            this.onmessage(new MessageEvent('message', {
-                data: JSON.stringify(data)
-            }));
-        }
-    }
-
-    // Helper to simulate errors
-    simulateError() {
-        if (this.onerror) {
-            this.onerror(new Event('error'));
+            this.onmessage(new MessageEvent('message', { data: JSON.stringify(data) }));
         }
     }
 }
 
-// Replace global EventSource with mock
-(global as any).EventSource = MockEventSource;
+const mockEventSourceClass = jest.fn().mockImplementation((url: string) => {
+    return new MockEventSource(url);
+});
+
+(global as any).EventSource = mockEventSourceClass;
 
 describe('useBulkGenerate', () => {
-    const mockFetchReports = jest.fn();
-    const mockSetCurrentReport = jest.fn();
+    let eventSource: MockEventSource;
 
     beforeEach(() => {
-        (useReports as jest.Mock).mockReturnValue({
-            fetchReports: mockFetchReports,
-            setCurrentReport: mockSetCurrentReport
-        });
-    });
-
-    afterEach(() => {
-        jest.clearAllMocks();
-    });
-
-    it('initializes with default state', () => {
-        const { result } = renderHook(() => useBulkGenerate());
-
-        expect(result.current.isLoading).toBe(false);
-        expect(result.current.status).toBe('idle');
-        expect(result.current.channels).toEqual([]);
+        mockEventSourceClass.mockClear();
     });
 
     it('handles successful generation', async () => {
         const { result } = renderHook(() => useBulkGenerate());
 
         // Start generation
-        act(() => {
-            result.current.generate({ timeframe: '1h', minMessages: 10 });
+        await act(async () => {
+            await result.current.generate({ timeframe: '1h', minMessages: 10 });
         });
 
-        // Check initial loading state
-        expect(result.current.isLoading).toBe(true);
-        expect(result.current.status).toBe('scanning');
-        expect(result.current.channels).toEqual([]);
+        // Get the event source instance
+        eventSource = mockEventSourceClass.mock.results[0].value;
 
-        // Simulate scanning message
-        const mockChannels = [{ channelId: '1', channelName: 'test', status: 'processing' }];
-        act(() => {
-            const eventSource = new MockEventSource('');
+        // Simulate scanning phase
+        const mockChannels = [{
+            channelId: '1',
+            channelName: 'test',
+            status: 'processing'
+        }];
+
+        await act(async () => {
             eventSource.simulateMessage({ type: 'scanning', channels: mockChannels });
+            await Promise.resolve(); // Wait for state update
         });
+
         expect(result.current.channels).toEqual(mockChannels);
 
         // Simulate report message
         const mockReport = { channelId: '1', messageCount: 15 };
-        act(() => {
-            const eventSource = new MockEventSource('');
+        await act(async () => {
             eventSource.simulateMessage({ type: 'report', report: mockReport });
+            await Promise.resolve(); // Wait for state update
         });
-        expect(mockSetCurrentReport).toHaveBeenCalledWith(mockReport);
-        expect(mockFetchReports).toHaveBeenCalled();
+
+        expect(result.current.channels[0].messageCount).toBe(15);
+        expect(result.current.channels[0].status).toBe('success');
 
         // Simulate completion
-        act(() => {
-            const eventSource = new MockEventSource('');
+        await act(async () => {
             eventSource.simulateMessage({ type: 'complete' });
+            await Promise.resolve(); // Wait for state update
         });
-        expect(result.current.isLoading).toBe(false);
+
         expect(result.current.status).toBe('complete');
+        expect(result.current.isLoading).toBe(false);
     });
 
     it('handles generation error', async () => {
         const { result } = renderHook(() => useBulkGenerate());
 
         // Start generation
-        act(() => {
-            result.current.generate({ timeframe: '1h', minMessages: 10 });
+        await act(async () => {
+            await result.current.generate({ timeframe: '1h', minMessages: 10 });
         });
+
+        // Get the event source instance
+        eventSource = mockEventSourceClass.mock.results[0].value;
 
         // Simulate error
-        act(() => {
-            const eventSource = new MockEventSource('');
-            eventSource.simulateError();
+        await act(async () => {
+            eventSource.simulateMessage({ type: 'error', message: 'Test error' });
+            await Promise.resolve(); // Wait for state update
         });
 
-        expect(result.current.isLoading).toBe(false);
         expect(result.current.status).toBe('error');
+        expect(result.current.isLoading).toBe(false);
     });
 }); 

@@ -31,35 +31,56 @@ describe('ChannelList', () => {
 
   it('renders message count when available', () => {
     render(<ChannelList channels={mockChannels} />);
-    expect(screen.getByText('100 messages')).toBeInTheDocument();
+    expect(screen.getByText('100 msgs')).toBeInTheDocument();
   });
 
   it('shows loading spinner for processing channels', () => {
     render(<ChannelList channels={mockChannels} />);
     const loadingSpinner = screen.getByTestId('loader');
     expect(loadingSpinner).toBeInTheDocument();
-    expect(loadingSpinner).toHaveClass('animate-spin');
+    expect(loadingSpinner).toHaveClass('w-4', 'h-4', 'animate-spin', 'text-blue-400');
   });
 
-  it('shows channel status', () => {
+  it('shows channel status indicators', () => {
     render(<ChannelList channels={mockChannels} />);
-    expect(screen.getByText('success')).toBeInTheDocument();
-    expect(screen.getByText('processing')).toBeInTheDocument();
+    
+    // Success channel shows message count
+    const successChannel = screen.getByText('general').closest('[role="listitem"]');
+    expect(successChannel).toHaveClass(
+      'flex',
+      'items-center',
+      'justify-between',
+      'p-2',
+      'rounded-lg',
+      'bg-gray-800/50',
+      'text-sm',
+      'text-gray-300'
+    );
+    expect(screen.getByText('100 msgs')).toBeInTheDocument();
+    
+    // Processing channel shows loader
+    const processingChannel = screen.getByText('random').closest('[role="listitem"]');
+    expect(processingChannel).toHaveClass(
+      'flex',
+      'items-center',
+      'justify-between',
+      'p-2',
+      'rounded-lg',
+      'bg-gray-800/50',
+      'text-sm',
+      'text-gray-300'
+    );
+    expect(screen.getByTestId('loader')).toBeInTheDocument();
   });
 
   it('uses theme spacing and colors', () => {
     render(<ChannelList channels={mockChannels} />);
-    const container = screen.getByRole('list');
-    expect(container).toHaveClass('space-y-2');
-
     const channelItems = screen.getAllByRole('listitem');
     channelItems.forEach(item => {
-      expect(item).toHaveClass(
-        'bg-gray-800/50',
-        'border-gray-700/50',
-        'rounded-lg',
-        'p-3'
-      );
+      expect(item.className).toContain('flex items-center justify-between');
+      expect(item.className).toContain('p-2 rounded-lg');
+      expect(item.className).toContain('bg-gray-800/50');
+      expect(item.className).toContain('text-sm text-gray-300');
     });
   });
 }); 

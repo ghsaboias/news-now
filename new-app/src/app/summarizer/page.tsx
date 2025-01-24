@@ -13,9 +13,9 @@ declare global {
 import { Button } from '@/components/common/Button';
 import { Progress } from '@/components/common/Progress';
 import { BulkGenerateButton } from '@/components/controls/bulk-generate/BulkGenerateButton';
-import { TimeSelect, TimeframeOption } from '@/components/controls/bulk-generate/TimeSelect';
 import { ChannelSelect } from '@/components/controls/ChannelSelect';
 import { ControlsContainer } from '@/components/controls/ControlsContainer';
+import { TimeSelect, TimeframeOption } from '@/components/controls/TimeSelect';
 import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 import { SplitView } from '@/components/layout/SplitView';
 import { RecentReports } from '@/components/reports/RecentReports';

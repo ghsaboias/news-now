@@ -32,25 +32,32 @@ class MockEventSource {
     }
 }
 
+// Mock implementation
+const mockEventSourceClass = jest.fn().mockImplementation((url: string) => {
+    return new MockEventSource(url);
+});
+
 // Replace global EventSource with mock
-(global as any).EventSource = MockEventSource;
+(global as any).EventSource = mockEventSourceClass;
 
 describe('useEventSource', () => {
-    afterEach(() => {
-        jest.clearAllMocks();
+    let eventSource: MockEventSource;
+
+    beforeEach(() => {
+        mockEventSourceClass.mockClear();
     });
 
     it('creates EventSource with provided URL', () => {
         const url = '/api/events';
         renderHook(() => useEventSource(url));
-        expect(EventSource).toHaveBeenCalledWith(url);
+        expect(mockEventSourceClass).toHaveBeenCalledWith(url);
     });
 
     it('handles messages', () => {
         const onMessage = jest.fn();
         const { result } = renderHook(() => useEventSource('/api/events', { onMessage }));
+        eventSource = mockEventSourceClass.mock.results[0].value;
 
-        const eventSource = result.current as unknown as MockEventSource;
         const testData = { type: 'test', value: 123 };
         eventSource.simulateMessage(testData);
 
@@ -61,8 +68,8 @@ describe('useEventSource', () => {
     it('handles errors', () => {
         const onError = jest.fn();
         const { result } = renderHook(() => useEventSource('/api/events', { onError }));
+        eventSource = mockEventSourceClass.mock.results[0].value;
 
-        const eventSource = result.current as unknown as MockEventSource;
         eventSource.simulateError();
 
         expect(onError).toHaveBeenCalledWith(expect.any(Event));
@@ -71,16 +78,16 @@ describe('useEventSource', () => {
     it('handles open events', () => {
         const onOpen = jest.fn();
         const { result } = renderHook(() => useEventSource('/api/events', { onOpen }));
+        eventSource = mockEventSourceClass.mock.results[0].value;
 
-        const eventSource = result.current as unknown as MockEventSource;
         eventSource.simulateOpen();
 
         expect(onOpen).toHaveBeenCalledWith(expect.any(Event));
     });
 
     it('closes EventSource on unmount', () => {
-        const { result, unmount } = renderHook(() => useEventSource('/api/events'));
-        const eventSource = result.current as unknown as MockEventSource;
+        const { unmount } = renderHook(() => useEventSource('/api/events'));
+        eventSource = mockEventSourceClass.mock.results[0].value;
 
         unmount();
         expect(eventSource.close).toHaveBeenCalled();
@@ -88,18 +95,16 @@ describe('useEventSource', () => {
 
     it('closes and recreates EventSource when URL changes', () => {
         const initialUrl = '/api/events';
-        const newUrl = '/api/other-events';
+        const newUrl = '/api/events/new';
         const { result, rerender } = renderHook(
             (url: string) => useEventSource(url),
             { initialProps: initialUrl }
         );
 
-        const initialEventSource = result.current as unknown as MockEventSource;
-
-        // Change URL
+        const initialEventSource = mockEventSourceClass.mock.results[0].value;
         rerender(newUrl);
 
         expect(initialEventSource.close).toHaveBeenCalled();
-        expect(result.current?.url).toBe(newUrl);
+        expect(mockEventSourceClass).toHaveBeenCalledWith(newUrl);
     });
 }); 

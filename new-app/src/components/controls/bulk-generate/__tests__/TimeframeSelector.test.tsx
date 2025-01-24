@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { TimeSelect } from '../TimeSelect';
+import { TimeSelect } from '../../TimeSelect';
 
 type TimeframeValue = '1h' | '4h' | '24h';
 
@@ -14,7 +14,7 @@ const mockOptions: TimeframeOption[] = [
   { label: '24 hours', value: '24h' }
 ];
 
-describe('TimeframeSelector', () => {
+describe('TimeSelect', () => {
   const mockOnChange = jest.fn();
 
   beforeEach(() => {
@@ -32,11 +32,11 @@ describe('TimeframeSelector', () => {
     );
 
     mockOptions.forEach(option => {
-      expect(screen.getByText(option.label)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: option.label })).toBeInTheDocument();
     });
   });
 
-  it('shows selected option as active', () => {
+  it('shows selected option with primary variant', () => {
     render(
       <TimeSelect
         options={mockOptions}
@@ -47,10 +47,18 @@ describe('TimeframeSelector', () => {
     );
 
     const selectedButton = screen.getByRole('button', { name: '4 hours' });
-    expect(selectedButton).toHaveClass('bg-gray-700');
+    const unselectedButton = screen.getByRole('button', { name: '1 hour' });
+
+    // Primary variant styles
+    expect(selectedButton.className).toContain('bg-blue-600');
+    expect(selectedButton.className).toContain('text-gray-50');
+
+    // Secondary variant styles
+    expect(unselectedButton.className).toContain('bg-gray-700/50');
+    expect(unselectedButton.className).toContain('text-gray-200');
   });
 
-  it('calls onChange when option is selected', () => {
+  it('calls onChange when option is clicked', () => {
     render(
       <TimeSelect
         options={mockOptions}
@@ -60,8 +68,7 @@ describe('TimeframeSelector', () => {
       />
     );
 
-    const button = screen.getByRole('button', { name: '4 hours' });
-    fireEvent.click(button);
+    fireEvent.click(screen.getByRole('button', { name: '4 hours' }));
     expect(mockOnChange).toHaveBeenCalledWith('4h');
   });
 
@@ -81,7 +88,7 @@ describe('TimeframeSelector', () => {
     });
   });
 
-  it('maintains proper spacing between buttons', () => {
+  it('uses consistent theme spacing', () => {
     render(
       <TimeSelect
         options={mockOptions}
@@ -92,6 +99,10 @@ describe('TimeframeSelector', () => {
     );
 
     const container = screen.getByRole('group');
-    expect(container).toHaveClass('gap-2');
+    expect(container.className).toContain('w-full');
+    
+    const grid = container.firstElementChild;
+    expect(grid?.className).toContain('grid-cols-3');
+    expect(grid?.className).toContain('gap-2');
   });
 }); 

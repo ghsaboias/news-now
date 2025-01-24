@@ -1,4 +1,4 @@
-import { SourceExtractorMessage } from '@/types/source';
+import { SourceExtractorMessage } from '@/types';
 import { DatabaseService } from '../../db';
 import { SourceExtractor } from '../extractor';
 

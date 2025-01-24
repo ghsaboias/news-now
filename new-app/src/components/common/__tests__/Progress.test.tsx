@@ -8,7 +8,7 @@ describe('Progress', () => {
   });
 
   it('shows message count when provided', () => {
-    render(<Progress stage="processing" value={42} />);
+    render(<Progress stage="processing" value={42} messageCount={42} />);
     expect(screen.getByText('(42 messages)')).toBeInTheDocument();
   });
 
@@ -45,7 +45,7 @@ describe('Progress', () => {
     });
 
     it('has descriptive status message', () => {
-      render(<Progress stage="processing" value={42} />);
+      render(<Progress stage="processing" value={42} messageCount={42} />);
       const status = screen.getByRole('status');
       expect(status).toHaveAttribute('aria-label', 'Processing - 42 messages - 42% complete');
     });

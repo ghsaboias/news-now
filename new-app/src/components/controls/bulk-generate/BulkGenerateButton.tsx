@@ -1,9 +1,9 @@
 import { Button } from '@/components/common/Button';
 import { useBulkGenerate } from '@/hooks/useBulkGenerate';
 import { useState } from 'react';
+import { TimeSelect, TimeframeOption, TimeframeValue } from '../TimeSelect';
 import { MinMessagesInput } from './MinMessagesInput';
 import { ProgressDisplay } from './ProgressDisplay';
-import { TimeSelect, TimeframeOption, TimeframeValue } from './TimeSelect';
 
 const DEFAULT_MIN_MESSAGES = 10;
 

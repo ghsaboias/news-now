@@ -1,4 +1,5 @@
 import { ReportsProvider } from '@/context/ReportsContext';
+import { ToastProvider } from '@/context/ToastContext';
 import { Report } from '@/types';
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
@@ -25,50 +26,43 @@ const mockReport: Report = {
   }
 };
 
+const renderWithProviders = (ui: React.ReactElement) => {
+  return render(
+    <ToastProvider>
+      <ReportsProvider>
+        {ui}
+      </ReportsProvider>
+    </ToastProvider>
+  );
+};
+
 describe('ReportView', () => {
   it('renders report content correctly', () => {
-    render(
-      <ReportsProvider>
-        <ReportView report={mockReport} />
-      </ReportsProvider>
-    );
+    renderWithProviders(<ReportView report={mockReport} />);
 
     expect(screen.getByText('Test Report')).toBeInTheDocument();
-    expect(screen.getByText('#general')).toBeInTheDocument();
+    expect(screen.getByText('general')).toBeInTheDocument();
     expect(screen.getByText('General Channel • Last Hour')).toBeInTheDocument();
     expect(screen.getByText('First paragraph')).toBeInTheDocument();
     expect(screen.getByText('Second paragraph')).toBeInTheDocument();
   });
 
   it('has sticky header with correct styling', () => {
-    render(
-      <ReportsProvider>
-        <ReportView report={mockReport} />
-      </ReportsProvider>
-    );
+    renderWithProviders(<ReportView report={mockReport} />);
 
     const header = screen.getByText('Test Report').closest('.sticky');
     expect(header).toHaveClass('top-0', 'z-10');
   });
 
   it('shows action buttons with correct titles', () => {
-    render(
-      <ReportsProvider>
-        <ReportView report={mockReport} />
-      </ReportsProvider>
-    );
+    renderWithProviders(<ReportView report={mockReport} />);
 
     expect(screen.getByTitle('Copy Report')).toBeInTheDocument();
-    expect(screen.getByTitle('Edit Report')).toBeInTheDocument();
     expect(screen.getByTitle('Delete Report')).toBeInTheDocument();
   });
 
   it('formats timestamp correctly', () => {
-    render(
-      <ReportsProvider>
-        <ReportView report={mockReport} />
-      </ReportsProvider>
-    );
+    renderWithProviders(<ReportView report={mockReport} />);
 
     const date = new Date(mockReport.timestamp);
     expect(screen.getByText(date.toLocaleTimeString())).toBeInTheDocument();

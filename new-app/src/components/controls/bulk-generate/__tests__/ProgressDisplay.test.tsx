@@ -38,17 +38,17 @@ describe('ProgressDisplay', () => {
     );
     
     // Initially hidden
-    expect(screen.queryByText('channel-1')).not.toBeInTheDocument();
+    const channelList = screen.getByText('channel-1').closest('div[class*="transition-all"]');
+    expect(channelList).toHaveClass('opacity-0', 'max-h-0');
     
     // Show channels
     const toggleButton = screen.getByRole('button', { name: /show channels/i });
     fireEvent.click(toggleButton);
-    expect(screen.getByText('channel-1')).toBeInTheDocument();
-    expect(screen.getByText('channel-2')).toBeInTheDocument();
+    expect(channelList).toHaveClass('opacity-100', 'max-h-96');
     
     // Hide channels
     fireEvent.click(toggleButton);
-    expect(screen.queryByText('channel-1')).not.toBeInTheDocument();
+    expect(channelList).toHaveClass('opacity-0', 'max-h-0');
   });
 
   it('renders complete state correctly', () => {
@@ -61,14 +61,28 @@ describe('ProgressDisplay', () => {
     expect(screen.getByText(/scan complete/i)).toBeInTheDocument();
   });
 
-  it('shows correct channel counts', () => {
+  it('shows channel count in toggle button', () => {
     render(
       <ProgressDisplay 
         status="scanning"
         channels={mockChannels}
       />
     );
-    expect(screen.getByText(/show channels \(1\/2\)/i)).toBeInTheDocument();
+
+    expect(screen.getByRole('button', { name: /show channels \(1\/2\)/i })).toBeInTheDocument();
+  });
+
+  it('updates progress based on completed channels', () => {
+    render(
+      <ProgressDisplay 
+        status="scanning"
+        channels={mockChannels}
+      />
+    );
+
+    // One out of two channels completed = 50%
+    const progress = screen.getByRole('progressbar');
+    expect(progress).toHaveAttribute('aria-valuenow', '50');
   });
 
   it('shows total message count', () => {
@@ -78,6 +92,8 @@ describe('ProgressDisplay', () => {
         channels={mockChannels}
       />
     );
+
+    // Sum of message counts: 10 + 5 = 15
     expect(screen.getByText(/15 messages/i)).toBeInTheDocument();
   });
 }); 

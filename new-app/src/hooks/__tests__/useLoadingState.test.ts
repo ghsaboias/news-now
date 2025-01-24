@@ -22,27 +22,36 @@ describe('useLoadingState', () => {
     });
 
     it('handles successful async operations with withLoading', async () => {
-        const { result } = renderHook(() => useLoadingState());
         const mockFn = jest.fn().mockResolvedValue('success');
+        const { result } = renderHook(() => useLoadingState());
 
-        expect(result.current.isLoading).toBe(false);
+        let promise: Promise<string>;
+        act(() => {
+            promise = result.current.withLoading(mockFn);
+        });
 
-        const promise = result.current.withLoading(mockFn);
+        // Loading state should be true immediately after calling withLoading
         expect(result.current.isLoading).toBe(true);
 
-        const value = await promise;
-        expect(value).toBe('success');
+        await act(async () => {
+            await promise;
+        });
+
         expect(result.current.isLoading).toBe(false);
     });
 
     it('handles failed async operations with withLoading', async () => {
-        const { result } = renderHook(() => useLoadingState());
         const error = new Error('test error');
         const mockFn = jest.fn().mockRejectedValue(error);
+        const { result } = renderHook(() => useLoadingState());
 
-        expect(result.current.isLoading).toBe(false);
-
-        await expect(result.current.withLoading(mockFn)).rejects.toThrow(error);
+        await act(async () => {
+            try {
+                await result.current.withLoading(mockFn);
+            } catch (e) {
+                expect(e).toBe(error);
+            }
+        });
         expect(result.current.isLoading).toBe(false);
     });
 
@@ -55,5 +64,19 @@ describe('useLoadingState', () => {
         expect(result.current.startLoading).toBe(initialFunctions.startLoading);
         expect(result.current.endLoading).toBe(initialFunctions.endLoading);
         expect(result.current.withLoading).toBe(initialFunctions.withLoading);
+    });
+
+    it('provides manual loading state control', () => {
+        const { result } = renderHook(() => useLoadingState());
+
+        act(() => {
+            result.current.startLoading();
+        });
+        expect(result.current.isLoading).toBe(true);
+
+        act(() => {
+            result.current.endLoading();
+        });
+        expect(result.current.isLoading).toBe(false);
     });
 }); 

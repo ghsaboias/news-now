@@ -1,127 +1,102 @@
-import { ReportsProvider } from '@/context/ReportsContext';
-import { Report } from '@/types';
-import { fireEvent, render, screen } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import { render, screen, waitFor } from '@testing-library/react';
+import { ReportsProvider } from '../../../context/ReportsContext';
+import { ToastProvider } from '../../../context/ToastContext';
 import { RecentReports } from '../RecentReports';
 
-const mockReport: Report = {
+const mockReport = {
   id: '1',
-  channelId: 'ch1',
   channelName: 'general',
-  timestamp: '2024-01-20T10:00:00Z',
-  timeframe: {
-    type: '1h',
-    start: '2024-01-20T09:00:00Z',
-    end: '2024-01-20T10:00:00Z'
-  },
   messageCount: 10,
+  timestamp: new Date('2024-01-18T12:00:00Z').toISOString(),
+  timeframe: { type: '24h' },
   summary: {
-    headline: 'Test Report',
-    location_and_period: 'General Channel • Last Hour',
-    body: 'Test report content',
-    sources: [],
-    raw_response: 'Test report content',
-    timestamp: '2024-01-20T10:00:00Z'
+    headline: 'Test report content',
+    location_and_period: 'Test location and period',
+    body: 'Test body',
+    sources: ['Test source']
   }
 };
 
-const mockFetchReports = jest.fn();
-
-jest.mock('@/context/ReportsContext', () => ({
-  ...jest.requireActual('@/context/ReportsContext'),
-  useReports: () => ({
-    reports: [{ date: '2024-01-20', reports: [mockReport] }],
-    loading: false,
-    error: null,
-    fetchReports: mockFetchReports,
-    addReport: jest.fn(),
-    updateReport: jest.fn(),
-    deleteReport: jest.fn(),
-    setCurrentReport: jest.fn(),
-  })
-}));
+function renderWithProviders(ui: React.ReactElement) {
+  return render(
+    <ToastProvider>
+      <ReportsProvider>
+        {ui}
+      </ReportsProvider>
+    </ToastProvider>
+  );
+}
 
 describe('RecentReports', () => {
   beforeEach(() => {
-    mockFetchReports.mockClear();
+    // Mock fetch to return empty reports initially
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([])
+    });
   });
 
-  it('renders reports correctly', () => {
-    render(
-      <ReportsProvider>
-        <RecentReports />
-      </ReportsProvider>
-    );
+  it('renders reports correctly', async () => {
+    // Mock fetch to return our test report
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([
+        {
+          date: '2024-01-18',
+          reports: [mockReport]
+        }
+      ])
+    });
 
-    expect(screen.getByText('Test Report')).toBeInTheDocument();
-    expect(screen.getByText('#general • General Channel • Last Hour')).toBeInTheDocument();
-  });
-
-  it('shows loading state', () => {
-    jest.spyOn(require('@/context/ReportsContext'), 'useReports').mockImplementation(() => ({
-      reports: [],
-      loading: true,
-      error: null,
-      fetchReports: mockFetchReports,
-      addReport: jest.fn(),
-      updateReport: jest.fn(),
-      deleteReport: jest.fn(),
-      setCurrentReport: jest.fn(),
-    }));
-
-    render(
-      <ReportsProvider>
-        <RecentReports />
-      </ReportsProvider>
-    );
-
+    renderWithProviders(<RecentReports />);
+    
+    // First verify loading state
     expect(screen.getByTestId('report-skeleton')).toBeInTheDocument();
+    
+    // Wait for content to load
+    await waitFor(() => {
+      expect(screen.getByText('Test report content')).toBeInTheDocument();
+    });
+    expect(screen.getByText('general')).toBeInTheDocument();
+    expect(screen.getByText('10 msgs')).toBeInTheDocument();
   });
 
-  it('shows error state with retry option', () => {
-    jest.spyOn(require('@/context/ReportsContext'), 'useReports').mockImplementation(() => ({
-      reports: [],
-      loading: false,
-      error: 'Failed to fetch reports',
-      fetchReports: mockFetchReports,
-      addReport: jest.fn(),
-      updateReport: jest.fn(),
-      deleteReport: jest.fn(),
-      setCurrentReport: jest.fn(),
-    }));
+  it('shows error state', async () => {
+    // Mock fetch to return an error
+    global.fetch = jest.fn().mockRejectedValue(new Error('Failed to fetch reports'));
 
-    render(
-      <ReportsProvider>
-        <RecentReports />
-      </ReportsProvider>
-    );
-
-    expect(screen.getByText('Failed to fetch reports')).toBeInTheDocument();
+    renderWithProviders(<RecentReports />);
     
-    const retryButton = screen.getByText('Try Again');
-    expect(retryButton).toBeInTheDocument();
+    // First verify loading state
+    expect(screen.getByTestId('report-skeleton')).toBeInTheDocument();
     
-    fireEvent.click(retryButton);
-    expect(mockFetchReports).toHaveBeenCalled();
+    // Wait for error state
+    await waitFor(() => {
+      expect(screen.getByText('Failed to fetch reports')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
   });
 
-  it('shows empty state', () => {
-    jest.spyOn(require('@/context/ReportsContext'), 'useReports').mockImplementation(() => ({
-      reports: [],
-      loading: false,
-      error: null,
-      fetchReports: mockFetchReports,
-      addReport: jest.fn(),
-      updateReport: jest.fn(),
-      deleteReport: jest.fn(),
-      setCurrentReport: jest.fn(),
-    }));
+  it('shows empty state', async () => {
+    // Mock fetch to return empty reports
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([])
+    });
 
-    render(
-      <ReportsProvider>
-        <RecentReports />
-      </ReportsProvider>
-    );
+    renderWithProviders(<RecentReports />);
+    
+    // First verify loading state
+    expect(screen.getByTestId('report-skeleton')).toBeInTheDocument();
+    
+    // Wait for empty state
+    await waitFor(() => {
+      expect(screen.getByText('No reports yet')).toBeInTheDocument();
+    });
+  });
 
-    expect(screen.getByText('No reports yet')).toBeInTheDocument();
+  afterEach(() => {
+    jest.resetAllMocks();
   });
 }); 

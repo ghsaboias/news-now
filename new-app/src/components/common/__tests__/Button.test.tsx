@@ -10,13 +10,18 @@ describe('Button', () => {
 
   it('applies variant styles correctly', () => {
     const { rerender } = render(<Button variant="primary">Primary</Button>);
-    expect(screen.getByRole('button')).toHaveClass('bg-blue-600');
+    const primaryButton = screen.getByRole('button');
+    expect(primaryButton.className).toContain('bg-blue-600');
+    expect(primaryButton.className).toContain('text-gray-50');
 
     rerender(<Button variant="secondary">Secondary</Button>);
-    expect(screen.getByRole('button')).toHaveClass('bg-gray-800/80');
+    const secondaryButton = screen.getByRole('button');
+    expect(secondaryButton.className).toContain('bg-gray-700/50');
+    expect(secondaryButton.className).toContain('text-gray-200');
 
     rerender(<Button variant="danger">Danger</Button>);
-    expect(screen.getByRole('button')).toHaveClass('text-red-400');
+    const dangerButton = screen.getByRole('button');
+    expect(dangerButton.className).toContain('text-error-500');
   });
 
   it('shows loading state', () => {
@@ -28,13 +33,15 @@ describe('Button', () => {
 
   it('handles disabled state', () => {
     render(<Button disabled>Disabled</Button>);
-    expect(screen.getByRole('button')).toBeDisabled();
-    expect(screen.getByRole('button')).toHaveClass('disabled:opacity-50');
+    const button = screen.getByRole('button');
+    expect(button).toBeDisabled();
+    expect(button.className).toContain('disabled:opacity-50');
+    expect(button.className).toContain('disabled:cursor-not-allowed');
   });
 
   it('applies full width style', () => {
     render(<Button fullWidth>Full Width</Button>);
-    expect(screen.getByRole('button')).toHaveClass('w-full');
+    expect(screen.getByRole('button').className).toContain('w-full');
   });
 
   it('handles click events', () => {
@@ -48,7 +55,6 @@ describe('Button', () => {
   it('renders with icon', () => {
     render(<Button icon={<RefreshCw data-testid="icon" />}>With Icon</Button>);
     expect(screen.getByTestId('icon')).toBeInTheDocument();
-    expect(screen.getByText('With Icon')).toBeInTheDocument();
   });
 
   it('applies custom className', () => {

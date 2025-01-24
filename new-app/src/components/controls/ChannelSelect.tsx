@@ -28,7 +28,7 @@ export function ChannelSelect({
             disabled:opacity-50 disabled:cursor-not-allowed
           "
         >
-          <option value="">Select a topic</option>
+          <option value="">Select a channel</option>
           {channels.map((channel) => (
             <option key={channel.id} value={channel.id} className="bg-gray-800">
               {channel.name}
