@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const { messages } = await request.json();
+        const { messages, previousSummary, timeframe = '1h' } = await request.json();
 
         if (!messages || !Array.isArray(messages)) {
             return NextResponse.json(
@@ -34,11 +34,24 @@ export async function POST(request: NextRequest) {
         const claudeClient = new AnthropicClient(process.env.ANTHROPIC_API_KEY);
         const reportGenerator = new ReportGenerator(claudeClient);
 
-        // Generate summary using provided messages
+        const requestedHours = timeframe === '24h' ? 24 : timeframe === '4h' ? 4 : 1;
+        const actualTimeframeHours = messages.length > 0 ?
+            Math.ceil((new Date(messages[messages.length - 1].timestamp).getTime() -
+                new Date(messages[0].timestamp).getTime()) / (1000 * 60 * 60)) : 1;
+
+        console.log(`[Summary Generator] Timeframe analysis:`, {
+            requestedTimeframe: `${requestedHours}h`,
+            actualTimeframeHours,
+            firstMessage: messages[0]?.timestamp,
+            lastMessage: messages[messages.length - 1]?.timestamp,
+            messageCount: messages.length
+        });
+
         const summary = await reportGenerator.createAISummary(
             messages,
             channelName,
-            24 // This value doesn't matter anymore since we're using provided messages
+            requestedHours,
+            previousSummary
         );
 
         if (!summary) {

@@ -1,4 +1,3 @@
-import { ReportsProvider } from '@/context/ReportsContext';
 import { ToastProvider } from '@/context/ToastContext';
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -32,11 +31,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ReportsProvider>
-          <ToastProvider>
-            {children}
-          </ToastProvider>
-        </ReportsProvider>
+        <ToastProvider>
+          {children}
+        </ToastProvider>
       </body>
     </html>
   );

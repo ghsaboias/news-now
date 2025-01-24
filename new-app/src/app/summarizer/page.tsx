@@ -21,62 +21,34 @@ import { SplitView } from '@/components/layout/SplitView';
 import { RecentReports } from '@/components/reports/RecentReports';
 import { ReportView } from '@/components/reports/ReportView';
 import { ReportsProvider, useReports } from '@/context/ReportsContext';
+import { usePerformanceMonitor } from '@/hooks/usePerformanceMonitor';
 import type { AISummary, DiscordChannel, DiscordMessage } from '@/types';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 // Performance logging helper
 const perf = {
-    metrics: new Map<string, { start: number; batches?: number; items?: number }>(),
-    
     start: (label: string) => {
-        const startTime = performance.now();
         console.time(`⏱️ ${label}`);
         performance.mark(`${label}-start`);
-        perf.metrics.set(label, { start: startTime });
-        
-        // Log memory if available
-        if (performance.memory) {
-            console.log(`📊 Memory before ${label}:`, {
-                usedHeapSize: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024) + 'MB',
-                totalHeapSize: Math.round(performance.memory.totalJSHeapSize / 1024 / 1024) + 'MB'
-            });
-        }
     },
     
     end: (label: string, details?: { batches?: number; items?: number }) => {
         const endTime = performance.now();
-        const metric = perf.metrics.get(label);
+        console.timeEnd(`⏱️ ${label}`);
+        performance.mark(`${label}-end`);
+        performance.measure(label, `${label}-start`, `${label}-end`);
         
-        if (metric) {
-            const duration = endTime - metric.start;
-            console.timeEnd(`⏱️ ${label}`);
-            performance.mark(`${label}-end`);
-            performance.measure(label, `${label}-start`, `${label}-end`);
-            
-            // Log detailed metrics
-            const stats = {
-                durationMs: Math.round(duration),
-                ...(details?.batches && { batchesProcessed: details.batches }),
-                ...(details?.items && { itemsProcessed: details.items }),
-                ...(details?.batches && details?.items && { 
-                    avgItemsPerBatch: Math.round(details.items / details.batches),
-                    avgTimePerBatch: Math.round(duration / details.batches)
-                })
-            };
-            
-            console.log(`📈 ${label} stats:`, stats);
-            perf.metrics.delete(label);
+        if (details) {
+            console.log(`📈 ${label} stats:`, {
+                ...(details.batches && { batchesProcessed: details.batches }),
+                ...(details.items && { itemsProcessed: details.items })
+            });
         }
     },
     
     batch: (label: string, batchSize: number) => {
-        const metric = perf.metrics.get(label);
-        if (metric) {
-            metric.batches = (metric.batches || 0) + 1;
-            metric.items = (metric.items || 0) + batchSize;
-            perf.metrics.set(label, metric);
-        }
+        console.log(`📨 Batch processed: ${batchSize} items`);
     }
 };
 
@@ -92,19 +64,20 @@ function useRenderCount(componentName: string) {
     return renderCount.current;
 }
 
+// Memoized options to prevent recreating on every render
+const TIMEFRAME_OPTIONS: TimeframeOption[] = [
+    { value: '1h', label: 'Last Hour' },
+    { value: '4h', label: 'Last 4 Hours' },
+    { value: '24h', label: 'Last 24 Hours' },
+];
+
 // Server Actions
 async function fetchChannelsAction(): Promise<DiscordChannel[]> {
-    perf.start('fetchChannels');
-    try {
-        const response = await fetch('/api/discord/channels');
-        if (!response.ok) {
-            throw new Error('Failed to fetch channels', { cause: response });
-        }
-        const channels = await response.json();
-        return channels;
-    } finally {
-        perf.end('fetchChannels');
+    const response = await fetch('/api/discord/channels');
+    if (!response.ok) {
+        throw new Error('Failed to fetch channels', { cause: response });
     }
+    return response.json();
 }
 
 async function fetchMessagesAction(
@@ -174,13 +147,20 @@ async function fetchMessagesAction(
     return messages;
 }
 
-async function generateSummaryAction(channelId: string, channelName: string, messages: DiscordMessage[]): Promise<AISummary> {
+async function generateSummaryAction(channelId: string, channelName: string, messages: DiscordMessage[], previousReport?: AISummary): Promise<AISummary> {
   const response = await fetch(`/api/discord/summary?channelId=${channelId}&channelName=${channelName}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ 
+      messages,
+      previousSummary: previousReport ? {
+        ...previousReport,
+        period_start: messages[0].timestamp,
+        period_end: messages[messages.length - 1].timestamp
+      } : undefined
+    }),
   });
   if (!response.ok) {
     throw new Error('Failed to generate summary', { cause: response });
@@ -199,190 +179,174 @@ function formatTimestamp(timestamp: string): string {
   }).format(date);
 }
 
-function SummarizerContent() {
-    const renderCount = useRenderCount('SummarizerContent');
-    const [state, setState] = useState({
-        channels: [] as DiscordChannel[],
-        isLoadingChannels: true,
-        selectedChannelId: '',
-        selectedTimeframe: '1h' as '1h' | '4h' | '24h',
-        loading: false,
-        progress: null as { step: string; percent?: number; messageCount?: number } | null
-    });
-    
-    // Memoize reports context values to prevent unnecessary renders
-    const reportsContext = useReports();
-    const { setCurrentReport, fetchReports } = reportsContext;
-    const currentReport = useMemo(() => reportsContext.currentReport, [reportsContext.currentReport]);
+// Separate data fetching logic
+const useChannels = () => {
+    const [channels, setChannels] = useState<DiscordChannel[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<Error | null>(null);
 
-    const timeframeOptions = useMemo<TimeframeOption[]>(() => [
-        { value: '1h', label: 'Last Hour' },
-        { value: '4h', label: 'Last 4 Hours' },
-        { value: '24h', label: 'Last 24 Hours' },
-    ], []);
-
-    // Memoize state update callbacks
-    const handleChannelSelect = useCallback((id: string) => {
-        setState(prev => ({ ...prev, selectedChannelId: id }));
-    }, []);
-
-    const handleTimeframeSelect = useCallback((value: '1h' | '4h' | '24h') => {
-        setState(prev => ({ ...prev, selectedTimeframe: value }));
-    }, []);
-
-    const updateProgress = useCallback((progressUpdate: Partial<typeof state.progress>) => {
-        setState(prev => ({
-            ...prev,
-            progress: prev.progress ? { ...prev.progress, ...progressUpdate } : null
-        }));
-    }, []);
-
-    // Load channels only once and cache the result
     useEffect(() => {
-        let mounted = true;
-        const channelsCache = sessionStorage.getItem('discord_channels');
-        
-        if (channelsCache) {
-            const cached = JSON.parse(channelsCache);
-            const cacheAge = Date.now() - cached.timestamp;
-            
-            // Use cache if less than 5 minutes old
-            if (cacheAge < 300000) {
-                setState(prev => ({
-                    ...prev,
-                    channels: cached.channels,
-                    isLoadingChannels: false
-                }));
-                return;
-            }
-        }
-        
-        console.log('🔄 Initializing SummarizerContent');
-        perf.start('initialLoad');
-        
-        fetchChannelsAction()
-            .then(channels => {
-                if (!mounted) return;
-                console.log(`📊 Loaded ${channels.length} channels`);
+        const loadChannels = async () => {
+            try {
+                // Check cache first
+                const cached = sessionStorage.getItem('discord_channels');
+                if (cached) {
+                    const { channels: cachedChannels, timestamp } = JSON.parse(cached);
+                    if (Date.now() - timestamp < 300000) { // 5 minutes
+                        setChannels(cachedChannels);
+                        setIsLoading(false);
+                        return;
+                    }
+                }
+
+                const response = await fetch('/api/discord/channels');
+                if (!response.ok) throw new Error('Failed to fetch channels');
+                
+                const data = await response.json();
+                setChannels(data);
                 
                 // Update cache
                 sessionStorage.setItem('discord_channels', JSON.stringify({
-                    channels,
+                    channels: data,
                     timestamp: Date.now()
                 }));
-                
-                setState(prev => ({
-                    ...prev,
-                    channels,
-                    isLoadingChannels: false
-                }));
-            })
-            .catch(console.error)
-            .finally(() => {
-                if (!mounted) return;
-                perf.end('initialLoad', { items: state.channels.length });
-            });
+            } catch (err) {
+                setError(err instanceof Error ? err : new Error('Failed to fetch channels'));
+            } finally {
+                setIsLoading(false);
+            }
+        };
 
-        return () => { mounted = false; };
+        loadChannels();
+    }, []);
+
+    return { channels, isLoading, error };
+};
+
+// Separate progress state management
+const useProgress = () => {
+    const [progress, setProgress] = useState<{
+        stage: string;
+        percent?: number;
+        messageCount?: number;
+    } | null>(null);
+
+    const updateProgress = useCallback((update: Partial<typeof progress> | null) => {
+        setProgress(prev => {
+            if (update === null) return null;
+            const newProgress = prev ? { ...prev, ...update } : { stage: 'Initializing', ...update };
+            // Only log in development
+            if (process.env.NODE_ENV === 'development') {
+                console.log('Progress updated:', newProgress);
+            }
+            return newProgress;
+        });
+    }, []);
+
+    return { progress, updateProgress };
+};
+
+// Memoized child components for better performance
+const MemoizedChannelSelect = memo(ChannelSelect);
+const MemoizedTimeSelect = memo(TimeSelect);
+const MemoizedProgress = memo(Progress);
+const MemoizedReportView = memo(ReportView);
+const MemoizedRecentReports = memo(RecentReports);
+
+function SummarizerContent() {
+    usePerformanceMonitor('SummarizerContent');
+    
+    const { channels, isLoading: isLoadingChannels } = useChannels();
+    const { progress, updateProgress } = useProgress();
+    const [selectedChannelId, setSelectedChannelId] = useState('');
+    const [selectedTimeframe, setSelectedTimeframe] = useState<'1h' | '4h' | '24h'>('1h');
+    const [isGenerating, setIsGenerating] = useState(false);
+    
+    const { setCurrentReport, fetchReports, currentReport } = useReports();
+
+    // Memoize callback functions
+    const handleChannelSelect = useCallback((id: string) => {
+        setSelectedChannelId(id);
+    }, []);
+
+    const handleTimeframeChange = useCallback((timeframe: '1h' | '4h' | '24h') => {
+        setSelectedTimeframe(timeframe);
     }, []);
 
     const handleGenerateReport = useCallback(async () => {
-        if (!state.selectedChannelId) return;
+        if (!selectedChannelId || isGenerating) return;
 
-        const channel = state.channels.find(c => c.id === state.selectedChannelId);
+        const channel = channels.find(c => c.id === selectedChannelId);
         if (!channel) return;
 
-        let totalBatches = 0;
-        let totalMessages = 0;
-        let currentMessageCount = 0;
-        let batchUpdateTimeout: NodeJS.Timeout | null = null;
-
-        // Batch update function to reduce renders
-        const batchUpdate = (updates: Partial<typeof state>) => {
-            if (batchUpdateTimeout) {
-                clearTimeout(batchUpdateTimeout);
-            }
-            // Debounce updates to reduce renders
-            batchUpdateTimeout = setTimeout(() => {
-                setState(prev => ({
-                    ...prev,
-                    ...updates
-                }));
-            }, 100); // Wait 100ms before applying updates
-        };
-
-        perf.start('totalReportGeneration');
-        batchUpdate({
-            loading: true,
-            progress: { step: 'Fetching messages', percent: 0, messageCount: 0 }
+        setIsGenerating(true);
+        updateProgress({ 
+            stage: 'Initializing',
+            percent: 0,
+            messageCount: 0 
         });
-        
+
         try {
-            perf.start('messageFetch');
+            // Fetch messages phase (0-45%)
             const messages = await fetchMessagesAction(
-                state.selectedChannelId,
+                selectedChannelId,
                 channel.name,
-                state.selectedTimeframe,
-                (batchCount: number) => {
-                    if (typeof batchCount !== 'number') return;
-                    
-                    currentMessageCount += batchCount;
-                    totalBatches++;
-                    totalMessages += batchCount;
-                    
-                    perf.batch('messageFetch', batchCount);
-                    console.log(`📨 Fetched batch of ${batchCount} messages. Total: ${currentMessageCount}`);
-                    
-                    // Update progress less frequently
-                    if (totalBatches % 3 === 0 || currentMessageCount === batchCount) {
-                        batchUpdate({
-                            progress: {
-                                step: 'Fetching messages',
-                                messageCount: currentMessageCount,
-                                percent: Math.min(45, Math.round((currentMessageCount / 50) * 45))
-                            }
-                        });
-                    }
+                selectedTimeframe,
+                (count) => {
+                    updateProgress({
+                        stage: 'Fetching messages',
+                        messageCount: count || 0,
+                        percent: count ? Math.min(45, Math.round((count / 50) * 45)) : 0
+                    });
                 }
             );
-            perf.end('messageFetch', { batches: totalBatches, items: totalMessages });
-            
+
             if (!messages.length) {
-                console.log('⚠️ No messages found');
-                batchUpdate({
-                    progress: { step: 'No messages found in the selected timeframe', percent: 100 },
-                    loading: false
+                updateProgress({ 
+                    stage: 'No messages found', 
+                    percent: 100,
+                    messageCount: 0 
                 });
                 return;
             }
 
-            batchUpdate({
-                progress: {
-                    step: 'Generating summary',
-                    percent: 50,
-                    messageCount: messages.length
-                }
+            // Summary generation phase (45-85%)
+            updateProgress({ 
+                stage: 'Analyzing messages',
+                percent: 45,
+                messageCount: messages.length 
             });
             
-            perf.start('summaryGeneration');
-            const summary = await generateSummaryAction(state.selectedChannelId, channel.name, messages);
-            perf.end('summaryGeneration');
-            
-            batchUpdate({
-                progress: {
-                    step: 'Saving report',
-                    percent: 90,
-                    messageCount: messages.length
-                }
+            // Only use previous summary if it's from the same channel
+            const previousSummary = currentReport?.channelId === selectedChannelId ? currentReport.summary : undefined;
+
+            const summary = await generateSummaryAction(
+                selectedChannelId, 
+                channel.name, 
+                messages,
+                previousSummary
+            );
+
+            updateProgress({ 
+                stage: 'Generating summary',
+                percent: 70,
+                messageCount: messages.length 
+            });
+
+            // Save report phase (85-100%)
+            updateProgress({ 
+                stage: 'Saving report',
+                percent: 85,
+                messageCount: messages.length 
             });
 
             const report = {
                 id: uuidv4(),
-                channelId: state.selectedChannelId,
+                channelId: selectedChannelId,
                 channelName: channel.name,
                 timestamp: new Date().toISOString(),
                 timeframe: {
-                    type: state.selectedTimeframe,
+                    type: selectedTimeframe,
                     start: messages[0].timestamp,
                     end: messages[messages.length - 1].timestamp,
                 },
@@ -390,44 +354,48 @@ function SummarizerContent() {
                 summary,
             };
 
-            perf.start('reportSave');
             await fetch('/api/reports', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(report),
             });
-            perf.end('reportSave');
 
             setCurrentReport(report);
             await fetchReports();
             
-            batchUpdate({
-                progress: {
-                    step: 'Complete',
-                    percent: 100,
-                    messageCount: messages.length
-                }
+            updateProgress({ 
+                stage: 'Complete',
+                percent: 100,
+                messageCount: messages.length 
             });
         } catch (error) {
-            console.error('❌ Error generating report:', error);
-            batchUpdate({
-                progress: { step: 'Error generating report', percent: 100 }
+            console.error('Error generating report:', error);
+            updateProgress({ 
+                stage: 'Error generating report',
+                percent: 100,
+                messageCount: 0 
             });
         } finally {
-            perf.end('totalReportGeneration', { 
-                batches: totalBatches,
-                items: totalMessages
-            });
-            batchUpdate({ loading: false });
-            setTimeout(() => batchUpdate({ progress: null }), 2000);
+            setIsGenerating(false);
+            setTimeout(() => {
+                setIsGenerating(false);
+                updateProgress(null);
+            }, 2000);
         }
-    }, [state.selectedChannelId, state.channels, state.selectedTimeframe, setCurrentReport, fetchReports]);
+    }, [
+        selectedChannelId,
+        channels,
+        selectedTimeframe,
+        isGenerating,
+        currentReport,
+        updateProgress,
+        setCurrentReport,
+        fetchReports
+    ]);
 
-    // Memoize the rendered content
+    // Memoize controls
     const controls = useMemo(() => (
-        state.isLoadingChannels ? (
+        isLoadingChannels ? (
             <div className="space-y-4 animate-pulse">
                 <div className="h-10 bg-gray-700/50 rounded-lg" />
                 <div className="h-10 bg-gray-700/50 rounded-lg" />
@@ -435,50 +403,49 @@ function SummarizerContent() {
             </div>
         ) : (
             <>
-                <ChannelSelect
-                    channels={state.channels}
-                    selectedChannelId={state.selectedChannelId}
+                <MemoizedChannelSelect
+                    channels={channels}
+                    selectedChannelId={selectedChannelId}
                     onSelect={handleChannelSelect}
-                    disabled={state.loading}
+                    disabled={isGenerating}
                 />
                 
-                <TimeSelect
-                    value={state.selectedTimeframe}
-                    onChange={handleTimeframeSelect}
-                    options={timeframeOptions}
-                    disabled={state.loading}
+                <MemoizedTimeSelect
+                    value={selectedTimeframe}
+                    onChange={handleTimeframeChange}
+                    options={TIMEFRAME_OPTIONS}
+                    disabled={isGenerating}
                 />
 
                 <div className="space-y-3">
                     <Button
                         onClick={handleGenerateReport}
-                        disabled={!state.selectedChannelId}
-                        loading={state.loading}
+                        disabled={!selectedChannelId || isGenerating}
+                        loading={isGenerating}
                         fullWidth
                     >
-                        {state.loading ? 'Generating...' : 'Create Report'}
+                        {isGenerating ? 'Generating...' : 'Create Report'}
                     </Button>
-                    {state.progress && (
-                        <Progress
-                            stage={state.progress.step}
-                            value={state.progress.percent}
-                            messageCount={state.progress.messageCount}
+                    {progress && (
+                        <MemoizedProgress
+                            stage={progress.stage}
+                            value={progress.percent}
+                            messageCount={progress.messageCount}
                         />
                     )}
                 </div>
             </>
         )
     ), [
-        state.isLoadingChannels,
-        state.channels,
-        state.selectedChannelId,
-        state.loading,
-        state.selectedTimeframe,
-        state.progress,
+        isLoadingChannels,
+        channels,
+        selectedChannelId,
+        isGenerating,
+        progress,
+        selectedTimeframe,
         handleChannelSelect,
-        handleTimeframeSelect,
-        handleGenerateReport,
-        timeframeOptions
+        handleTimeframeChange,
+        handleGenerateReport
     ]);
 
     return (
@@ -487,10 +454,10 @@ function SummarizerContent() {
                 <ControlsContainer
                     mainControls={controls}
                     bulkControls={<BulkGenerateButton />}
-                    recentReports={<RecentReports />}
+                    recentReports={<MemoizedRecentReports />}
                 />
             }
-            mainContent={<ReportView report={currentReport} />}
+            mainContent={<MemoizedReportView report={currentReport} />}
         />
     );
 }

@@ -10,6 +10,59 @@ const MAX_REQUESTS_PER_SECOND = 48;
 const REQUEST_WINDOW_MS = 1000;
 const DEFAULT_BATCH_SIZE = 100;
 
+// Cache configuration
+const CACHE_CONFIG = {
+    CHANNELS_TTL: 5 * 60 * 1000, // 5 minutes
+    MESSAGES_TTL: 60 * 1000, // 1 minute
+    MAX_CACHED_CHANNELS: 100,
+    MAX_CACHED_MESSAGES: 1000
+};
+
+// LRU Cache implementation for messages
+class MessageCache {
+    private cache: Map<string, {
+        messages: DiscordMessage[];
+        timestamp: number;
+    }>;
+    private maxSize: number;
+
+    constructor(maxSize: number) {
+        this.cache = new Map();
+        this.maxSize = maxSize;
+    }
+
+    get(key: string): DiscordMessage[] | null {
+        const entry = this.cache.get(key);
+        if (!entry) return null;
+
+        const now = Date.now();
+        if (now - entry.timestamp > CACHE_CONFIG.MESSAGES_TTL) {
+            this.cache.delete(key);
+            return null;
+        }
+
+        return entry.messages;
+    }
+
+    set(key: string, messages: DiscordMessage[]): void {
+        if (this.cache.size >= this.maxSize) {
+            const oldestKey = this.cache.keys().next().value;
+            if (oldestKey !== undefined) {
+                this.cache.delete(oldestKey);
+            }
+        }
+
+        this.cache.set(key, {
+            messages,
+            timestamp: Date.now()
+        });
+    }
+
+    clear(): void {
+        this.cache.clear();
+    }
+}
+
 export class DiscordClient {
     private readonly api: AxiosInstance;
     private readonly baseUrl = 'https://discord.com/api/v10';
@@ -22,6 +75,7 @@ export class DiscordClient {
     public onMessageBatch?: (batchSize: number, botMessages: number, messages: DiscordMessage[]) => Promise<void>;
     private cachedChannels: DiscordChannel[] | null = null;
     private lastChannelFetch = 0;
+    private messageCache: MessageCache;
 
     constructor(dbService?: DatabaseService) {
         this.api = axios.create({
@@ -36,6 +90,8 @@ export class DiscordClient {
         if (dbService) {
             this.messageProcessor = new MessageProcessor(dbService);
         }
+
+        this.messageCache = new MessageCache(CACHE_CONFIG.MAX_CACHED_MESSAGES);
     }
 
     cleanup() {
@@ -100,9 +156,9 @@ export class DiscordClient {
 
     async fetchChannels(): Promise<DiscordChannel[]> {
         try {
-            // Cache check (5 minute TTL)
+            // Cache check
             const now = Date.now();
-            if (this.cachedChannels && (now - this.lastChannelFetch) < 300000) {
+            if (this.cachedChannels && (now - this.lastChannelFetch) < CACHE_CONFIG.CHANNELS_TTL) {
                 return this.cachedChannels;
             }
 
@@ -110,7 +166,7 @@ export class DiscordClient {
                 this.api.get(`/guilds/${config.GUILD_ID}/channels`)
             );
 
-            // One-pass filtering with Set for O(1) lookups
+            // Optimized filtering with Set
             const allowedEmojis = new Set(['🟡', '🔴', '🟠', '⚫']);
             const filteredChannels = response.data.filter((channel: DiscordChannel) => {
                 if (channel.type !== 0) return false;
@@ -122,9 +178,14 @@ export class DiscordClient {
                 return allowedEmojis.has(firstChar);
             });
 
-            // Update cache
+            // Update cache and channel names map
             this.cachedChannels = filteredChannels;
             this.lastChannelFetch = now;
+            filteredChannels.forEach((channel: DiscordChannel) => {
+                if (channel.name) {
+                    this.channelNames.set(channel.id, channel.name);
+                }
+            });
 
             return filteredChannels;
         } catch (error) {
@@ -168,6 +229,13 @@ export class DiscordClient {
         batchSize: number = DEFAULT_BATCH_SIZE
     ): Promise<DiscordMessage[]> {
         return PerformanceTracker.track('discord.fetchTimeframe', async () => {
+            // Check cache first
+            const cacheKey = `${channelId}-${hours}-${lastMessageId || 'initial'}`;
+            const cachedMessages = this.messageCache.get(cacheKey);
+            if (cachedMessages) {
+                return cachedMessages;
+            }
+
             let currentLastMessageId = lastMessageId;
             let batchCount = 0;
             let totalMessages = 0;
@@ -220,6 +288,9 @@ export class DiscordClient {
             console.log(
                 `[${channelName}|${timeframeStr}] Processed ${totalMessages} messages in ${batchCount} batches`
             );
+
+            // Cache the results
+            this.messageCache.set(cacheKey, allMessages);
 
             return allMessages;
         }, {

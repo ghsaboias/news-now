@@ -1,54 +1,19 @@
 'use client';
+
 import { Grid } from '@/components/layout/Grid';
 import { Stack } from '@/components/layout/Stack';
-import { ReportsProvider } from '@/context/ReportsContext';
-import Head from 'next/head';
+import { usePerformanceMonitor } from '@/hooks/usePerformanceMonitor';
 import Link from "next/link";
-import { useEffect, useMemo, useRef } from 'react';
-
-// Performance logging helper
-const perf = {
-    start: (label: string) => {
-        console.time(`⏱️ ${label}`);
-        performance.mark(`${label}-start`);
-        
-        if (performance.memory) {
-            console.log(`📊 Memory at ${label}:`, {
-                usedHeapSize: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024) + 'MB',
-                totalHeapSize: Math.round(performance.memory.totalJSHeapSize / 1024 / 1024) + 'MB'
-            });
-        }
-    },
-    
-    end: (label: string) => {
-        console.timeEnd(`⏱️ ${label}`);
-        performance.mark(`${label}-end`);
-        performance.measure(label, `${label}-start`, `${label}-end`);
-    }
-};
-
-// Component render counter
-function useRenderCount(componentName: string) {
-    const renderCount = useRef(0);
-    
-    useEffect(() => {
-        renderCount.current += 1;
-        console.log(`🔄 ${componentName} render #${renderCount.current}`);
-    });
-    
-    return renderCount.current;
-}
 
 function HomeContent() {
-    const renderCount = useRenderCount('HomeContent');
-    
-    useEffect(() => {
-        perf.start('homeMount');
-        return () => perf.end('homeMount');
-    }, []);
+    // Monitor performance on the client side only
+    usePerformanceMonitor('HomeContent', {
+        logMemory: true,
+        logRenderCount: true,
+        logMountTime: true
+    });
 
-    // Memoize static content sections
-    const hero = useMemo(() => (
+    const hero = (
         <Stack spacing="relaxed" className="mt-16 sm:mt-24">
             <div className="text-center">
                 <Stack spacing="default">
@@ -63,20 +28,7 @@ function HomeContent() {
                         <div className="rounded-md shadow">
                             <Link
                                 href="/summarizer"
-                                className="
-                                    group w-full flex items-center justify-center 
-                                    p-3 md:p-4
-                                    text-base md:text-lg font-medium 
-                                    rounded-md 
-                                    text-gray-50 bg-blue-600 hover:bg-blue-700 
-                                    transition-colors duration-DEFAULT
-                                    focus-visible:outline-none
-                                    focus-visible:ring-2
-                                    focus-visible:ring-blue-500
-                                    focus-visible:ring-offset-2
-                                    focus-visible:ring-offset-gray-900
-                                    mb-4
-                                "
+                                className="group w-full flex items-center justify-center p-3 md:p-4 text-base md:text-lg font-medium rounded-md text-gray-50 bg-blue-600 hover:bg-blue-700 transition-colors duration-DEFAULT focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 mb-4"
                             >
                                 <span>Demo</span>
                             </Link>
@@ -85,9 +37,9 @@ function HomeContent() {
                 </Stack>
             </div>
         </Stack>
-    ), []);
+    );
 
-    const features = useMemo(() => (
+    const features = (
         <section>
             <h2 className="sr-only">Features</h2>
             <Grid columns={{ sm: 1, md: 2 }} spacing="default">
@@ -105,7 +57,7 @@ function HomeContent() {
                 </div>
             </Grid>
         </section>
-    ), []);
+    );
 
     return (
         <div className="min-h-screen bg-gray-900">
@@ -116,13 +68,7 @@ function HomeContent() {
                         <Stack direction="horizontal" spacing="default">
                             <Link 
                                 href="/summarizer" 
-                                className="
-                                    px-4 py-2 
-                                    text-sm font-medium 
-                                    rounded-md 
-                                    text-gray-50 bg-blue-600 hover:bg-blue-700 
-                                    transition-colors duration-DEFAULT
-                                "
+                                className="px-4 py-2 text-sm font-medium rounded-md text-gray-50 bg-blue-600 hover:bg-blue-700 transition-colors duration-DEFAULT"
                             >
                                 <span>Demo</span>
                             </Link>
@@ -143,14 +89,11 @@ function HomeContent() {
     );
 }
 
+// Log server-side render time
+console.log('[HomePage] Server render started');
+const startTime = performance.now();
+
 export default function Home() {
-    return (
-        <ReportsProvider>
-            <Head>
-                <title>NewsNow - Real-time Discord Summaries</title>
-                <meta name="description" content="Stay on top of Discord discussions with AI-powered summaries" />
-            </Head>
-            <HomeContent />
-        </ReportsProvider>
-    );
+    console.log(`[HomePage] Server render completed in ${performance.now() - startTime}ms`);
+    return <HomeContent />;
 }

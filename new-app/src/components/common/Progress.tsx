@@ -16,7 +16,15 @@ interface ProgressProps {
 const stageLabels = {
   setup: 'Setting up',
   fetching: 'Fetching messages',
-  processing: 'Processing'
+  processing: 'Processing',
+  'Initializing': 'Initializing',
+  'Fetching messages': 'Fetching messages',
+  'Analyzing messages': 'Analyzing messages',
+  'Generating summary': 'Generating summary',
+  'Saving report': 'Saving report',
+  'Complete': 'Complete',
+  'Error generating report': 'Error generating report',
+  'No messages found': 'No messages found'
 };
 
 /**
@@ -27,9 +35,11 @@ export function Progress({
   stage,
   status,
   error,
-  messageCount,
+  messageCount = 0,
   className = ''
 }: ProgressProps) {
+  console.log('Progress component props:', { value, stage, messageCount }); // Debug log
+  
   const stageLabel = stage ? stageLabels[stage as keyof typeof stageLabels] || stage : 'Processing';
   const statusMessage = `${stageLabel}${messageCount ? ` - ${messageCount} messages` : ''} - ${value}% complete`;
   
@@ -40,7 +50,14 @@ export function Progress({
       aria-label={statusMessage}
     >
       <div className="flex justify-between text-sm text-gray-400">
-        <div>{stageLabel}</div>
+        <div className="flex items-center gap-2">
+          <span>{stageLabel}</span>
+          {messageCount > 0 && (
+            <span className="text-xs bg-gray-700/50 px-2 py-0.5 rounded-full">
+              {messageCount} messages
+            </span>
+          )}
+        </div>
         <div>{value}%</div>
       </div>
       <div 
@@ -51,15 +68,14 @@ export function Progress({
         aria-valuemax={100}
       >
         <div
-          className="h-full bg-blue-600 transition-all duration-DEFAULT ease-out"
+          className={`h-full transition-all duration-DEFAULT ease-out ${
+            error ? 'bg-red-600' : 
+            value === 100 ? 'bg-green-600' : 
+            'bg-blue-600'
+          }`}
           style={{ width: `${value}%` }}
         />
       </div>
-      {messageCount && (
-        <div className="text-sm text-gray-400">
-          ({messageCount} messages)
-        </div>
-      )}
       {status && (
         <div className="text-sm text-gray-400">{status}</div>
       )}

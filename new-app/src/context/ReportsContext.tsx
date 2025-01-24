@@ -1,7 +1,8 @@
 'use client';
 
+import { ReportContext, ReportContextManager } from '@/services/report/context';
 import { Report, ReportGroup } from '@/types';
-import { createContext, ReactNode, useCallback, useContext, useReducer } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useReducer, useRef } from 'react';
 
 interface ReportsState {
   reports: ReportGroup[];
@@ -93,12 +94,24 @@ interface ReportsContextType extends ReportsState {
   updateReport: (report: Report) => void;
   deleteReport: (id: string) => void;
   setCurrentReport: (report: Report | null) => void;
+  findReportContext: (channelId: string, timeframe: '1h' | '4h' | '24h') => ReportContext;
 }
 
 const ReportsContext = createContext<ReportsContextType | null>(null);
 
 export function ReportsProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reportsReducer, initialState);
+  const contextManager = useRef(new ReportContextManager());
+
+  // Initialize context manager when reports change
+  useEffect(() => {
+    const allReports = state.reports.flatMap(group => group.reports);
+    contextManager.current.initialize(allReports);
+  }, [state.reports]);
+
+  const findReportContext = useCallback((channelId: string, timeframe: '1h' | '4h' | '24h') => {
+    return contextManager.current.findContextReports(channelId, timeframe);
+  }, []);
 
   const fetchReports = useCallback(async () => {
     dispatch({ type: 'FETCH_START' });
@@ -137,6 +150,7 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
         updateReport,
         deleteReport,
         setCurrentReport,
+        findReportContext
       }}
     >
       {children}

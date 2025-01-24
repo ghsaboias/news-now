@@ -5,6 +5,7 @@ import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 import { useReports } from '@/context/ReportsContext';
 import { useToast } from '@/context/ToastContext';
 import { Report } from '@/types';
+import { formatTimestamp } from '@/utils/date';
 import { Copy, Trash2 } from 'react-feather';
 
 interface ReportViewProps {
@@ -66,7 +67,7 @@ function ReportViewContent({ report }: ReportViewProps) {
                 <span className="hidden sm:inline">•</span>
                 <span className="truncate max-w-[300px]">{report.summary.location_and_period}</span>
                 <span className="hidden sm:inline">•</span>
-                <span>{new Date(report.timestamp).toLocaleTimeString()}</span>
+                <span>{formatTimestamp(report.timestamp)}</span>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">

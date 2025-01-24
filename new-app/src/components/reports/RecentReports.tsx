@@ -4,6 +4,7 @@ import { ErrorMessage } from '@/components/common/messages/ErrorMessage';
 import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 import { useReports } from '@/context/ReportsContext';
 import { useToast } from '@/context/ToastContext';
+import { formatTimestamp } from '@/utils/date';
 import { useEffect } from 'react';
 import { Copy, Trash2, X } from 'react-feather';
 import { ReportSkeleton } from './ReportSkeleton';
@@ -174,7 +175,7 @@ function RecentReportsContent() {
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-400">
                     <span>{report.summary.location_and_period}</span>
                     <span>•</span>
-                    <span>{new Date(report.timestamp).toLocaleTimeString()}</span>
+                    <span>{formatTimestamp(report.timestamp)}</span>
                   </div>
 
                   {/* Preview */}
