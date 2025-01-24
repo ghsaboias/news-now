@@ -35,15 +35,19 @@ export async function POST(request: NextRequest) {
         const reportGenerator = new ReportGenerator(claudeClient);
 
         const requestedHours = timeframe === '24h' ? 24 : timeframe === '4h' ? 4 : 1;
-        const actualTimeframeHours = messages.length > 0 ?
-            Math.ceil((new Date(messages[messages.length - 1].timestamp).getTime() -
-                new Date(messages[0].timestamp).getTime()) / (1000 * 60 * 60)) : 1;
+
+        const firstMessage = messages[0];
+        const lastMessage = messages[messages.length - 1];
+
+        const actualTimeframeHours = messages.length > 0 && firstMessage?.timestamp && lastMessage?.timestamp ?
+            Math.ceil((new Date(lastMessage.timestamp).getTime() -
+                new Date(firstMessage.timestamp).getTime()) / (1000 * 60 * 60)) : requestedHours;
 
         console.log(`[Summary Generator] Timeframe analysis:`, {
             requestedTimeframe: `${requestedHours}h`,
             actualTimeframeHours,
-            firstMessage: messages[0]?.timestamp,
-            lastMessage: messages[messages.length - 1]?.timestamp,
+            firstMessage: firstMessage?.timestamp || null,
+            lastMessage: lastMessage?.timestamp || null,
             messageCount: messages.length
         });
 
