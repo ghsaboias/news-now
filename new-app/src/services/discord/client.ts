@@ -67,7 +67,7 @@ export class DiscordClient {
     private readonly api: AxiosInstance;
     private readonly baseUrl = 'https://discord.com/api/v10';
     private messageProcessor?: MessageProcessor;
-    private requestQueue: Array<() => Promise<any>> = [];
+    private requestQueue: Array<() => Promise<unknown>> = [];
     private isProcessingQueue = false;
     private requestsInCurrentWindow = 0;
     private windowStartTime = Date.now();

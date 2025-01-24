@@ -1,30 +1,46 @@
 import { renderHook } from '@testing-library/react';
 import { useEventSource } from '../useEventSource';
 
-// Mock EventSource
-class MockEventSource {
+interface MockEventData {
+    type: string;
+    data?: unknown;
+    error?: string;
+    status?: string;
+    progress?: number;
+}
+
+class MockEventSource implements EventSource {
     onmessage: ((event: MessageEvent) => void) | null = null;
     onerror: ((event: Event) => void) | null = null;
     onopen: ((event: Event) => void) | null = null;
+    readyState: number = 0;
+    url: string;
+    withCredentials: boolean = false;
+    CONNECTING: 0 = 0;
+    OPEN: 1 = 1;
+    CLOSED: 2 = 2;
+
     close = jest.fn();
+    addEventListener = jest.fn();
+    removeEventListener = jest.fn();
+    dispatchEvent = jest.fn();
 
-    constructor(public url: string) { }
+    constructor(url: string) {
+        this.url = url;
+    }
 
-    // Helper to simulate messages
-    simulateMessage(data: any) {
+    simulateMessage(data: MockEventData) {
         if (this.onmessage) {
             this.onmessage(new MessageEvent('message', { data: JSON.stringify(data) }));
         }
     }
 
-    // Helper to simulate errors
     simulateError() {
         if (this.onerror) {
             this.onerror(new Event('error'));
         }
     }
 
-    // Helper to simulate open
     simulateOpen() {
         if (this.onopen) {
             this.onopen(new Event('open'));

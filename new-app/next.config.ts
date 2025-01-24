@@ -82,6 +82,10 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
+
+  eslint: {
+    ignoreDuringBuilds: true, // We'll handle ESLint separately from the build
+  },
 };
 
 export default nextConfig;

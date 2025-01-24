@@ -54,8 +54,7 @@ function logMemoryUsage(context: string) {
 // Batch processing with memory management
 async function processBatch(
     messages: DiscordMessage[],
-    optimizedMessages: OptimizedMessage[],
-    batchCount: number
+    optimizedMessages: OptimizedMessage[]
 ): Promise<OptimizedMessage[]> {
     // Optimize messages
     const newMessages = messages.map(optimizeMessage);
@@ -213,7 +212,7 @@ export async function GET(request: NextRequest) {
                 messageCount += messages.length;
 
                 // Process batch with memory management
-                optimizedMessages = await processBatch(messages, optimizedMessages, batchCount);
+                optimizedMessages = await processBatch(messages, optimizedMessages);
 
                 // Calculate progress
                 const fetchProgress = Math.min(

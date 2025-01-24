@@ -21,6 +21,17 @@ interface StreamUpdate {
   error?: string;
 }
 
+interface BasePerformanceLogData {
+  totalTimeMs?: number;
+  timeSinceLastUpdateMs?: number;
+  stage?: 'setup' | 'fetching' | 'processing' | undefined;
+  progress?: number;
+  messageCount?: number;
+  status?: string;
+  hasError?: boolean;
+  [key: string]: unknown;  // Allow any additional debug data
+}
+
 export function ReportGenerator({ 
   channelId, 
   channelName,
@@ -38,20 +49,24 @@ export function ReportGenerator({
   const fetchAttempts = useRef(0);
 
   // Performance logging helper with debug info
-  const logPerformance = useCallback((event: string, data?: any) => {
+  const logPerformance = useCallback((event: string, data?: Record<string, unknown>) => {
     const now = Date.now();
     const totalTime = now - startTime.current;
     const timeSinceLastUpdate = now - lastUpdateTime.current;
     lastUpdateTime.current = now;
 
-    console.log(`[${new Date().toISOString()}] ${event}`, {
+    const baseData: BasePerformanceLogData = {
       totalTimeMs: totalTime,
       timeSinceLastUpdateMs: timeSinceLastUpdate,
-      stage: stage,
-      progress: progress,
-      status: status,
-      hasError: !!error,
+      stage,
+      progress,
       messageCount: messages.length,
+      status,
+      hasError: !!error,
+    };
+
+    console.log(`[${new Date().toISOString()}] ${event}`, {
+      ...baseData,
       ...data
     });
   }, [stage, progress, status, error, messages.length]);

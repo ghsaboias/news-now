@@ -3,13 +3,16 @@
 import { Card } from '@/components/layout/Card';
 import { Grid } from '@/components/layout/Grid';
 import { DiscordChannel } from '@/types';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 // Performance logging helper
 const perf = {
     metrics: new Map<string, { start: number; updates?: number }>(),
     
     start: (label: string) => {
+        // Only run on client side
+        if (typeof window === 'undefined') return;
+        
         const startTime = performance.now();
         console.time(`⏱️ ${label}`);
         performance.mark(`${label}-start`);
@@ -25,6 +28,9 @@ const perf = {
     },
     
     end: (label: string, details?: { updates?: number }) => {
+        // Only run on client side
+        if (typeof window === 'undefined') return;
+        
         const endTime = performance.now();
         const metric = perf.metrics.get(label);
         
@@ -42,18 +48,6 @@ const perf = {
         }
     }
 };
-
-// Component render counter
-function useRenderCount(componentName: string) {
-    const renderCount = useRef(0);
-    
-    useEffect(() => {
-        renderCount.current += 1;
-        console.log(`🔄 ${componentName} render #${renderCount.current}`);
-    });
-    
-    return renderCount.current;
-}
 
 interface MessageCounts {
     [channelId: string]: {
@@ -77,7 +71,11 @@ interface UpdateData {
 }
 
 async function getChannels(): Promise<DiscordChannel[]> {
-    perf.start('fetchChannels');
+    // Only start performance monitoring on client side
+    if (typeof window !== 'undefined') {
+        perf.start('fetchChannels');
+    }
+    
     try {
         const channelsCache = sessionStorage.getItem('discord_channels');
         if (channelsCache) {
@@ -100,26 +98,32 @@ async function getChannels(): Promise<DiscordChannel[]> {
         
         const channels = await res.json();
         
-        // Update cache
-        sessionStorage.setItem('discord_channels', JSON.stringify({
-            channels,
-            timestamp: Date.now()
-        }));
+        // Update cache only on client side
+        if (typeof window !== 'undefined') {
+            sessionStorage.setItem('discord_channels', JSON.stringify({
+                channels,
+                timestamp: Date.now()
+            }));
+        }
         
         return channels;
     } finally {
-        perf.end('fetchChannels');
+        if (typeof window !== 'undefined') {
+            perf.end('fetchChannels');
+        }
     }
 }
 
 export default function ChannelsPage() {
-    const renderCount = useRenderCount('ChannelsPage');
     const [state, setState] = useState({
         channels: [] as DiscordChannel[],
         messageCounts: {} as MessageCounts,
         loadingStates: {} as LoadingState,
         updateCount: 0
     });
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [_, setSelectedChannel] = useState<string | null>(null);
 
     // Memoize state updates
     const updateMessageCounts = useCallback((data: UpdateData) => {
@@ -205,7 +209,7 @@ export default function ChannelsPage() {
             mounted = false;
             eventSource?.close();
         };
-    }, [updateMessageCounts, updateLoadingStates]);
+    }, [updateMessageCounts, updateLoadingStates, state.updateCount]);
 
     // Memoize the grid content
     const gridContent = useMemo(() => (

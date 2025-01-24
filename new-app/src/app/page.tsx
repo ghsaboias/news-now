@@ -89,11 +89,6 @@ function HomeContent() {
     );
 }
 
-// Log server-side render time
-console.log('[HomePage] Server render started');
-const startTime = performance.now();
-
 export default function Home() {
-    console.log(`[HomePage] Server render completed in ${performance.now() - startTime}ms`);
     return <HomeContent />;
 }

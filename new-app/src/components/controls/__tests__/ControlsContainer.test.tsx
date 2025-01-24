@@ -4,9 +4,11 @@ import { ControlsContainer } from '../ControlsContainer';
 
 // Mock next/link since we're using it in the component
 jest.mock('next/link', () => {
-  return ({ children, href }: { children: React.ReactNode; href: string }) => {
+  const MockLink = ({ children, href }: { children: React.ReactNode; href: string }) => {
     return <a href={href}>{children}</a>;
   };
+  MockLink.displayName = 'Link';
+  return MockLink;
 });
 
 describe('ControlsContainer', () => {
@@ -85,4 +87,9 @@ describe('ControlsContainer', () => {
     const scrollContainer = container.querySelector('.overflow-y-auto');
     expect(scrollContainer).toHaveClass('flex-1', 'overflow-y-auto', 'min-h-0');
   });
-}); 
+});
+
+// eslint-disable-next-line react/display-name
+export default () => {
+  // ... existing code ...
+}; 

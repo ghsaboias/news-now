@@ -1,9 +1,10 @@
 import { DiscordClient } from '@/services/discord/client';
+import { DiscordChannel } from '@/types';
 import { NextResponse } from 'next/server';
 
 // Cache channels in memory with a 5-minute TTL
 let channelsCache: {
-  data: any[];
+  data: DiscordChannel[];
   timestamp: number;
 } | null = null;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes

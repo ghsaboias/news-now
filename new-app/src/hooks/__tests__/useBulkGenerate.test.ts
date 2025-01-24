@@ -9,7 +9,23 @@ jest.mock('@/context/ReportsContext', () => ({
     })
 }));
 
-// Mock EventSource
+interface MockEventData {
+    type: 'scanning' | 'report' | 'complete' | 'error';
+    status?: string;
+    progress?: number;
+    error?: string;
+    message?: string;
+    channels?: Array<{
+        channelId: string;
+        channelName: string;
+        status: string;
+    }>;
+    report?: {
+        channelId: string;
+        messageCount: number;
+    };
+}
+
 class MockEventSource {
     onmessage: ((event: MessageEvent) => void) | null = null;
     onerror: ((event: Event) => void) | null = null;
@@ -18,7 +34,7 @@ class MockEventSource {
 
     constructor(public url: string) { }
 
-    simulateMessage(data: any) {
+    simulateMessage(data: MockEventData) {
         if (this.onmessage) {
             this.onmessage(new MessageEvent('message', { data: JSON.stringify(data) }));
         }
@@ -29,7 +45,14 @@ const mockEventSourceClass = jest.fn().mockImplementation((url: string) => {
     return new MockEventSource(url);
 });
 
-(global as any).EventSource = mockEventSourceClass;
+// Use Window type to extend global
+declare global {
+    interface Window {
+        EventSource: typeof MockEventSource;
+    }
+}
+
+(window as Window).EventSource = mockEventSourceClass;
 
 describe('useBulkGenerate', () => {
     let eventSource: MockEventSource;

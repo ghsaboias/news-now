@@ -3,6 +3,7 @@ import '@testing-library/jest-dom';
 // Extend global for test environment
 declare global {
     // Allow overriding EventSource in tests
+    // eslint-disable-next-line no-var
     var EventSource: {
         new(url: string | URL, eventSourceInitDict?: EventSourceInit): EventSource;
         prototype: EventSource;
@@ -76,4 +77,19 @@ Object.defineProperties(MockEventSourceConstructor, {
 });
 
 // Assign to global
-global.EventSource = MockEventSourceConstructor; 
+global.EventSource = MockEventSourceConstructor;
+
+// Mock performance API
+const performanceObject = {
+    now: jest.fn(() => Date.now()),
+    mark: jest.fn(),
+    measure: jest.fn(),
+    getEntriesByName: jest.fn(),
+    clearMarks: jest.fn(),
+    clearMeasures: jest.fn(),
+    memory: {
+        jsHeapSizeLimit: 2330000000,
+        totalJSHeapSize: 27000000,
+        usedJSHeapSize: 25000000
+    }
+}; 

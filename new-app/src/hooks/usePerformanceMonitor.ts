@@ -44,5 +44,5 @@ export function usePerformanceMonitor(componentName: string, options: Performanc
                 });
             }
         };
-    }, []); // Run only on mount/unmount
+    }, [componentName, options.logMemory, options.logMountTime]);
 } 
