@@ -19,7 +19,6 @@ export class SourceExtractor {
         // Extract from URL in content
         if (message.content.includes('twitter.com/')) {
             const match = message.content.match(/twitter\.com\/([^\/]+)/);
-            console.log('Twitter URL match:', { match });
             if (match) {
                 return this.processSource('x', match[1], message.timestamp);
             }
@@ -27,9 +26,41 @@ export class SourceExtractor {
 
         if (message.content.includes('t.me/')) {
             const match = message.content.match(/t\.me\/([^\/]+)/);
-            console.log('Telegram URL match:', { match });
             if (match) {
                 return this.processSource('telegram', match[1], message.timestamp);
+            }
+        }
+
+        // Check embed fields for quotes and use the attribution as source
+        const quoteFields = message.embeds?.[0]?.fields?.filter(f =>
+            f.name.toLowerCase().includes('quote from')
+        );
+
+        if (quoteFields?.length) {
+            for (const field of quoteFields) {
+                const attribution = field.name.replace(/quote from:?\s*/i, '').trim();
+                if (attribution) {
+                    // Default to X/Twitter if no platform specified since most quotes are from there
+                    return this.processSource('x', attribution, message.timestamp);
+                }
+            }
+        }
+
+        // If no URL or quote found but has embeds, try to extract from embed title
+        if (message.embeds?.[0]?.title) {
+            // Try to extract platform and handle from title
+            const title = message.embeds[0].title.toLowerCase();
+            if (title.includes('telegram:') || title.includes('t.me/')) {
+                const match = title.match(/@?([a-zA-Z0-9_]+)/);
+                if (match) {
+                    return this.processSource('telegram', match[1], message.timestamp);
+                }
+            }
+            if (title.includes('twitter:') || title.includes('x:')) {
+                const match = title.match(/@?([a-zA-Z0-9_]+)/);
+                if (match) {
+                    return this.processSource('x', match[1], message.timestamp);
+                }
             }
         }
 

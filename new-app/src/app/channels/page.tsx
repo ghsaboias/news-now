@@ -3,126 +3,238 @@
 import { Card } from '@/components/layout/Card';
 import { Grid } from '@/components/layout/Grid';
 import { DiscordChannel } from '@/types';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+// Performance logging helper
+const perf = {
+    metrics: new Map<string, { start: number; updates?: number }>(),
+    
+    start: (label: string) => {
+        const startTime = performance.now();
+        console.time(`⏱️ ${label}`);
+        performance.mark(`${label}-start`);
+        perf.metrics.set(label, { start: startTime });
+        
+        // Log memory if available
+        if (performance.memory) {
+            console.log(`📊 Memory before ${label}:`, {
+                usedHeapSize: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024) + 'MB',
+                totalHeapSize: Math.round(performance.memory.totalJSHeapSize / 1024 / 1024) + 'MB'
+            });
+        }
+    },
+    
+    end: (label: string, details?: { updates?: number }) => {
+        const endTime = performance.now();
+        const metric = perf.metrics.get(label);
+        
+        if (metric) {
+            const duration = endTime - metric.start;
+            console.timeEnd(`⏱️ ${label}`);
+            performance.mark(`${label}-end`);
+            performance.measure(label, `${label}-start`, `${label}-end`);
+            
+            console.log(`📈 ${label} stats:`, {
+                durationMs: Math.round(duration),
+                ...(details?.updates && { updatesProcessed: details.updates })
+            });
+            perf.metrics.delete(label);
+        }
+    }
+};
+
+// Component render counter
+function useRenderCount(componentName: string) {
+    const renderCount = useRef(0);
+    
+    useEffect(() => {
+        renderCount.current += 1;
+        console.log(`🔄 ${componentName} render #${renderCount.current}`);
+    });
+    
+    return renderCount.current;
+}
 
 interface MessageCounts {
-  [channelId: string]: {
-    [period: string]: number;
-  };
+    [channelId: string]: {
+        [period: string]: number;
+    };
 }
 
 interface LoadingState {
-  [channelId: string]: Set<string>;
+    [channelId: string]: Set<string>;
 }
 
 async function getChannels(): Promise<DiscordChannel[]> {
-  const res = await fetch('http://localhost:3000/api/discord/channels', {
-    cache: 'no-store'
-  });
-  
-  if (!res.ok) {
-    throw new Error('Failed to fetch channels');
-  }
-  
-  return res.json();
+    perf.start('fetchChannels');
+    try {
+        const channelsCache = sessionStorage.getItem('discord_channels');
+        if (channelsCache) {
+            const cached = JSON.parse(channelsCache);
+            const cacheAge = Date.now() - cached.timestamp;
+            
+            // Use cache if less than 5 minutes old
+            if (cacheAge < 300000) {
+                return cached.channels;
+            }
+        }
+
+        const res = await fetch('/api/discord/channels', {
+            cache: 'no-store'
+        });
+        
+        if (!res.ok) {
+            throw new Error('Failed to fetch channels');
+        }
+        
+        const channels = await res.json();
+        
+        // Update cache
+        sessionStorage.setItem('discord_channels', JSON.stringify({
+            channels,
+            timestamp: Date.now()
+        }));
+        
+        return channels;
+    } finally {
+        perf.end('fetchChannels');
+    }
 }
 
 export default function ChannelsPage() {
-  const [channels, setChannels] = useState<DiscordChannel[]>([]);
-  const [messageCounts, setMessageCounts] = useState<MessageCounts>({});
-  const [loadingStates, setLoadingStates] = useState<LoadingState>({});
+    const renderCount = useRenderCount('ChannelsPage');
+    const [state, setState] = useState({
+        channels: [] as DiscordChannel[],
+        messageCounts: {} as MessageCounts,
+        loadingStates: {} as LoadingState,
+        updateCount: 0
+    });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const channelData = await getChannels();
-      setChannels(channelData);
-
-      const initialLoadingStates: LoadingState = {};
-      channelData.forEach(channel => {
-        initialLoadingStates[channel.id] = new Set(['1h', '4h', '24h']);
-      });
-      setLoadingStates(initialLoadingStates);
-
-      const eventSource = new EventSource(
-        `http://localhost:3000/api/discord/channels/messages?channelIds=${channelData.map(c => c.id).join(',')}&periods=1h,4h,24h`
-      );
-
-      eventSource.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-
-        if (data.type === 'update') {
-          setMessageCounts(prev => {
-            const newCounts = { ...prev };
+    // Memoize state updates
+    const updateMessageCounts = useCallback((data: any) => {
+        setState(prev => {
+            const newCounts = { ...prev.messageCounts };
             data.results.forEach(({ channelId, period, count }: any) => {
-              if (!newCounts[channelId]) {
-                newCounts[channelId] = {};
-              }
-              newCounts[channelId][period] = count;
+                if (!newCounts[channelId]) {
+                    newCounts[channelId] = {};
+                }
+                newCounts[channelId][period] = count;
             });
-            return newCounts;
-          });
+            return {
+                ...prev,
+                messageCounts: newCounts,
+                updateCount: prev.updateCount + 1
+            };
+        });
+    }, []);
 
-          setLoadingStates(prev => {
-            const newStates = { ...prev };
+    const updateLoadingStates = useCallback((data: any) => {
+        setState(prev => {
+            const newStates = { ...prev.loadingStates };
             data.results.forEach(({ channelId, period }: any) => {
-              if (newStates[channelId]) {
-                const updatedSet = new Set(newStates[channelId]);
-                updatedSet.delete(period);
-                newStates[channelId] = updatedSet;
-              }
+                if (newStates[channelId]) {
+                    const updatedSet = new Set(newStates[channelId]);
+                    updatedSet.delete(period);
+                    newStates[channelId] = updatedSet;
+                }
             });
-            return newStates;
-          });
-        }
+            return { ...prev, loadingStates: newStates };
+        });
+    }, []);
 
-        if (data.type === 'complete' || data.type === 'error') {
-          eventSource.close();
-          setLoadingStates({});
-        }
-      };
-
-      return () => {
-        eventSource.close();
-      };
-    };
-
-    fetchData();
-  }, []);
-
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-container mx-auto px-page-x py-page-y">
-        <div className="text-center mb-8 sm:mb-12 lg:mb-16">
-          <h1 className="
-            text-h2 sm:text-h1
-            font-medium text-primary
-            mb-3
-            animate-fade-in
-          ">
-            Discord Channels
-          </h1>
-          <p className="text-secondary text-sm sm:text-base max-w-2xl mx-auto animate-fade-in">
-            Real-time message activity across all monitored channels
-          </p>
-        </div>
+    useEffect(() => {
+        let mounted = true;
+        let eventSource: EventSource | null = null;
         
-        <div className="max-w-6xl mx-auto">
-          <Grid 
+        const fetchData = async () => {
+            perf.start('initialLoad');
+            try {
+                const channelData = await getChannels();
+                if (!mounted) return;
+                
+                const initialLoadingStates: LoadingState = {};
+                channelData.forEach(channel => {
+                    initialLoadingStates[channel.id] = new Set(['1h', '4h', '24h']);
+                });
+
+                setState(prev => ({
+                    ...prev,
+                    channels: channelData,
+                    loadingStates: initialLoadingStates
+                }));
+
+                eventSource = new EventSource(
+                    `/api/discord/channels/messages?channelIds=${channelData.map(c => c.id).join(',')}&periods=1h,4h,24h`
+                );
+
+                eventSource.onmessage = (event) => {
+                    if (!mounted) return;
+                    const data = JSON.parse(event.data);
+
+                    if (data.type === 'update') {
+                        updateMessageCounts(data);
+                        updateLoadingStates(data);
+                    }
+
+                    if (data.type === 'complete' || data.type === 'error') {
+                        eventSource?.close();
+                        setState(prev => ({ ...prev, loadingStates: {} }));
+                        perf.end('initialLoad', { updates: state.updateCount });
+                    }
+                };
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                perf.end('initialLoad');
+            }
+        };
+
+        fetchData();
+
+        return () => {
+            mounted = false;
+            eventSource?.close();
+        };
+    }, [updateMessageCounts, updateLoadingStates]);
+
+    // Memoize the grid content
+    const gridContent = useMemo(() => (
+        <Grid 
             columns={{ sm: 1, md: 2, lg: 3 }} 
             spacing="relaxed"
-          >
-            {channels.map((channel) => (
-              <Card 
-                key={channel.id}
-                title={channel.name}
-                messageCounts={messageCounts[channel.id]}
-                loadingPeriods={loadingStates[channel.id] || new Set()}
-                className="h-full"
-              />
+        >
+            {state.channels.map((channel) => (
+                <Card 
+                    key={channel.id}
+                    title={channel.name}
+                    messageCounts={state.messageCounts[channel.id]}
+                    loadingPeriods={state.loadingStates[channel.id] || new Set()}
+                    className="h-full"
+                />
             ))}
-          </Grid>
+        </Grid>
+    ), [state.channels, state.messageCounts, state.loadingStates]);
+
+    return (
+        <div className="min-h-screen bg-background">
+            <div className="max-w-container mx-auto px-page-x py-page-y">
+                <div className="text-center mb-8 sm:mb-12 lg:mb-16">
+                    <h1 className="
+                        text-h2 sm:text-h1
+                        font-medium text-primary
+                        mb-3
+                        animate-fade-in
+                    ">
+                        Discord Channels
+                    </h1>
+                    <p className="text-secondary text-sm sm:text-base max-w-2xl mx-auto animate-fade-in">
+                        Real-time message activity across all monitored channels
+                    </p>
+                </div>
+                
+                <div className="max-w-6xl mx-auto">
+                    {gridContent}
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  );
+    );
 } 

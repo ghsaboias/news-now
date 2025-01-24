@@ -32,13 +32,13 @@ export function ProgressDisplay({
   return (
     <div className="space-y-4">
       <Progress
-        step={
+        value={percent}
+        stage={
           status === 'scanning' ? 'Scanning channels' :
           status === 'complete' ? 'Scan complete' :
           status === 'error' ? 'An error occurred' :
           'Processing'
         }
-        percent={status === 'scanning' ? percent : status === 'complete' ? 100 : undefined}
         messageCount={channels.reduce((sum, ch) => sum + (ch.messageCount || 0), 0)}
       />
 

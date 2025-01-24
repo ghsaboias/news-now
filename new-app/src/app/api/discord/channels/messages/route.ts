@@ -50,7 +50,7 @@ async function processChannel(
                 task.hours,
                 undefined,
                 undefined,
-                cachedMessages
+                cachedMessages?.length || 0
             );
 
             // Cache messages from the longest timeframe

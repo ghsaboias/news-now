@@ -57,8 +57,6 @@ export function Stack({
         ${direction === 'horizontal' ? 'flex-row' : 'flex-col'}
         ${wrap ? 'flex-wrap' : ''}
         ${spacingStyles[spacing]}
-        ${divider ? 'divide-gray-700' : ''}
-        ${direction === 'horizontal' ? 'divide-x' : 'divide-y'}
         ${className}
       `}
     >

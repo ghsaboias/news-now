@@ -12,11 +12,11 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: 3000
       },
-      exp_backoff_restart_delay: 100,
-      max_restarts: 10,
-      error_file: 'logs/err.log',
-      out_file: 'logs/out.log',
-      merge_logs: true,
+      exp_backoff_restart_delay: 1000,
+      max_restarts: 5,
+      // error_file: 'logs/err.log',
+      // out_file: 'logs/out.log',
+      // merge_logs: true,
       time: true
     }
   ]

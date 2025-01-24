@@ -70,24 +70,6 @@ describe('Stack', () => {
     expect(container.firstChild).toHaveClass('flex-wrap');
   });
 
-  it('applies divider classes when specified', () => {
-    const { container: vertical } = render(
-      <Stack divider>
-        <div>Item 1</div>
-        <div>Item 2</div>
-      </Stack>
-    );
-    expect(vertical.firstChild).toHaveClass('divide-gray-700', 'divide-y');
-
-    const { container: horizontal } = render(
-      <Stack direction="horizontal" divider>
-        <div>Item 1</div>
-        <div>Item 2</div>
-      </Stack>
-    );
-    expect(horizontal.firstChild).toHaveClass('divide-gray-700', 'divide-x');
-  });
-
   it('renders as specified HTML element', () => {
     const { container } = render(
       <Stack as="section">

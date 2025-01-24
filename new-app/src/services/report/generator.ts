@@ -1,4 +1,5 @@
 import { AISummary, ClaudeClient, DiscordMessage } from '@/types';
+import { PerformanceTracker } from '@/utils/performance';
 
 export class ReportGenerator {
     private readonly MAX_TOKENS = 1500;
@@ -9,42 +10,44 @@ export class ReportGenerator {
     ) { }
 
     private formatMessagesForClaude(messages: DiscordMessage[]): string {
-        return messages
-            .map((msg) => {
-                const timestamp = new Date(msg.timestamp)
-                    .toISOString()
-                    .replace('T', ' ')
-                    .replace(/\.\d+Z$/, ' UTC');
+        return PerformanceTracker.track('report.formatMessages', () => {
+            return messages
+                .map((msg) => {
+                    const timestamp = new Date(msg.timestamp)
+                        .toISOString()
+                        .replace('T', ' ')
+                        .replace(/\.\d+Z$/, ' UTC');
 
-                const parts = [`[${timestamp}]`];
+                    const parts = [`[${timestamp}]`];
 
-                // Add URL (from content)
-                if (msg.content) {
-                    parts.push(msg.content);
-                }
-
-                // Add embed information
-                const embeds = (msg as any).embeds || [];
-                embeds.forEach((embed: any) => {
-                    if (embed.title) parts.push(`Channel: ${embed.title}`);
-                    if (embed.description) parts.push(`Content: ${embed.description}`);
-                });
-
-                // Add fields (quotes, translations, etc.)
-                const fields = (msg as any).fields || [];
-                fields.forEach((field: any) => {
-                    if (field.name.toLowerCase() === 'quote from') {
-                        parts.push(`Quote from ${field.value}`);
-                    } else if (field.name.toLowerCase() === 'translated from') {
-                        parts.push(`[Translated from ${field.value}]`);
-                    } else if (field.name.toLowerCase() !== 'source') { // Skip source as we have the URL
-                        parts.push(`${field.name}: ${field.value}`);
+                    // Add URL (from content)
+                    if (msg.content) {
+                        parts.push(msg.content);
                     }
-                });
 
-                return parts.join('\n');
-            })
-            .join('\n---\n');
+                    // Add embed information
+                    const embeds = (msg as any).embeds || [];
+                    embeds.forEach((embed: any) => {
+                        if (embed.title) parts.push(`Channel: ${embed.title}`);
+                        if (embed.description) parts.push(`Content: ${embed.description}`);
+                    });
+
+                    // Add fields (quotes, translations, etc.)
+                    const fields = (msg as any).fields || [];
+                    fields.forEach((field: any) => {
+                        if (field.name.toLowerCase() === 'quote from') {
+                            parts.push(`Quote from ${field.value}`);
+                        } else if (field.name.toLowerCase() === 'translated from') {
+                            parts.push(`[Translated from ${field.value}]`);
+                        } else if (field.name.toLowerCase() !== 'source') { // Skip source as we have the URL
+                            parts.push(`${field.name}: ${field.value}`);
+                        }
+                    });
+
+                    return parts.join('\n');
+                })
+                .join('\n---\n');
+        }, { messageCount: messages.length });
     }
 
     private validateSource(source: string): boolean {
@@ -54,67 +57,69 @@ export class ReportGenerator {
     }
 
     private parseAISummary(text: string): AISummary {
-        const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
+        return PerformanceTracker.track('report.parseSummary', () => {
+            const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
 
-        if (lines.length < 3) {
-            throw new Error('Invalid summary format: insufficient lines');
-        }
-
-        // Find the headline (first line in ALL CAPS)
-        const headlineIndex = lines.findIndex(line =>
-            line === line.toUpperCase() && line.length > 0
-        );
-
-        if (headlineIndex === -1) {
-            throw new Error('Invalid summary format: no headline found');
-        }
-
-        // Find the location line (contains "•" and a date)
-        const locationIndex = lines.findIndex((line, index) =>
-            index > headlineIndex &&
-            line.includes('•') &&
-            /\d{1,2},?\s+\d{4}/.test(line)
-        );
-
-        if (locationIndex === -1) {
-            throw new Error('Invalid summary format: no location/date line found');
-        }
-
-        // Find the sources section
-        const sourcesIndex = lines.findIndex((line, index) =>
-            index > locationIndex && line.toLowerCase().startsWith('sources:')
-        );
-
-        if (sourcesIndex === -1) {
-            throw new Error('Invalid summary format: no sources section found');
-        }
-
-        const headline = lines[headlineIndex];
-        const location = lines[locationIndex];
-        const body = lines.slice(locationIndex + 1, sourcesIndex).join('\n');
-        let sources = lines.slice(sourcesIndex + 1);
-
-        // Validate and clean sources
-        sources = sources.filter(source => {
-            const isValid = this.validateSource(source);
-            if (!isValid) {
-                this.logger.warn('Invalid or truncated source found:', source);
+            if (lines.length < 3) {
+                throw new Error('Invalid summary format: insufficient lines');
             }
-            return isValid;
-        });
 
-        if (!headline || !location || !body || !sources.length) {
-            throw new Error('Invalid summary format: missing required components');
-        }
+            // Find the headline (first line in ALL CAPS)
+            const headlineIndex = lines.findIndex(line =>
+                line === line.toUpperCase() && line.length > 0
+            );
 
-        return {
-            headline,
-            location_and_period: location,
-            body,
-            sources,
-            raw_response: text,
-            timestamp: new Date().toISOString()
-        };
+            if (headlineIndex === -1) {
+                throw new Error('Invalid summary format: no headline found');
+            }
+
+            // Find the location line (contains "•" and a date)
+            const locationIndex = lines.findIndex((line, index) =>
+                index > headlineIndex &&
+                line.includes('•') &&
+                /\d{1,2},?\s+\d{4}/.test(line)
+            );
+
+            if (locationIndex === -1) {
+                throw new Error('Invalid summary format: no location/date line found');
+            }
+
+            // Find the sources section
+            const sourcesIndex = lines.findIndex((line, index) =>
+                index > locationIndex && line.toLowerCase().startsWith('sources:')
+            );
+
+            if (sourcesIndex === -1) {
+                throw new Error('Invalid summary format: no sources section found');
+            }
+
+            const headline = lines[headlineIndex];
+            const location = lines[locationIndex];
+            const body = lines.slice(locationIndex + 1, sourcesIndex).join('\n');
+            let sources = lines.slice(sourcesIndex + 1);
+
+            // Validate and clean sources
+            sources = sources.filter(source => {
+                const isValid = this.validateSource(source);
+                if (!isValid) {
+                    this.logger.warn('Invalid or truncated source found:', source);
+                }
+                return isValid;
+            });
+
+            if (!headline || !location || !body || !sources.length) {
+                throw new Error('Invalid summary format: missing required components');
+            }
+
+            return {
+                headline,
+                location_and_period: location,
+                body,
+                sources,
+                raw_response: text,
+                timestamp: new Date().toISOString()
+            };
+        }, { textLength: text.length });
     }
 
     async createAISummary(
@@ -123,33 +128,56 @@ export class ReportGenerator {
         requestedHours: number,
         previousSummary?: AISummary
     ): Promise<AISummary | null> {
-        if (!messages.length) return null;
+        return PerformanceTracker.track('report.createSummary', async () => {
+            if (!messages.length) return null;
 
-        const formattedText = this.formatMessagesForClaude(messages);
-
-        try {
-            const response = await this.claudeClient.messages.create({
-                model: 'claude-3-haiku-20240307',
-                max_tokens: this.MAX_TOKENS,
-                system: 'You are an experienced news wire journalist creating concise, clear updates. Your task is to report the latest developments while maintaining narrative continuity with previous coverage. Focus on what\'s new and noteworthy, using prior context only when it enhances understanding of current events.',
-                messages: [
-                    {
-                        role: 'user',
-                        content: this.createPrompt(formattedText, previousSummary),
-                    },
-                ],
-            });
-
-            if (!response?.content?.[0]?.text) {
-                this.logger.error('Claude returned empty response');
-                return null;
+            // Debug: Log message timestamp distribution
+            const timestampDistribution: { [key: string]: number } = {};
+            for (const msg of messages) {
+                const hourKey = new Date(msg.timestamp).toISOString().slice(0, 13);
+                timestampDistribution[hourKey] = (timestampDistribution[hourKey] || 0) + 1;
             }
 
-            return this.parseAISummary(response.content[0].text);
-        } catch (error) {
-            this.logger.error('Error generating summary:', error);
-            return null;
-        }
+            console.log(`[Report Generator] Message timestamp distribution for ${channelName} (${requestedHours}h):`,
+                Object.entries(timestampDistribution)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([hour, count]) => `\n  ${hour}Z: ${count} messages`)
+                    .join('')
+            );
+
+            const formattedText = this.formatMessagesForClaude(messages);
+
+            try {
+                const response = await PerformanceTracker.track('report.claudeRequest', () =>
+                    this.claudeClient.messages.create({
+                        model: 'claude-3-haiku-20240307',
+                        max_tokens: this.MAX_TOKENS,
+                        system: 'You are an experienced news wire journalist creating concise, clear updates. Your task is to report the latest developments while maintaining narrative continuity with previous coverage. Focus on what\'s new and noteworthy, using prior context only when it enhances understanding of current events.',
+                        messages: [
+                            {
+                                role: 'user',
+                                content: this.createPrompt(formattedText, previousSummary),
+                            },
+                        ],
+                    })
+                    , { messageCount: messages.length });
+
+                if (!response?.content?.[0]?.text) {
+                    this.logger.error('Claude returned empty response');
+                    return null;
+                }
+
+                return this.parseAISummary(response.content[0].text);
+            } catch (error) {
+                this.logger.error('Error generating summary:', error);
+                return null;
+            }
+        }, {
+            channelName,
+            messageCount: messages.length,
+            requestedHours,
+            hasPreviousSummary: !!previousSummary
+        });
     }
 
     private createPrompt(formattedText: string, previousSummary?: AISummary): string {

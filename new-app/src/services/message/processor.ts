@@ -19,7 +19,15 @@ export class MessageProcessor {
         try {
             // Extract source information
             const source = this.sourceExtractor.extractFromMessage(message);
-            console.log('Source extracted:', source);
+            if (!source) {
+                console.log('No source found for message:', message.id);
+                return {
+                    messageId: message.id,
+                    embedCount: message.embeds?.length || 0,
+                    success: false,
+                    error: 'No source found'
+                };
+            }
 
             // Get topic prefix from topic_id for message ID
             const topicPrefix = topicId.split('_')[1] || 'unknown'; // Gets the channel name part
@@ -39,13 +47,25 @@ export class MessageProcessor {
             };
 
             // Extract fields from embeds with descriptive IDs
-            const fields = message.embeds?.[0]?.fields?.map(field => ({
-                message_id: messageId,
-                name: field.name,
-                value: field.value
-            })) || [];
+            const fields = message.embeds?.[0]?.fields?.map(field => {
+                // Handle quote fields
+                if (field.name.toLowerCase().includes('quote from')) {
+                    const attribution = field.name.replace(/quote from:?\s*/i, '').trim();
+                    // Store the quote with its attribution
+                    return {
+                        message_id: messageId,
+                        name: 'quote',
+                        value: `${attribution}: ${field.value.trim()}`
+                    };
+                }
 
-            console.log('Storing message:', { id: messageId, fields: fields.length });
+                // Handle other fields normally
+                return {
+                    message_id: messageId,
+                    name: field.name,
+                    value: field.value
+                };
+            }) || [];
 
             // Store message and fields in database
             await this.db.insertMessage(storedMessage, fields);

@@ -1,34 +1,87 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
+import type { Configuration as WebpackConfig } from 'webpack';
 
 const nextConfig: NextConfig = {
   output: 'standalone',  // Optimized for production
   poweredByHeader: false,  // Security enhancement
   compress: true,  // Enable compression
-  reactStrictMode: true,
-  eslint: {
-    ignoreDuringBuilds: true,  // Temporarily disable ESLint during build
+
+  // Performance Optimizations
+  experimental: {
+    optimizeCss: true,
+    scrollRestoration: true,
   },
-  typescript: {
-    ignoreBuildErrors: true,  // Temporarily ignore TS errors during build
-  },
+
+  // Image Optimization
   images: {
-    unoptimized: false,  // Enable image optimization
+    domains: ['cdn.discordapp.com'],
+    deviceSizes: [640, 750, 828, 1080, 1200],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256],
+    minimumCacheTTL: 60,
   },
-  // Reduce bundle size
-  webpack: (config, { isServer }) => {
-    // Optimize client-side bundles
-    if (!isServer) {
+
+  // Cache Control Headers
+  async headers() {
+    return [
+      {
+        source: '/:all*(svg|jpg|png)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=2592000, stale-while-revalidate=86400',
+          },
+        ],
+      },
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+    ];
+  },
+
+  // Webpack Optimizations
+  webpack: (config: WebpackConfig, { dev, isServer }) => {
+    // Production optimizations only
+    if (!dev && !isServer) {
       config.optimization = {
         ...config.optimization,
+        mergeDuplicateChunks: true,
+        minimize: true,
         splitChunks: {
           chunks: 'all',
           minSize: 20000,
-          maxSize: 100000,
-        }
-      }
+          maxSize: 90000,
+          cacheGroups: {
+            default: false,
+            vendors: false,
+            commons: {
+              name: 'commons',
+              chunks: 'all',
+              minChunks: 2,
+              reuseExistingChunk: true,
+            },
+            lib: {
+              test: /[\\/]node_modules[\\/]/,
+              name(module: any) {
+                const packageName = module.context.match(
+                  /[\\/]node_modules[\\/](.*?)([\\/]|$)/
+                )[1];
+                return `npm.${packageName.replace('@', '')}`;
+              },
+              chunks: 'all',
+              priority: 1,
+            },
+          },
+        },
+      };
     }
-    return config
-  }
+    return config;
+  },
 };
 
 export default nextConfig;
