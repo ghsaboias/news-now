@@ -55,7 +55,7 @@ describe('useEventSource', () => {
 
     it('handles messages', () => {
         const onMessage = jest.fn();
-        const { result } = renderHook(() => useEventSource('/api/events', { onMessage }));
+        renderHook(() => useEventSource('/api/events', { onMessage }));
         eventSource = mockEventSourceClass.mock.results[0].value;
 
         const testData = { type: 'test', value: 123 };
@@ -67,7 +67,7 @@ describe('useEventSource', () => {
 
     it('handles errors', () => {
         const onError = jest.fn();
-        const { result } = renderHook(() => useEventSource('/api/events', { onError }));
+        renderHook(() => useEventSource('/api/events', { onError }));
         eventSource = mockEventSourceClass.mock.results[0].value;
 
         eventSource.simulateError();
@@ -77,7 +77,7 @@ describe('useEventSource', () => {
 
     it('handles open events', () => {
         const onOpen = jest.fn();
-        const { result } = renderHook(() => useEventSource('/api/events', { onOpen }));
+        renderHook(() => useEventSource('/api/events', { onOpen }));
         eventSource = mockEventSourceClass.mock.results[0].value;
 
         eventSource.simulateOpen();
@@ -96,7 +96,7 @@ describe('useEventSource', () => {
     it('closes and recreates EventSource when URL changes', () => {
         const initialUrl = '/api/events';
         const newUrl = '/api/events/new';
-        const { result, rerender } = renderHook(
+        const { rerender } = renderHook(
             (url: string) => useEventSource(url),
             { initialProps: initialUrl }
         );

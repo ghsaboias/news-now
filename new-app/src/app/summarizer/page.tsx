@@ -21,48 +21,9 @@ import { SplitView } from '@/components/layout/SplitView';
 import { RecentReports } from '@/components/reports/RecentReports';
 import { ReportView } from '@/components/reports/ReportView';
 import { ReportsProvider, useReports } from '@/context/ReportsContext';
-import { usePerformanceMonitor } from '@/hooks/usePerformanceMonitor';
 import type { AISummary, DiscordChannel, DiscordMessage } from '@/types';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-
-// Performance logging helper
-const perf = {
-    start: (label: string) => {
-        console.time(`⏱️ ${label}`);
-        performance.mark(`${label}-start`);
-    },
-    
-    end: (label: string, details?: { batches?: number; items?: number }) => {
-        const endTime = performance.now();
-        console.timeEnd(`⏱️ ${label}`);
-        performance.mark(`${label}-end`);
-        performance.measure(label, `${label}-start`, `${label}-end`);
-        
-        if (details) {
-            console.log(`📈 ${label} stats:`, {
-                ...(details.batches && { batchesProcessed: details.batches }),
-                ...(details.items && { itemsProcessed: details.items })
-            });
-        }
-    },
-    
-    batch: (label: string, batchSize: number) => {
-        console.log(`📨 Batch processed: ${batchSize} items`);
-    }
-};
-
-// Component render counter
-function useRenderCount(componentName: string) {
-    const renderCount = useRef(0);
-    
-    useEffect(() => {
-        renderCount.current += 1;
-        console.log(`🔄 ${componentName} render #${renderCount.current}`);
-    });
-    
-    return renderCount.current;
-}
 
 // Memoized options to prevent recreating on every render
 const TIMEFRAME_OPTIONS: TimeframeOption[] = [
@@ -72,14 +33,6 @@ const TIMEFRAME_OPTIONS: TimeframeOption[] = [
 ];
 
 // Server Actions
-async function fetchChannelsAction(): Promise<DiscordChannel[]> {
-    const response = await fetch('/api/discord/channels');
-    if (!response.ok) {
-        throw new Error('Failed to fetch channels', { cause: response });
-    }
-    return response.json();
-}
-
 async function fetchMessagesAction(
     channelId: string,
     channelName: string,
@@ -168,17 +121,6 @@ async function generateSummaryAction(channelId: string, channelName: string, mes
   return response.json();
 }
 
-function formatTimestamp(timestamp: string): string {
-  const date = new Date(timestamp);
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(date);
-}
-
 // Separate data fetching logic
 const useChannels = () => {
     const [channels, setChannels] = useState<DiscordChannel[]>([]);
@@ -254,8 +196,6 @@ const MemoizedReportView = memo(ReportView);
 const MemoizedRecentReports = memo(RecentReports);
 
 function SummarizerContent() {
-    usePerformanceMonitor('SummarizerContent');
-    
     const { channels, isLoading: isLoadingChannels } = useChannels();
     const { progress, updateProgress } = useProgress();
     const [selectedChannelId, setSelectedChannelId] = useState('');

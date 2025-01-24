@@ -8,11 +8,6 @@ function BrokenComponent(): React.ReactNode {
   return <div />;
 }
 
-// Working component for testing recovery
-function WorkingComponent() {
-  return <div>Working content</div>;
-}
-
 describe('ErrorBoundary', () => {
   // Prevent console.error from cluttering test output
   beforeEach(() => {

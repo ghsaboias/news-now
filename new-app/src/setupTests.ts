@@ -1,16 +1,54 @@
 import '@testing-library/jest-dom';
 
+// Extend global for test environment
+declare global {
+    // Allow overriding EventSource in tests
+    var EventSource: {
+        new(url: string | URL, eventSourceInitDict?: EventSourceInit): EventSource;
+        prototype: EventSource;
+        readonly CONNECTING: 0;
+        readonly OPEN: 1;
+        readonly CLOSED: 2;
+    };
+}
+
+// Define event data type
+type EventData = {
+    type: string;
+    [key: string]: unknown;
+};
+
 // Mock EventSource for useEventSource tests
-class MockEventSource {
+class MockEventSource implements EventSource {
+    static readonly CONNECTING = 0;
+    static readonly OPEN = 1;
+    static readonly CLOSED = 2;
+
+    readonly CONNECTING = MockEventSource.CONNECTING;
+    readonly OPEN = MockEventSource.OPEN;
+    readonly CLOSED = MockEventSource.CLOSED;
+
+    readyState: number = MockEventSource.CONNECTING;
     onmessage: ((event: MessageEvent) => void) | null = null;
     onerror: ((event: Event) => void) | null = null;
     onopen: ((event: Event) => void) | null = null;
-    close = jest.fn();
+    url: string;
+    withCredentials: boolean = false;
 
-    constructor(public url: string) { }
+    constructor(url: string | URL, _eventSourceInitDict?: EventSourceInit) {
+        this.url = url.toString();
+    }
+
+    close = jest.fn(() => {
+        this.readyState = MockEventSource.CLOSED;
+    });
+
+    addEventListener = jest.fn();
+    removeEventListener = jest.fn();
+    dispatchEvent = jest.fn(() => true);
 
     // Helper methods for testing
-    simulateMessage(data: any) {
+    simulateMessage(data: EventData) {
         if (this.onmessage) {
             this.onmessage(new MessageEvent('message', { data: JSON.stringify(data) }));
         }
@@ -29,5 +67,13 @@ class MockEventSource {
     }
 }
 
-// Mock global EventSource
-(global as any).EventSource = MockEventSource; 
+// Create constructor function that matches EventSource signature
+const MockEventSourceConstructor = MockEventSource as unknown as typeof global.EventSource;
+Object.defineProperties(MockEventSourceConstructor, {
+    CONNECTING: { value: MockEventSource.CONNECTING },
+    OPEN: { value: MockEventSource.OPEN },
+    CLOSED: { value: MockEventSource.CLOSED }
+});
+
+// Assign to global
+global.EventSource = MockEventSourceConstructor; 

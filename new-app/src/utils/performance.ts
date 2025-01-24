@@ -1,16 +1,23 @@
+// Define metadata types
+type MetadataValue = string | number | boolean | null | undefined;
+
+interface PerformanceMetadata {
+    [key: string]: MetadataValue | Record<string, MetadataValue>;
+}
+
 interface PerformanceMetric {
     operation: string;
     duration: number;
-    metadata?: Record<string, any>;
+    metadata?: PerformanceMetadata;
 }
 
 class PerformanceTracker {
     private static metrics: PerformanceMetric[] = [];
     private static MAX_METRICS = 1000; // Prevent memory leaks
 
-    static track<T>(operation: string, fn: () => Promise<T>, metadata?: Record<string, any>): Promise<T>;
-    static track<T>(operation: string, fn: () => T, metadata?: Record<string, any>): T;
-    static track<T>(operation: string, fn: (() => T) | (() => Promise<T>), metadata?: Record<string, any>): T | Promise<T> {
+    static track<T>(operation: string, fn: () => Promise<T>, metadata?: PerformanceMetadata): Promise<T>;
+    static track<T>(operation: string, fn: () => T, metadata?: PerformanceMetadata): T;
+    static track<T>(operation: string, fn: (() => T) | (() => Promise<T>), metadata?: PerformanceMetadata): T | Promise<T> {
         const start = performance.now();
 
         try {
@@ -30,7 +37,7 @@ class PerformanceTracker {
         }
     }
 
-    private static addMetric(operation: string, startTime: number, metadata?: Record<string, any>) {
+    private static addMetric(operation: string, startTime: number, metadata?: PerformanceMetadata) {
         const duration = performance.now() - startTime;
 
         this.metrics.push({

@@ -68,9 +68,9 @@ const nextConfig: NextConfig = {
             lib: {
               test: /[\\/]node_modules[\\/]/,
               name(module: any) {
-                const packageName = module.context.match(
-                  /[\\/]node_modules[\\/](.*?)([\\/]|$)/
-                )[1];
+                if (!module.context) return 'vendors';
+                const match = module.context.match(/[\\/]node_modules[\\/](.*?)([\\/]|$)/);
+                const packageName = match ? match[1] : 'vendors';
                 return `npm.${packageName.replace('@', '')}`;
               },
               chunks: 'all',

@@ -1,6 +1,16 @@
 import { AISummary, ClaudeClient, DiscordMessage } from '@/types';
 import { PerformanceTracker } from '@/utils/performance';
 
+interface MessageEmbed {
+    title?: string;
+    description?: string;
+}
+
+interface MessageField {
+    name: string;
+    value: string;
+}
+
 export class ReportGenerator {
     private readonly MAX_TOKENS = 1500;
 
@@ -26,15 +36,15 @@ export class ReportGenerator {
                     }
 
                     // Add embed information
-                    const embeds = (msg as any).embeds || [];
-                    embeds.forEach((embed: any) => {
+                    const embeds = (msg as DiscordMessage & { embeds?: MessageEmbed[] }).embeds || [];
+                    embeds.forEach((embed: MessageEmbed) => {
                         if (embed.title) parts.push(`Channel: ${embed.title}`);
                         if (embed.description) parts.push(`Content: ${embed.description}`);
                     });
 
                     // Add fields (quotes, translations, etc.)
-                    const fields = (msg as any).fields || [];
-                    fields.forEach((field: any) => {
+                    const fields = (msg as DiscordMessage & { fields?: MessageField[] }).fields || [];
+                    fields.forEach((field: MessageField) => {
                         if (field.name.toLowerCase() === 'quote from') {
                             parts.push(`Quote from ${field.value}`);
                         } else if (field.name.toLowerCase() === 'translated from') {

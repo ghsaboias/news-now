@@ -57,6 +57,7 @@ export function Stack({
         ${direction === 'horizontal' ? 'flex-row' : 'flex-col'}
         ${wrap ? 'flex-wrap' : ''}
         ${spacingStyles[spacing]}
+        ${divider ? direction === 'horizontal' ? 'divide-x' : 'divide-y' : ''}
         ${className}
       `}
     >

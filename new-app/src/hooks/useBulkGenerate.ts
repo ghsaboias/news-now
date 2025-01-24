@@ -68,7 +68,7 @@ export function useBulkGenerate() {
             try {
                 setState(prev => ({ ...prev, status: 'scanning', channels: [] }));
                 setUrl(`/api/reports/bulk-generate?timeframe=${timeframe}&minMessages=${minMessages}`);
-            } catch (error) {
+            } catch (_) {
                 setState(prev => ({ ...prev, status: 'error' }));
                 setUrl(null);
             }

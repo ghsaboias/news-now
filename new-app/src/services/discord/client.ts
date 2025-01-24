@@ -239,7 +239,7 @@ export class DiscordClient {
             let currentLastMessageId = lastMessageId;
             let batchCount = 0;
             let totalMessages = 0;
-            let allMessages: DiscordMessage[] = [];
+            const allMessages: DiscordMessage[] = [];
 
             // Calculate cutoff time
             const cutoffTime = new Date();

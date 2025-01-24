@@ -4,10 +4,6 @@ import { DiscordMessage } from '@/types';
 const TIME_PERIODS = ['1h', '4h', '24h'] as const;
 type TimePeriod = typeof TIME_PERIODS[number];
 
-interface MessageCount {
-    [period: string]: number;
-}
-
 // Maximum number of channels to process concurrently
 const MAX_CONCURRENT_CHANNELS = 15;
 
@@ -34,7 +30,7 @@ function groupTasksByChannel(tasks: FetchTask[]): FetchTask[][] {
 async function processChannel(
     channelTasks: FetchTask[],
     client: DiscordClient,
-    writer: WritableStreamDefaultWriter<any>
+    writer: WritableStreamDefaultWriter<Uint8Array>
 ): Promise<void> {
     const encoder = new TextEncoder();
 

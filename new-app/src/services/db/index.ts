@@ -97,7 +97,10 @@ export class DatabaseService {
             INSERT OR REPLACE INTO topics (id, name)
             VALUES (@id, @name)
         `);
-        stmt.run(topic);
+        stmt.run({
+            id: topic.id,
+            name: topic.name
+        });
     }
 
     getTopicById(id: string): DBTopic | undefined {
@@ -121,7 +124,13 @@ export class DatabaseService {
             INSERT OR REPLACE INTO sources (id, platform, handle, first_seen_at, last_seen_at)
             VALUES (@id, @platform, @handle, @first_seen_at, @last_seen_at)
         `);
-        stmt.run(source);
+        stmt.run({
+            id: source.id,
+            platform: source.platform,
+            handle: source.handle,
+            first_seen_at: source.first_seen_at,
+            last_seen_at: source.last_seen_at
+        });
     }
 
     getSourceByHandle(platform: 'telegram' | 'x', handle: string): DBSource | undefined {
@@ -146,15 +155,27 @@ export class DatabaseService {
             VALUES (@message_id, @name, @value)
         `);
 
-        // Use a transaction to ensure all inserts succeed or none do
-        const transaction = this.db.transaction((message: DBMessage, fields: DBMessageField[]) => {
-            insertMessage.run(message);
-            for (const field of fields) {
-                insertField.run(field);
-            }
+        const transaction = this.db.transaction(() => {
+            insertMessage.run({
+                id: message.id,
+                topic_id: message.topic_id,
+                source_id: message.source_id,
+                content: message.content,
+                embed_title: message.embed_title || null,
+                embed_description: message.embed_description || null,
+                timestamp: message.timestamp
+            });
+
+            fields.forEach(field => {
+                insertField.run({
+                    message_id: field.message_id,
+                    name: field.name,
+                    value: field.value
+                });
+            });
         });
 
-        transaction(message, fields);
+        transaction();
     }
 
     getMessagesByTopic(topicId: string, limit = 100): DBMessage[] {

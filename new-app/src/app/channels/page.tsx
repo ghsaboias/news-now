@@ -65,6 +65,17 @@ interface LoadingState {
     [channelId: string]: Set<string>;
 }
 
+interface MessageResult {
+    channelId: string;
+    period: string;
+    count: number;
+}
+
+interface UpdateData {
+    type: 'update';
+    results: MessageResult[];
+}
+
 async function getChannels(): Promise<DiscordChannel[]> {
     perf.start('fetchChannels');
     try {
@@ -111,10 +122,10 @@ export default function ChannelsPage() {
     });
 
     // Memoize state updates
-    const updateMessageCounts = useCallback((data: any) => {
+    const updateMessageCounts = useCallback((data: UpdateData) => {
         setState(prev => {
             const newCounts = { ...prev.messageCounts };
-            data.results.forEach(({ channelId, period, count }: any) => {
+            data.results.forEach(({ channelId, period, count }) => {
                 if (!newCounts[channelId]) {
                     newCounts[channelId] = {};
                 }
@@ -128,10 +139,10 @@ export default function ChannelsPage() {
         });
     }, []);
 
-    const updateLoadingStates = useCallback((data: any) => {
+    const updateLoadingStates = useCallback((data: UpdateData) => {
         setState(prev => {
             const newStates = { ...prev.loadingStates };
-            data.results.forEach(({ channelId, period }: any) => {
+            data.results.forEach(({ channelId, period }) => {
                 if (newStates[channelId]) {
                     const updatedSet = new Set(newStates[channelId]);
                     updatedSet.delete(period);
