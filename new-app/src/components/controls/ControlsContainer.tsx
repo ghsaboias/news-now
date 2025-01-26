@@ -12,7 +12,7 @@ interface ControlsContainerProps {
   recentReports?: ReactNode;
 }
 
-export function ControlsContainer({ 
+export function ControlsContainer({
   mainControls,
   bulkControls,
   recentReports
@@ -44,9 +44,9 @@ export function ControlsContainer({
           <Stack spacing="relaxed">
             {/* Bulk Generate Section */}
             {bulkControls && (
-              <Section 
-                title="Bulk Generation" 
-                collapsible 
+              <Section
+                title="Bulk Generation"
+                collapsible
                 defaultExpanded={false}
                 variant="raised"
               >
@@ -56,7 +56,7 @@ export function ControlsContainer({
 
             {/* Recent Reports Section */}
             {recentReports && (
-              <Section 
+              <Section
                 title="Recent Reports"
                 variant="raised"
               >

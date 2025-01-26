@@ -7,7 +7,7 @@ import { ChannelList } from './ChannelList';
 
 interface ProgressDisplayProps {
   /** Current status of the progress */
-  status: 'idle' | 'scanning' | 'complete' | 'error';
+  status: 'idle' | 'processing' | 'complete' | 'error';
   /** List of channels being processed */
   channels: ChannelActivity[];
 }
@@ -15,8 +15,8 @@ interface ProgressDisplayProps {
 /**
  * Displays progress information and a list of channels being processed
  */
-export function ProgressDisplay({ 
-  status, 
+export function ProgressDisplay({
+  status,
   channels
 }: ProgressDisplayProps) {
   const { isOpen, onToggle } = useDisclosure(false);
@@ -25,21 +25,25 @@ export function ProgressDisplay({
     return null;
   }
 
-  const completedChannels = channels.filter(ch => ch.status === 'success').length;
-  const totalChannels = channels.length;
-  const percent = totalChannels > 0 ? (completedChannels / totalChannels) * 100 : 0;
+  // Calculate progress based on channels with messages
+  const processedChannels = channels.filter(ch => ch.messageCount !== undefined).length;
+  const totalChannels = channels.length || 1; // Prevent division by zero
+  const percent = Math.min(100, Math.round((processedChannels / totalChannels) * 100));
+
+  // Get total message count
+  const totalMessages = channels.reduce((sum, ch) => sum + (ch.messageCount || 0), 0);
 
   return (
     <div className="space-y-4">
       <Progress
-        value={percent}
+        value={status === 'complete' ? 100 : percent}
         stage={
-          status === 'scanning' ? 'Scanning channels' :
-          status === 'complete' ? 'Scan complete' :
-          status === 'error' ? 'An error occurred' :
-          'Processing'
+          status === 'processing' ? 'Scanning channels' :
+            status === 'complete' ? 'Scan complete' :
+              status === 'error' ? 'An error occurred' :
+                'Processing'
         }
-        messageCount={channels.reduce((sum, ch) => sum + (ch.messageCount || 0), 0)}
+        messageCount={totalMessages}
       />
 
       {channels.length > 0 && (
@@ -50,7 +54,7 @@ export function ProgressDisplay({
             icon={isOpen ? <ChevronUp /> : <ChevronDown />}
             size="sm"
           >
-            {isOpen ? 'Hide Channels' : `Show Channels (${completedChannels}/${totalChannels})`}
+            {isOpen ? 'Hide Channels' : `Show Channels (${processedChannels}/${totalChannels})`}
           </Button>
         </div>
       )}

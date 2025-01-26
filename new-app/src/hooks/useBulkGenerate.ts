@@ -1,11 +1,10 @@
 import { useReports } from '@/context/ReportsContext';
 import { ChannelActivity } from '@/types';
 import { useCallback, useState } from 'react';
-import { useEventSource } from './useEventSource';
 import { useLoadingState } from './useLoadingState';
 
 interface BulkGenerateState {
-    status: 'idle' | 'scanning' | 'complete' | 'error';
+    status: 'idle' | 'processing' | 'complete' | 'error';
     channels: ChannelActivity[];
 }
 
@@ -22,58 +21,37 @@ export function useBulkGenerate() {
         channels: []
     });
 
-    const [url, setUrl] = useState<string | null>(null);
-
-    useEventSource(url || '', {
-        onMessage: (event) => {
-            const data = JSON.parse(event.data);
-
-            switch (data.type) {
-                case 'scanning':
-                    setState(prev => ({ ...prev, channels: data.channels }));
-                    break;
-
-                case 'report':
-                    setCurrentReport(data.report);
-                    setState(prev => ({
-                        ...prev,
-                        channels: prev.channels.map(ch =>
-                            ch.channelId === data.report.channelId
-                                ? { ...ch, status: 'success', messageCount: data.report.messageCount }
-                                : ch
-                        )
-                    }));
-                    fetchReports();
-                    break;
-
-                case 'complete':
-                    setState(prev => ({ ...prev, status: 'complete' }));
-                    setUrl(null);
-                    break;
-
-                case 'error':
-                    setState(prev => ({ ...prev, status: 'error' }));
-                    setUrl(null);
-                    break;
-            }
-        },
-        onError: () => {
-            setState(prev => ({ ...prev, status: 'error' }));
-            setUrl(null);
-        }
-    });
-
     const generate = useCallback(async ({ timeframe, minMessages }: BulkGenerateOptions) => {
         await withLoading(async () => {
             try {
-                setState(prev => ({ ...prev, status: 'scanning', channels: [] }));
-                setUrl(`/api/reports/bulk-generate?timeframe=${timeframe}&minMessages=${minMessages}`);
-            } catch (_) {
+                setState(prev => ({ ...prev, status: 'processing', channels: [] }));
+
+                const response = await fetch(
+                    `/api/reports/bulk-generate?timeframe=${timeframe}&minMessages=${minMessages}`
+                );
+
+                if (!response.ok) {
+                    throw new Error('Failed to generate reports');
+                }
+
+                const data = await response.json();
+
+                // Update reports context with new reports
+                if (data.reports?.length > 0) {
+                    setCurrentReport(data.reports[data.reports.length - 1]);
+                    await fetchReports();
+                }
+
+                setState(prev => ({
+                    status: 'complete',
+                    channels: data.results
+                }));
+            } catch (error) {
+                console.error('Error generating reports:', error);
                 setState(prev => ({ ...prev, status: 'error' }));
-                setUrl(null);
             }
         });
-    }, [withLoading]);
+    }, [withLoading, setCurrentReport, fetchReports]);
 
     return {
         ...state,

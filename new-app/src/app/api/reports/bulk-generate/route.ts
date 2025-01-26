@@ -14,11 +14,15 @@ const DEFAULT_THRESHOLDS: ActivityThreshold[] = [
 ];
 
 export async function GET(request: NextRequest) {
+    const db = new DatabaseService();
+
     try {
-        // Get timeframe and minMessages from query params
+        // Get parameters
         const searchParams = request.nextUrl.searchParams;
         const timeframe = searchParams.get('timeframe') as '1h' | '4h' | '24h';
         const minMessagesParam = searchParams.get('minMessages');
+
+        console.log('[BulkGenerate] Starting with params:', { timeframe, minMessagesParam });
 
         if (!timeframe || !['1h', '4h', '24h'].includes(timeframe)) {
             return NextResponse.json(
@@ -27,13 +31,13 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // Get threshold for selected timeframe and override minMessages if provided
+        // Get threshold
         const threshold = {
             ...DEFAULT_THRESHOLDS.find(t => t.timeframe === timeframe)!,
             minMessages: minMessagesParam ? parseInt(minMessagesParam) : DEFAULT_THRESHOLDS.find(t => t.timeframe === timeframe)!.minMessages
         };
 
-        // Initialize clients
+        // Initialize services
         if (!process.env.DISCORD_TOKEN || !process.env.ANTHROPIC_API_KEY) {
             return NextResponse.json(
                 { error: 'Missing required environment variables' },
@@ -41,182 +45,98 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // Initialize database
-        const db = new DatabaseService();
         db.initialize();
-
         const discordClient = new DiscordClient(db);
         const claudeClient = new AnthropicClient(process.env.ANTHROPIC_API_KEY);
         const reportGenerator = new ReportGenerator(claudeClient);
+
+        // Fetch channels
         const channels = await discordClient.fetchChannels();
-        const activeChannels: ChannelActivity[] = [];
+        const results: ChannelActivity[] = [];
+        const generatedReports = [];
 
-        // Set up SSE
-        const encoder = new TextEncoder();
-        const stream = new TransformStream();
-        const writer = stream.writable.getWriter();
+        // Process each channel sequentially
+        for (const channel of channels) {
+            console.log(`[BulkGenerate] Processing channel: ${channel.name}`);
 
-        const response = new Response(stream.readable, {
-            headers: {
-                'Content-Type': 'text/event-stream',
-                'Cache-Control': 'no-cache',
-                'Connection': 'keep-alive',
-            },
-        });
-
-        // Start the process
-        (async () => {
             try {
-                // Process each channel
-                for (const channel of channels) {
-                    const channelActivity: ChannelActivity = {
-                        channelId: channel.id,
-                        channelName: channel.name,
-                        messageCount: undefined,
-                        status: 'pending'
-                    };
-                    activeChannels.push(channelActivity);
+                // Create topic
+                const channelPrefix = channel.name.split('|')[0].replace(/[^a-zA-Z0-9-]/g, '');
+                const topicId = `topic_${channelPrefix}_${uuidv4()}`;
+                db.insertTopic({
+                    id: topicId,
+                    name: `${channel.name}|${channel.id}-${timeframe}-${new Date().toISOString()}`
+                });
 
-                    // Send scanning update
-                    await writer.write(
-                        encoder.encode(`data: ${JSON.stringify({
-                            type: 'scanning',
-                            channel: channel.name,
-                            channels: activeChannels
-                        })}\n\n`)
+                // Fetch messages
+                const messages = await discordClient.fetchMessagesInTimeframe(
+                    channel.id,
+                    timeframe === '24h' ? 24 : timeframe === '4h' ? 4 : 1,
+                    undefined,
+                    topicId
+                );
+
+                const activity: ChannelActivity = {
+                    channelId: channel.id,
+                    channelName: channel.name,
+                    messageCount: messages.length,
+                    status: 'pending'
+                };
+
+                // Generate report if enough messages
+                if (messages.length >= threshold.minMessages) {
+                    const summary = await reportGenerator.createAISummary(
+                        messages,
+                        channel.name,
+                        timeframe === '24h' ? 24 : timeframe === '4h' ? 4 : 1
                     );
 
-                    try {
-                        // Add delay between channels
-                        if (activeChannels.length > 1) {
-                            await new Promise(resolve => setTimeout(resolve, 1000));
-                        }
+                    if (summary) {
+                        const report = {
+                            id: uuidv4(),
+                            channelId: channel.id,
+                            channelName: channel.name,
+                            timestamp: new Date().toISOString(),
+                            timeframe: {
+                                type: timeframe,
+                                start: new Date(Date.now() - (timeframe === '24h' ? 24 : timeframe === '4h' ? 4 : 1) * 60 * 60 * 1000).toISOString(),
+                                end: new Date().toISOString(),
+                            },
+                            messageCount: messages.length,
+                            summary,
+                        };
 
-                        channelActivity.status = 'processing';
-
-                        // Send scanning update
-                        await writer.write(
-                            encoder.encode(`data: ${JSON.stringify({
-                                type: 'scanning',
-                                channels: activeChannels
-                            })}\n\n`)
-                        );
-
-                        // Create a topic for this channel with descriptive ID
-                        const channelPrefix = channel.name.split('|')[0].replace(/[^a-zA-Z0-9-]/g, '');
-                        const topicId = `topic_${channelPrefix}_${uuidv4()}`;
-                        db.insertTopic({
-                            id: topicId,
-                            name: `${channel.name}|${channel.id}-${timeframe}-${new Date().toISOString()}`
-                        });
-
-                        const messages = await discordClient.fetchMessagesInTimeframe(
-                            channel.id,
-                            timeframe === '24h' ? 24 : timeframe === '4h' ? 4 : 1,
-                            undefined,
-                            topicId  // Pass the topicId here
-                        );
-
-                        // Set the actual message count after fetching
-                        channelActivity.messageCount = messages.length;
-
-                        // Send scanning update with message count
-                        await writer.write(
-                            encoder.encode(`data: ${JSON.stringify({
-                                type: 'scanning',
-                                channels: activeChannels
-                            })}\n\n`)
-                        );
-
-                        if (messages.length >= threshold.minMessages) {
-                            channelActivity.status = 'success';
-
-                            // Generate report
-                            const summary = await reportGenerator.createAISummary(
-                                messages,
-                                channel.name,
-                                timeframe === '24h' ? 24 : timeframe === '4h' ? 4 : 1
-                            );
-
-                            if (summary) {
-                                const report = {
-                                    id: uuidv4(),
-                                    channelId: channel.id,
-                                    channelName: channel.name,
-                                    timestamp: new Date().toISOString(),
-                                    timeframe: {
-                                        type: timeframe,
-                                        start: new Date(Date.now() - (timeframe === '24h' ? 24 : timeframe === '4h' ? 4 : 1) * 60 * 60 * 1000).toISOString(),
-                                        end: new Date().toISOString(),
-                                    },
-                                    messageCount: messages.length,
-                                    summary,
-                                };
-
-                                await ReportStorage.saveReport(report);
-
-                                // Send report update
-                                await writer.write(
-                                    encoder.encode(`data: ${JSON.stringify({
-                                        type: 'report',
-                                        report
-                                    })}\n\n`)
-                                );
-                            }
-                        } else {
-                            channelActivity.status = 'skipped';
-
-                            // Send scanning update with skipped status
-                            await writer.write(
-                                encoder.encode(`data: ${JSON.stringify({
-                                    type: 'scanning',
-                                    channels: activeChannels
-                                })}\n\n`)
-                            );
-                        }
-                    } catch (error) {
-                        console.error(`Error processing channel ${channel.name}:`, error);
-                        channelActivity.status = 'error';
-
-                        // Send scanning update with error status
-                        await writer.write(
-                            encoder.encode(`data: ${JSON.stringify({
-                                type: 'scanning',
-                                channels: activeChannels
-                            })}\n\n`)
-                        );
+                        await ReportStorage.saveReport(report);
+                        generatedReports.push(report);
+                        activity.status = 'success';
                     }
+                } else {
+                    activity.status = 'skipped';
                 }
 
-                // Send completion
-                await writer.write(
-                    encoder.encode(`data: ${JSON.stringify({
-                        type: 'complete',
-                        channels: activeChannels
-                    })}\n\n`)
-                );
+                results.push(activity);
             } catch (error) {
-                console.error('Error in bulk generation:', error);
-                await writer.write(
-                    encoder.encode(`data: ${JSON.stringify({
-                        type: 'error',
-                        error: 'Failed to generate reports'
-                    })}\n\n`)
-                );
-            } finally {
-                if (db) {
-                    db.close();
-                }
-                await writer.close();
+                console.error(`[BulkGenerate] Error processing channel ${channel.name}:`, error);
+                results.push({
+                    channelId: channel.id,
+                    channelName: channel.name,
+                    messageCount: 0,
+                    status: 'error'
+                });
             }
-        })();
+        }
 
-        return response;
+        return NextResponse.json({
+            results,
+            reports: generatedReports
+        });
     } catch (error) {
-        console.error('Error in bulk generation:', error);
+        console.error('[BulkGenerate] Error:', error);
         return NextResponse.json(
             { error: 'Failed to generate reports' },
             { status: 500 }
         );
+    } finally {
+        db.close();
     }
 } 

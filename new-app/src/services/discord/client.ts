@@ -110,13 +110,25 @@ export class DiscordClient {
                         const result = await request();
                         resolve(result);
                         return;
-                    } catch (error) {
-                        lastError = error as Error;
+                    } catch (error: any) {
+                        lastError = error;
+
+                        // Handle rate limiting
+                        if (error?.response?.status === 429) {
+                            const retryAfter = error.response.headers['retry-after'];
+                            if (retryAfter) {
+                                const waitTime = parseInt(retryAfter) * 1000;
+                                console.log(`Rate limited. Waiting ${waitTime}ms before retry...`);
+                                await new Promise(resolve => setTimeout(resolve, waitTime));
+                                continue;
+                            }
+                        }
+
                         if (attempt < retries) {
-                            // Exponential backoff
-                            await new Promise(resolve =>
-                                setTimeout(resolve, Math.pow(2, attempt) * 1000)
-                            );
+                            // Exponential backoff for other errors
+                            const backoffTime = Math.pow(2, attempt) * 1000;
+                            await new Promise(resolve => setTimeout(resolve, backoffTime));
+                            continue;
                         }
                     }
                 }

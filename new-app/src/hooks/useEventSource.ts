@@ -26,10 +26,14 @@ interface UseEventSourceOptions {
  *   return <div>render data</div>;
  * }
  */
-export function useEventSource(url: string, options: UseEventSourceOptions = {}) {
+export function useEventSource(url: string | undefined, options: UseEventSourceOptions = {}) {
     const eventSourceRef = useRef<EventSource | null>(null);
 
     useEffect(() => {
+        if (!url) {
+            return;
+        }
+
         // Create new EventSource instance
         const eventSource = new EventSource(url);
         eventSourceRef.current = eventSource;
