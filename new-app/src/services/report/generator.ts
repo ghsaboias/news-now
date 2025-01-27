@@ -1,18 +1,8 @@
 import { AISummary, ClaudeClient, DiscordMessage } from '@/types';
 import { PerformanceTracker } from '@/utils/performance';
 
-interface MessageEmbed {
-    title?: string;
-    description?: string;
-}
-
-interface MessageField {
-    name: string;
-    value: string;
-}
-
 export class ReportGenerator {
-    private readonly MAX_TOKENS = 1500;
+    private readonly MAX_TOKENS = 2500;
 
     constructor(
         private readonly claudeClient: ClaudeClient,
