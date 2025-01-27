@@ -21,7 +21,7 @@ function RecentReportsContent() {
   const { showToast } = useToast();
 
   const handleClearDate = async (date: string, reportsInGroup: number) => {
-    if (!confirm(`Are you sure you want to delete all ${reportsInGroup} reports from ${new Date(date).toLocaleDateString()}?`)) {
+    if (!confirm(`Are you sure you want to delete all ${reportsInGroup} reports from ${formatReportDate(date).full}?`)) {
       return;
     }
 
@@ -88,7 +88,7 @@ function RecentReportsContent() {
           <div key={group.date}>
             <div className="mb-2 flex items-center justify-between">
               <div className="text-sm font-medium text-gray-400">
-                {new Date(group.date).toLocaleDateString()}
+                {formatReportDate(group.date).full}
               </div>
               <button
                 onClick={() => handleClearDate(group.date, group.reports.length)}

@@ -181,3 +181,8 @@ export interface SourceExtractorMessage {
     author: DiscordAuthor;
     embeds: DiscordEmbed[];
 }
+
+export interface ChannelInfo {
+    id: string;
+    name: string;
+}

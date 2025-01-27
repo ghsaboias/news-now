@@ -65,7 +65,7 @@ export function ProgressDisplay({
       <div
         className={`
           overflow-hidden transition-all duration-DEFAULT
-          ${isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}
+          ${isOpen ? 'opacity-100' : 'max-h-0 opacity-0'}
         `}
       >
         <ChannelList channels={channels} />

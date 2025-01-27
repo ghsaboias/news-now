@@ -79,7 +79,7 @@ export function Section({
               <span className="text-sm font-medium">{title}</span>
             </Button>
           ) : (
-            <div className="p-4">
+            <div className="pl-4 pr-4 pt-4">
               <span className="text-sm font-medium">{title}</span>
             </div>
           )}

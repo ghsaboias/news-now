@@ -30,7 +30,7 @@ export function BulkGenerateButton() {
             value={selectedTimeframe}
             onChange={setSelectedTimeframe}
             disabled={isLoading}
-            className="grid grid-cols-3 gap-2 sm:flex sm:gap-3"
+            className="w-full"
           />
         </div>
 
