@@ -1,11 +1,12 @@
 import { useReports } from '@/context/ReportsContext';
 import { ChannelActivity } from '@/types';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLoadingState } from './useLoadingState';
 
 interface BulkGenerateState {
     status: 'idle' | 'processing' | 'complete' | 'error';
     channels: ChannelActivity[];
+    error?: string;
 }
 
 interface BulkGenerateOptions {
@@ -21,37 +22,83 @@ export function useBulkGenerate() {
         channels: []
     });
 
-    const generate = useCallback(async ({ timeframe, minMessages }: BulkGenerateOptions) => {
-        await withLoading(async () => {
-            try {
-                setState(prev => ({ ...prev, status: 'processing', channels: [] }));
-
-                const response = await fetch(
-                    `/api/reports/bulk-generate?timeframe=${timeframe}&minMessages=${minMessages}`
-                );
-
-                if (!response.ok) {
-                    throw new Error('Failed to generate reports');
-                }
-
-                const data = await response.json();
-
-                // Update reports context with new reports
-                if (data.reports?.length > 0) {
-                    setCurrentReport(data.reports[data.reports.length - 1]);
-                    await fetchReports();
-                }
-
-                setState(prev => ({
-                    status: 'complete',
-                    channels: data.results
-                }));
-            } catch (error) {
-                console.error('Error generating reports:', error);
-                setState(prev => ({ ...prev, status: 'error' }));
+    // Cleanup function for EventSource
+    const [eventSource, setEventSource] = useState<EventSource | null>(null);
+    useEffect(() => {
+        return () => {
+            if (eventSource) {
+                eventSource.close();
             }
-        });
-    }, [withLoading, setCurrentReport, fetchReports]);
+        };
+    }, [eventSource]);
+
+    const generate = useCallback(async ({ timeframe, minMessages }: BulkGenerateOptions) => {
+        // Close any existing connection
+        if (eventSource) {
+            eventSource.close();
+        }
+
+        setState({ status: 'processing', channels: [] });
+
+        const es = new EventSource(
+            `/api/reports/bulk-generate?timeframe=${timeframe}&minMessages=${minMessages}`
+        );
+
+        setEventSource(es);
+
+        es.addEventListener('channels', ((event: MessageEvent) => {
+            const data = JSON.parse(event.data);
+            setState(prev => ({
+                ...prev,
+                channels: data.channels
+            }));
+        }) as EventListener);
+
+        es.addEventListener('progress', ((event: MessageEvent) => {
+            const update = JSON.parse(event.data);
+            setState(prev => ({
+                ...prev,
+                channels: prev.channels.map(channel =>
+                    channel.channelId === update.channelId
+                        ? { ...channel, ...update }
+                        : channel
+                )
+            }));
+        }) as EventListener);
+
+        es.addEventListener('complete', ((event: MessageEvent) => {
+            const data = JSON.parse(event.data);
+            if (data.reports?.length > 0) {
+                setCurrentReport(data.reports[data.reports.length - 1]);
+                fetchReports();
+            }
+            setState(prev => ({
+                ...prev,
+                status: 'complete'
+            }));
+            es.close();
+        }) as EventListener);
+
+        es.addEventListener('error', ((event: MessageEvent) => {
+            const data = event.data ? JSON.parse(event.data) : { error: 'Connection error' };
+            setState(prev => ({
+                ...prev,
+                status: 'error',
+                error: data.error
+            }));
+            es.close();
+        }) as EventListener);
+
+        // Handle connection errors
+        es.onerror = () => {
+            setState(prev => ({
+                ...prev,
+                status: 'error',
+                error: 'Connection error'
+            }));
+            es.close();
+        };
+    }, [eventSource, setCurrentReport, fetchReports]);
 
     return {
         ...state,

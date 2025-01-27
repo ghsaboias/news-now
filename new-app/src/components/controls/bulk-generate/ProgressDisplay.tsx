@@ -10,6 +10,8 @@ interface ProgressDisplayProps {
   status: 'idle' | 'processing' | 'complete' | 'error';
   /** List of channels being processed */
   channels: ChannelActivity[];
+  /** Error message if any */
+  error?: string;
 }
 
 /**
@@ -17,7 +19,8 @@ interface ProgressDisplayProps {
  */
 export function ProgressDisplay({
   status,
-  channels
+  channels,
+  error
 }: ProgressDisplayProps) {
   const { isOpen, onToggle } = useDisclosure(false);
 
@@ -25,25 +28,33 @@ export function ProgressDisplay({
     return null;
   }
 
-  // Calculate progress based on channels with messages
-  const processedChannels = channels.filter(ch => ch.messageCount !== undefined).length;
+  // Calculate progress based on processed channels
+  const processedChannels = channels.filter(ch => ch.status !== 'pending').length;
   const totalChannels = channels.length || 1; // Prevent division by zero
   const percent = Math.min(100, Math.round((processedChannels / totalChannels) * 100));
 
   // Get total message count
   const totalMessages = channels.reduce((sum, ch) => sum + (ch.messageCount || 0), 0);
 
+  // Get current stage
+  const getStage = () => {
+    if (error || status === 'error') return 'Error generating report';
+    if (status === 'complete') return 'Complete';
+
+    const processing = channels.find(ch => ch.status === 'processing');
+    if (processing) return `Processing ${processing.channelName}`;
+
+    return 'Scanning channels';
+  };
+
   return (
     <div className="space-y-4">
       <Progress
         value={status === 'complete' ? 100 : percent}
-        stage={
-          status === 'processing' ? 'Scanning channels' :
-            status === 'complete' ? 'Scan complete' :
-              status === 'error' ? 'An error occurred' :
-                'Processing'
-        }
+        stage={getStage()}
         messageCount={totalMessages}
+        error={error}
+        status={`${processedChannels}/${totalChannels} channels processed`}
       />
 
       {channels.length > 0 && (
