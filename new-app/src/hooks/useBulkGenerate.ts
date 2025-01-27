@@ -1,5 +1,5 @@
 import { useReports } from '@/context/ReportsContext';
-import { ChannelActivity } from '@/types';
+import { ChannelActivity, Report } from '@/types';
 import { useCallback, useEffect, useState } from 'react';
 import { useLoadingState } from './useLoadingState';
 
@@ -7,6 +7,7 @@ interface BulkGenerateState {
     status: 'idle' | 'processing' | 'complete' | 'error';
     channels: ChannelActivity[];
     error?: string;
+    firstReportGenerated: boolean;
 }
 
 interface BulkGenerateOptions {
@@ -15,12 +16,14 @@ interface BulkGenerateOptions {
 }
 
 export function useBulkGenerate() {
-    const { fetchReports, setCurrentReport } = useReports();
+    const { fetchReports, setCurrentReport, addReport } = useReports();
     const { isLoading, withLoading } = useLoadingState();
     const [state, setState] = useState<BulkGenerateState>({
         status: 'idle',
-        channels: []
+        channels: [],
+        firstReportGenerated: false
     });
+    const [pendingReport, setPendingReport] = useState<Report | null>(null);
 
     // Cleanup function for EventSource
     const [eventSource, setEventSource] = useState<EventSource | null>(null);
@@ -32,13 +35,24 @@ export function useBulkGenerate() {
         };
     }, [eventSource]);
 
+    useEffect(() => {
+        if (pendingReport) {
+            addReport(pendingReport);
+            if (!state.firstReportGenerated) {
+                setCurrentReport(pendingReport);
+                setState(prev => ({ ...prev, firstReportGenerated: true }));
+            }
+            setPendingReport(null);
+        }
+    }, [pendingReport, state.firstReportGenerated, addReport, setCurrentReport]);
+
     const generate = useCallback(async ({ timeframe, minMessages }: BulkGenerateOptions) => {
         // Close any existing connection
         if (eventSource) {
             eventSource.close();
         }
 
-        setState({ status: 'processing', channels: [] });
+        setState({ status: 'processing', channels: [], firstReportGenerated: false });
 
         const es = new EventSource(
             `/api/reports/bulk-generate?timeframe=${timeframe}&minMessages=${minMessages}`
@@ -56,14 +70,22 @@ export function useBulkGenerate() {
 
         es.addEventListener('progress', ((event: MessageEvent) => {
             const update = JSON.parse(event.data);
-            setState(prev => ({
-                ...prev,
-                channels: prev.channels.map(channel =>
+            setState(prev => {
+                const updatedChannels = prev.channels.map(channel =>
                     channel.channelId === update.channelId
                         ? { ...channel, ...update }
                         : channel
-                )
-            }));
+                );
+
+                if (update.status === 'success' && update.report) {
+                    setPendingReport(update.report);
+                }
+
+                return {
+                    ...prev,
+                    channels: updatedChannels
+                };
+            });
         }) as EventListener);
 
         es.addEventListener('complete', ((event: MessageEvent) => {

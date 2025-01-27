@@ -93,10 +93,18 @@ export async function GET(request: NextRequest) {
 
                         // Generate report if enough messages
                         if (messages.length >= threshold.minMessages) {
+                            // Get the most recent report for this channel
+                            const reportGroups = await ReportStorage.getAllReports();
+                            const allReports = reportGroups.flatMap(group => group.reports);
+                            const previousReport = allReports
+                                .filter(r => r.channelId === channel.id)
+                                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+
                             const summary = await reportGenerator.createAISummary(
                                 messages,
                                 channel.name,
-                                timeframe === '24h' ? 24 : timeframe === '4h' ? 4 : 1
+                                timeframe === '24h' ? 24 : timeframe === '4h' ? 4 : 1,
+                                previousReport?.summary
                             );
 
                             if (summary) {
@@ -122,7 +130,8 @@ export async function GET(request: NextRequest) {
                                     `event: progress\ndata: ${JSON.stringify({
                                         channelId: channel.id,
                                         status: 'success',
-                                        messageCount: messages.length
+                                        messageCount: messages.length,
+                                        report: report
                                     })}\n\n`
                                 ));
                             }

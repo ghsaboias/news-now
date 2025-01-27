@@ -64,10 +64,10 @@ async function fetchMessagesAction(
 
             for (const line of lines) {
                 if (!line.trim() || !line.startsWith('data: ')) continue;
-                
+
                 try {
                     const data = JSON.parse(line.replace('data: ', ''));
-                    
+
                     if (data.type === 'batch') {
                         onProgress?.(data.botMessages);
                     } else if (data.type === 'complete') {
@@ -101,24 +101,24 @@ async function fetchMessagesAction(
 }
 
 async function generateSummaryAction(channelId: string, channelName: string, messages: DiscordMessage[], previousReport?: AISummary): Promise<AISummary> {
-  const response = await fetch(`/api/discord/summary?channelId=${channelId}&channelName=${channelName}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ 
-      messages,
-      previousSummary: previousReport ? {
-        ...previousReport,
-        period_start: messages[0].timestamp,
-        period_end: messages[messages.length - 1].timestamp
-      } : undefined
-    }),
-  });
-  if (!response.ok) {
-    throw new Error('Failed to generate summary', { cause: response });
-  }
-  return response.json();
+    const response = await fetch(`/api/discord/summary?channelId=${channelId}&channelName=${channelName}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            messages,
+            previousSummary: previousReport ? {
+                ...previousReport,
+                period_start: messages[0].timestamp,
+                period_end: messages[messages.length - 1].timestamp
+            } : undefined
+        }),
+    });
+    if (!response.ok) {
+        throw new Error('Failed to generate summary', { cause: response });
+    }
+    return response.json();
 }
 
 // Separate data fetching logic
@@ -143,10 +143,10 @@ const useChannels = () => {
 
                 const response = await fetch('/api/discord/channels');
                 if (!response.ok) throw new Error('Failed to fetch channels');
-                
+
                 const data = await response.json();
                 setChannels(data);
-                
+
                 // Update cache
                 sessionStorage.setItem('discord_channels', JSON.stringify({
                     channels: data,
@@ -201,7 +201,7 @@ function SummarizerContent() {
     const [selectedChannelId, setSelectedChannelId] = useState('');
     const [selectedTimeframe, setSelectedTimeframe] = useState<'1h' | '4h' | '24h'>('1h');
     const [isGenerating, setIsGenerating] = useState(false);
-    
+
     const { setCurrentReport, fetchReports, currentReport } = useReports();
 
     // Memoize callback functions
@@ -220,10 +220,10 @@ function SummarizerContent() {
         if (!channel) return;
 
         setIsGenerating(true);
-        updateProgress({ 
+        updateProgress({
             stage: 'Initializing',
             percent: 0,
-            messageCount: 0 
+            messageCount: 0
         });
 
         try {
@@ -242,42 +242,42 @@ function SummarizerContent() {
             );
 
             if (!messages.length) {
-                updateProgress({ 
-                    stage: 'No messages found', 
+                updateProgress({
+                    stage: 'No messages found',
                     percent: 100,
-                    messageCount: 0 
+                    messageCount: 0
                 });
                 return;
             }
 
             // Summary generation phase (45-85%)
-            updateProgress({ 
+            updateProgress({
                 stage: 'Analyzing messages',
                 percent: 45,
-                messageCount: messages.length 
+                messageCount: messages.length
             });
-            
+
             // Only use previous summary if it's from the same channel
             const previousSummary = currentReport?.channelId === selectedChannelId ? currentReport.summary : undefined;
 
             const summary = await generateSummaryAction(
-                selectedChannelId, 
-                channel.name, 
+                selectedChannelId,
+                channel.name,
                 messages,
                 previousSummary
             );
 
-            updateProgress({ 
+            updateProgress({
                 stage: 'Generating summary',
                 percent: 70,
-                messageCount: messages.length 
+                messageCount: messages.length
             });
 
             // Save report phase (85-100%)
-            updateProgress({ 
+            updateProgress({
                 stage: 'Saving report',
                 percent: 85,
-                messageCount: messages.length 
+                messageCount: messages.length
             });
 
             const report = {
@@ -302,18 +302,18 @@ function SummarizerContent() {
 
             setCurrentReport(report);
             await fetchReports();
-            
-            updateProgress({ 
+
+            updateProgress({
                 stage: 'Complete',
                 percent: 100,
-                messageCount: messages.length 
+                messageCount: messages.length
             });
         } catch (error) {
             console.error('Error generating report:', error);
-            updateProgress({ 
+            updateProgress({
                 stage: 'Error generating report',
                 percent: 100,
-                messageCount: 0 
+                messageCount: 0
             });
         } finally {
             setIsGenerating(false);
@@ -349,7 +349,7 @@ function SummarizerContent() {
                     onSelect={handleChannelSelect}
                     disabled={isGenerating}
                 />
-                
+
                 <MemoizedTimeSelect
                     value={selectedTimeframe}
                     onChange={handleTimeframeChange}
@@ -370,7 +370,6 @@ function SummarizerContent() {
                         <MemoizedProgress
                             stage={progress.stage}
                             value={progress.percent}
-                            messageCount={progress.messageCount}
                         />
                     )}
                 </div>

@@ -15,7 +15,8 @@ export interface TimeSelectProps {
   /** Available timeframe options */
   options: TimeframeOption[];
   /** Disabled state */
-  disabled: boolean;
+  disabled?: boolean;
+  className?: string;
 }
 
 /**
@@ -35,9 +36,15 @@ export interface TimeSelectProps {
  * />
  * ```
  */
-export function TimeSelect({ value, onChange, options, disabled }: TimeSelectProps) {
+export function TimeSelect({
+  options,
+  value,
+  onChange,
+  disabled,
+  className = ''
+}: TimeSelectProps) {
   return (
-    <div role="group" className="w-full">
+    <div className={`w-full ${className}`}>
       <div className="grid grid-cols-3 gap-2">
         {options.map((option) => (
           <Button

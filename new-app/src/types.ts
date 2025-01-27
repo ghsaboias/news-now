@@ -34,7 +34,7 @@ export interface DiscordChannel {
 // Report Types
 export interface AISummary {
     headline: string;
-    location_and_period: string;
+    location: string;
     body: string;
     sources: string[];
     raw_response: string;
@@ -137,8 +137,9 @@ export interface ActivityThreshold {
 export interface ChannelActivity {
     channelId: string;
     channelName: string;
-    messageCount?: number;
     status: 'pending' | 'processing' | 'success' | 'skipped' | 'error';
+    messageCount?: number;
+    error?: string;
 }
 
 export interface BulkGenerationProgress {

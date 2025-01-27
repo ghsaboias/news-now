@@ -56,7 +56,7 @@ export function SplitView({ sidebarContent, mainContent }: SplitViewProps) {
           {/* Mobile Slide Panel */}
           <div className={`
             lg:hidden fixed inset-y-0 right-0
-            w-[85vw] max-w-[400px]
+            w-[90vw] max-w-[400px]
             bg-gray-900/95 backdrop-blur-md
             transform transition-transform duration-300 ease-in-out
             ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}

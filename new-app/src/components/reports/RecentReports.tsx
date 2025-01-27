@@ -4,7 +4,7 @@ import { ErrorMessage } from '@/components/common/messages/ErrorMessage';
 import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 import { useReports } from '@/context/ReportsContext';
 import { useToast } from '@/context/ToastContext';
-import { formatTimestamp } from '@/utils/date';
+import { formatReportDate } from '@/utils/date';
 import { useEffect } from 'react';
 import { Copy, Trash2, X } from 'react-feather';
 import { ReportSkeleton } from './ReportSkeleton';
@@ -79,6 +79,8 @@ function RecentReportsContent() {
     );
   }
 
+  console.log(reports);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
@@ -126,7 +128,7 @@ function RecentReportsContent() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          const text = `${report.summary.headline}\n\n${report.summary.location_and_period}\n\n${report.summary.body}\n\n${report.summary.sources ? 'Sources:\n' + report.summary.sources.join('\n') : ''}`;
+                          const text = `${report.summary.headline}\n\n${report.summary.location}\n\n${report.summary.body}\n\n${report.summary.sources ? 'Sources:\n' + report.summary.sources.join('\n') : ''}`;
                           navigator.clipboard.writeText(text);
                           showToast('Report copied to clipboard');
                         }}
@@ -144,13 +146,13 @@ function RecentReportsContent() {
                         onClick={async (e) => {
                           e.stopPropagation();
                           if (!confirm('Are you sure you want to delete this report?')) return;
-                          
+
                           try {
                             const response = await fetch(`/api/reports/${report.id}`, {
                               method: 'DELETE',
                             });
                             if (!response.ok) throw new Error('Failed to delete report');
-                            
+
                             deleteReport(report.id);
                             setCurrentReport(null);
                           } catch (err) {
@@ -173,9 +175,11 @@ function RecentReportsContent() {
 
                   {/* Metadata */}
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-400">
-                    <span>{report.summary.location_and_period}</span>
+                    <span>{report.summary.location}</span>
                     <span>•</span>
-                    <span>{formatTimestamp(report.timestamp)}</span>
+                    <span>{formatReportDate(report.timeframe.start).full}</span>
+                    <span>•</span>
+                    <span>{formatReportDate(report.timeframe.start).time}</span>
                   </div>
 
                   {/* Preview */}

@@ -22,31 +22,68 @@ export class ReportGenerator {
     private formatMessagesForClaude(messages: DiscordMessage[]): string {
         return PerformanceTracker.track('report.formatMessages', () => {
             return messages
+                .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
                 .map((msg) => {
                     const timestamp = new Date(msg.timestamp)
-                        .toISOString()
-                        .replace('T', ' ')
-                        .replace(/\.\d+Z$/, ' UTC');
+                        .toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: false
+                        });
 
                     const parts = [`[${timestamp}]`];
 
+                    // Extract platform and handle from content
+                    let platform = '';
+                    let handle = '';
+
+                    if (msg.content.includes('twitter.com/')) {
+                        platform = 'X';
+                        const match = msg.content.match(/twitter\.com\/([^\/]+)/);
+                        if (match) handle = match[1];
+                    } else if (msg.content.includes('t.me/')) {
+                        platform = 'Telegram';
+                        const match = msg.content.match(/t\.me\/([^\/]+)/);
+                        if (match) handle = match[1];
+                    }
+
+                    // If not found in content, try embed title
+                    if (!platform && msg.embeds?.[0]?.title) {
+                        const title = msg.embeds[0].title.toLowerCase();
+                        if (title.includes('telegram:')) {
+                            platform = 'Telegram';
+                            const match = title.replace(/telegram:\s*/i, '').match(/@?([a-zA-Z0-9_]+)/);
+                            if (match) handle = match[1];
+                        } else if (title.includes('x:') || title.includes('twitter:')) {
+                            platform = 'X';
+                            const match = title.replace(/(?:x|twitter):\s*/i, '').match(/@?([a-zA-Z0-9_]+)/);
+                            if (match) handle = match[1];
+                        }
+                    }
+
+                    // Add platform and handle if found
+                    if (platform && handle) {
+                        parts.push(`[${platform}] @${handle.replace(/^@/, '')}`);
+                    }
+
                     // Add URL (from content)
                     if (msg.content) {
-                        parts.push(msg.content);
+                        parts.push(`Original: ${msg.content}`);
                     }
 
                     // Add embed information
-                    const embeds = (msg as DiscordMessage & { embeds?: MessageEmbed[] }).embeds || [];
-                    embeds.forEach((embed: MessageEmbed) => {
+                    const embeds = msg.embeds || [];
+                    embeds.forEach((embed) => {
                         if (embed.title) parts.push(`Channel: ${embed.title}`);
                         if (embed.description) parts.push(`Content: ${embed.description}`);
                     });
 
                     // Add fields (quotes, translations, etc.)
-                    const fields = (msg as DiscordMessage & { fields?: MessageField[] }).fields || [];
-                    fields.forEach((field: MessageField) => {
-                        if (field.name.toLowerCase() === 'quote from') {
-                            parts.push(`Quote from ${field.value}`);
+                    const fields = msg.embeds?.[0]?.fields || [];
+                    fields.forEach((field) => {
+                        if (field.name.toLowerCase().includes('quote from')) {
+                            const attribution = field.name.replace(/quote from:?\s*/i, '').trim();
+                            parts.push(`Quote from ${attribution}: ${field.value}`);
                         } else if (field.name.toLowerCase() === 'translated from') {
                             parts.push(`[Translated from ${field.value}]`);
                         } else if (field.name.toLowerCase() !== 'source') { // Skip source as we have the URL
@@ -54,10 +91,19 @@ export class ReportGenerator {
                         }
                     });
 
+                    // Add link if available
+                    if (msg.content) {
+                        if (platform === 'Telegram' && handle) {
+                            parts.push(`Link: t.me/${handle}`);
+                        } else if (platform === 'X' && handle) {
+                            parts.push(`Link: twitter.com/${handle}`);
+                        }
+                    }
+
                     return parts.join('\n');
                 })
-                .join('\n---\n');
-        }, { messageCount: messages.length });
+                .join('\n\n');
+        });
     }
 
     private validateSource(source: string): boolean {
@@ -83,20 +129,13 @@ export class ReportGenerator {
                 throw new Error('Invalid summary format: no headline found');
             }
 
-            // Find the location line (contains "•" and a date)
-            const locationIndex = lines.findIndex((line, index) =>
-                index > headlineIndex &&
-                line.includes('•') &&
-                /\d{1,2},?\s+\d{4}/.test(line)
-            );
-
-            if (locationIndex === -1) {
-                throw new Error('Invalid summary format: no location/date line found');
-            }
+            // Location should be the line immediately after headline
+            const locationIndex = headlineIndex + 1;
+            const location = lines[locationIndex].trim();
 
             // Find the sources section
             const sourcesIndex = lines.findIndex((line, index) =>
-                index > locationIndex && line.toLowerCase().startsWith('sources:')
+                index > locationIndex && line.toLowerCase().startsWith('sources')
             );
 
             if (sourcesIndex === -1) {
@@ -104,32 +143,73 @@ export class ReportGenerator {
             }
 
             const headline = lines[headlineIndex];
-            const location = lines[locationIndex];
             const body = lines.slice(locationIndex + 1, sourcesIndex).join('\n');
-            let sources = lines.slice(sourcesIndex + 1);
 
-            // Validate and clean sources
-            sources = sources.filter(source => {
-                const isValid = this.validateSource(source);
-                if (!isValid) {
-                    this.logger.warn('Invalid or truncated source found:', source);
+            // Parse sources section
+            const sources: string[] = [];
+            let currentSource = '';
+            let isInSourceBlock = false;
+
+            for (let i = sourcesIndex + 1; i < lines.length; i++) {
+                const line = lines[i];
+
+                // Skip empty lines between source blocks
+                if (!line && !isInSourceBlock) continue;
+
+                // Start of a new source block
+                if (line.match(/^\[\w+\] @\w+/)) {
+                    if (currentSource) {
+                        sources.push(currentSource.trim());
+                    }
+                    currentSource = line;
+                    isInSourceBlock = true;
                 }
-                return isValid;
-            });
+                // Source reference line (starts with superscript)
+                else if (line.match(/^[¹²³⁴⁵⁶⁷⁸⁹]\[/)) {
+                    if (currentSource) {
+                        currentSource += '\n' + line;
+                    } else {
+                        currentSource = line;
+                    }
+                    isInSourceBlock = true;
+                }
+                // Additional source information (indented)
+                else if (line.startsWith('  ') && isInSourceBlock) {
+                    currentSource += '\n' + line;
+                }
+                // End of a source block
+                else if (!line && isInSourceBlock) {
+                    if (currentSource) {
+                        sources.push(currentSource.trim());
+                        currentSource = '';
+                    }
+                    isInSourceBlock = false;
+                }
+            }
 
-            if (!headline || !location || !body || !sources.length) {
+            // Add the last source if any
+            if (currentSource) {
+                sources.push(currentSource.trim());
+            }
+
+            // Validate sources
+            if (!sources.length) {
+                throw new Error('Invalid summary format: no valid sources found');
+            }
+
+            if (!headline || !location || !body) {
                 throw new Error('Invalid summary format: missing required components');
             }
 
             return {
                 headline,
-                location_and_period: location,
+                location,
                 body,
                 sources,
                 raw_response: text,
                 timestamp: new Date().toISOString()
             };
-        }, { textLength: text.length });
+        });
     }
 
     async createAISummary(
@@ -176,7 +256,6 @@ export class ReportGenerator {
                     this.logger.error('Claude returned empty response');
                     return null;
                 }
-
                 return this.parseAISummary(response.content[0].text);
             } catch (error) {
                 this.logger.error('Error generating summary:', error);
@@ -212,7 +291,7 @@ export class ReportGenerator {
 
             Requirements:
             - Start with ONE headline in ALL CAPS that captures the most significant development
-            - Second line must be in format: City • Month Day, Year (use location of main development)
+            - Second line must be in format: "City" (just the location name, no date)
             - First paragraph must summarize the most important verified development, including key names, numbers, locations, dates, etc.
             - Subsequent paragraphs should cover other significant developments
             - Do NOT include additional headlines - weave all events into a cohesive narrative
@@ -223,10 +302,28 @@ export class ReportGenerator {
             - NO use of terms like "likely", "appears to", or "is seen as"
             - Remove any # that might be in the developments
             - For each factual claim, add a superscript number (e.g. "text¹") that references the source
-            - At the end of the report, add a "Sources:" section listing all referenced sources with their corresponding numbers
-            - Format sources as: "¹[Timestamp] Message content"
-            - Ensure each source entry is complete with timestamp and content
-            - Each source MUST follow the exact format: superscript number + [YYYY-MM-DD HH:mm:ss UTC] + content
+            - At the end of the report, add a "Sources:" section listing all referenced sources
+            - Group sources by platform (Telegram/X) and handle
+            - Format sources as follows:
+              Sources (N messages):
+
+              [Platform] @handle
+              ¹[HH:mm] Quote used in summary
+                Original: Full message content
+                Link: t.me/handle or twitter.com/handle
+
+              [Platform] @handle
+              ²[HH:mm] Quote used in summary
+                Original: Full message content
+                Link: t.me/handle or twitter.com/handle
+            - For each source, include:
+              1. The superscript number used in the report
+              2. The time in 24-hour format [HH:mm]
+              3. The quote or content used in the summary
+              4. The original full message content
+              5. A link to the original post when available
+            - Group all sources from the same platform and handle together
+            - Show the total number of messages processed in the Sources header
         `;
     }
 } 

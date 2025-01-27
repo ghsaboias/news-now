@@ -4,12 +4,28 @@
  */
 export function formatTimestamp(timestamp: string): string {
     const date = new Date(timestamp);
-    return new Intl.DateTimeFormat('en-US', {
-        month: 'short',
-        day: '2-digit',
+    return date.toLocaleTimeString(undefined, {
         hour: '2-digit',
         minute: '2-digit',
         hour12: false,
-        timeZone: 'UTC'  // Force UTC timezone
-    }).format(date);
-} 
+        timeZoneName: undefined
+    });
+}
+
+export function formatReportDate(date: string) {
+    const d = new Date(date);
+    return {
+        full: d.toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+            timeZone: 'UTC'  // Keep date in UTC to avoid day changes
+        }),
+        time: d.toLocaleTimeString(undefined, {  // Use system locale
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZoneName: undefined  // Don't show timezone
+        })
+    };
+}
