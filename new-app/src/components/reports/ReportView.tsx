@@ -132,7 +132,7 @@ function ReportViewContent({ report }: ReportViewProps) {
     <div className="relative min-h-full bg-gray-900">
       {/* Sticky Header */}
       <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-md supports-[backdrop-filter]:bg-gray-900/75">
-        <div className="border-b border-gray-800 px-4 lg:px-8 py-4">
+        <div className="border-b border-gray-800 p-4">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div className="min-w-0 flex-1">
               <h1 className="text-xl sm:text-2xl md:text-3xl font-medium text-gray-50 break-words leading-tight">
