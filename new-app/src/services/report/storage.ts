@@ -102,4 +102,29 @@ export class ReportStorage {
         // Then save the updated report
         await this.saveReport(report);
     }
+
+    static async getReport(id: string): Promise<Report | null> {
+        const files = await fs.promises.readdir(DATA_DIR);
+        const reportFile = files.find(file => file.includes(id));
+
+        if (!reportFile) {
+            return null;
+        }
+
+        try {
+            const content = await fs.promises.readFile(path.join(DATA_DIR, reportFile), 'utf-8');
+            const report = JSON.parse(content);
+
+            // Validate report has required fields
+            if (!report || !report.id || !report.timestamp) {
+                console.error(`Invalid report in file ${reportFile}`);
+                return null;
+            }
+
+            return report;
+        } catch (error) {
+            console.error(`Error reading report file ${reportFile}:`, error);
+            return null;
+        }
+    }
 } 

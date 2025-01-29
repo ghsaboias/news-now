@@ -31,6 +31,15 @@ export interface DiscordChannel {
     parent_id?: string;
 }
 
+// Translation Types
+export interface Translation {
+    language: string;
+    headline: string;
+    location: string;
+    body: string;
+    timestamp: string;
+}
+
 // Report Types
 export interface AISummary {
     headline: string;
@@ -41,6 +50,7 @@ export interface AISummary {
     timestamp: string;
     period_start?: string;
     period_end?: string;
+    translations?: Translation[];
 }
 
 export interface Timeframe {

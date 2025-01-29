@@ -18,7 +18,7 @@ const mockReport: Report = {
   messageCount: 10,
   summary: {
     headline: 'Test Report',
-    location_and_period: 'General Channel • Last Hour',
+    location: 'General Channel',
     body: 'First paragraph\n\nSecond paragraph',
     timestamp: '2024-01-20T10:00:00Z',
     sources: [],

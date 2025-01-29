@@ -280,7 +280,7 @@ export class ReportGenerator {
             ${formattedText}
 
             Requirements:
-            - Start with ONE headline in ALL CAPS that captures the most significant development
+            - Start with ONE clear and specific headline in ALL CAPS
             - Second line must be in format: "City" (just the location name, no date)
             - First paragraph must summarize the most important verified development, including key names, numbers, locations, dates, etc.
             - Subsequent paragraphs should cover other significant developments

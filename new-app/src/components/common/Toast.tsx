@@ -24,7 +24,7 @@ export function Toast({ message, onClose, duration = 3000 }: ToastProps) {
       shadow-lg
       backdrop-blur-md
       transition-all duration-DEFAULT
-      animate-[slide-up_0.2s_ease-out,fade-out_0.15s_ease-in_forwards]
+      animate-[fade-in_5s_ease-out,fade-out_5s_ease-in_forwards]
       motion-reduce:animate-none
     ">
       <Check className="w-4 h-4 text-emerald-400" />

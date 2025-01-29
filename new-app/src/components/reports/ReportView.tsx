@@ -6,7 +6,18 @@ import { useReports } from '@/context/ReportsContext';
 import { useToast } from '@/context/ToastContext';
 import { Report } from '@/types';
 import { formatReportDate } from '@/utils/date';
-import { Copy, Trash2 } from 'react-feather';
+import { useEffect, useState } from 'react';
+import { Book, Copy, Globe, Trash2 } from 'react-feather';
+
+const SUPPORTED_LANGUAGES = [
+  { code: 'es', name: 'Spanish' },
+  { code: 'fr', name: 'French' },
+  { code: 'ar', name: 'Arabic' },
+  { code: 'pt', name: 'Portuguese' },
+  { code: 'ru', name: 'Russian' },
+  { code: 'zh', name: 'Chinese' },
+  { code: 'hi', name: 'Hindi' }
+] as const;
 
 interface ReportViewProps {
   report?: Report | null;
@@ -23,6 +34,17 @@ interface SourceBlock {
     link?: string;
   }[];
 }
+
+// Add language name lookup
+const LANGUAGE_NAMES: Record<string, string> = {
+  'es': 'Spanish',
+  'fr': 'French',
+  'ar': 'Arabic',
+  'pt': 'Portuguese',
+  'ru': 'Russian',
+  'zh': 'Chinese',
+  'hi': 'Hindi'
+};
 
 function parseSourceBlocks(sources: string[]): SourceBlock[] {
   const blocks: SourceBlock[] = [];
@@ -87,8 +109,18 @@ function parseSourceBlocks(sources: string[]): SourceBlock[] {
 }
 
 function ReportViewContent({ report }: ReportViewProps) {
-  const { deleteReport, setCurrentReport } = useReports();
+  const { deleteReport, setCurrentReport, updateReport } = useReports();
   const { showToast } = useToast();
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('');
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [forceUpdate, setForceUpdate] = useState(0);
+
+  // Force content update when translations change
+  useEffect(() => {
+    if (report?.summary?.translations) {
+      setForceUpdate(prev => prev + 1);
+    }
+  }, [report?.summary?.translations]);
 
   if (!report) {
     return (
@@ -100,6 +132,13 @@ function ReportViewContent({ report }: ReportViewProps) {
       </div>
     );
   }
+
+  // Get current content based on selected language and force update
+  const currentTranslation = selectedLanguage && report.summary.translations
+    ? report.summary.translations.find(t => t.language === selectedLanguage)
+    : null;
+
+  const content = currentTranslation || report.summary;
 
   const handleCopy = () => {
     const { full: date, time } = formatReportDate(report.timeframe.start);
@@ -125,30 +164,133 @@ function ReportViewContent({ report }: ReportViewProps) {
     }
   };
 
+  const handleTranslate = async () => {
+    if (!selectedLanguage || isTranslating) return;
+
+    setIsTranslating(true);
+    try {
+      const response = await fetch(`/api/reports/${report.id}/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: selectedLanguage }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to translate report');
+      }
+
+      const { data: translation } = await response.json();
+      console.log('Translation received:', translation);
+
+      // Update report with new translation
+      const updatedReport = {
+        ...report,
+        summary: {
+          ...report.summary,
+          translations: [...(report.summary.translations || []), translation],
+        },
+      };
+
+      // Update the report in context
+      updateReport(updatedReport);
+
+      // Force a re-render
+      setForceUpdate(prev => prev + 1);
+
+      showToast('Translation completed - Now showing translated version');
+    } catch (err) {
+      console.error('Error translating report:', err);
+      showToast(err instanceof Error ? err.message : 'Failed to translate report');
+      setSelectedLanguage('');
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
   const { full: date, time } = formatReportDate(report.timeframe.start);
-  const sourceBlocks = report.summary.sources ? parseSourceBlocks(report.summary.sources) : [];
+  const sourceBlocks = report.summary.translations?.find(t => t.language === selectedLanguage)
+    ? []  // Don't show source blocks for translations
+    : (report.summary.sources ? parseSourceBlocks(report.summary.sources) : []);
 
   return (
     <div className="relative min-h-full bg-gray-900">
+      {/* Translation Banner */}
+      {currentTranslation && (
+        <div className="bg-blue-900/30 border-b border-blue-800 px-4 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Book size={16} className="text-blue-400" />
+            <span className="text-sm text-blue-200">
+              Viewing translation in {LANGUAGE_NAMES[currentTranslation.language]}
+            </span>
+          </div>
+          <button
+            onClick={() => setSelectedLanguage('')}
+            className="text-sm text-blue-400 hover:text-blue-300"
+          >
+            View Original
+          </button>
+        </div>
+      )}
+
       {/* Sticky Header */}
       <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-md supports-[backdrop-filter]:bg-gray-900/75">
         <div className="border-b border-gray-800 p-4">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div className="min-w-0 flex-1">
               <h1 className="text-3xl sm:text-3xl md:text-3xl font-medium text-gray-50 leading-tight text-justify">
-                {report.summary.headline}
+                {content.headline}
+                {currentTranslation && (
+                  <span className="ml-2 inline-flex items-center px-2 py-1 text-xs font-medium rounded-md bg-blue-900/50 text-blue-200 border border-blue-800/50">
+                    <Globe size={12} className="mr-1" />
+                    {LANGUAGE_NAMES[currentTranslation.language]}
+                  </span>
+                )}
               </h1>
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-gray-400 leading-normal">
                 <span className="truncate max-w-[200px]">{report.channelName}</span>
                 <TimeframeBadge timeframe={report.timeframe.type} className="ml-1" />
                 <MessageCountBadge count={report.messageCount} />
                 <span className="hidden sm:inline">•</span>
-                <span className="truncate max-w-[300px]">{report.summary.location}</span>
+                <span className="truncate max-w-[300px]">{content.location}</span>
                 <span className="hidden sm:inline">•</span>
                 <span>{date}</span>
                 <span className="hidden sm:inline">•</span>
                 <span>{time}</span>
                 <div className="flex items-center gap-2 shrink-0 ml-auto">
+                  {/* Language Controls */}
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={selectedLanguage}
+                      onChange={(e) => setSelectedLanguage(e.target.value)}
+                      className="bg-gray-800 text-gray-100 rounded-md text-sm py-1 pl-2 pr-8 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Original</option>
+                      {SUPPORTED_LANGUAGES.map(lang => {
+                        const hasTranslation = report.summary.translations?.some(t => t.language === lang.code);
+                        return (
+                          <option
+                            key={lang.code}
+                            value={lang.code}
+                          >
+                            {lang.name} {hasTranslation ? '(✓)' : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {selectedLanguage && !report.summary.translations?.some(t => t.language === selectedLanguage) && (
+                      <Button
+                        onClick={handleTranslate}
+                        disabled={isTranslating}
+                        loading={isTranslating}
+                        icon={<Globe size={16} />}
+                        variant="secondary"
+                        className="!py-1"
+                      >
+                        Translate
+                      </Button>
+                    )}
+                  </div>
                   <Button
                     onClick={handleCopy}
                     variant="secondary"
@@ -177,14 +319,23 @@ function ReportViewContent({ report }: ReportViewProps) {
       {/* Content */}
       <div className="p-4">
         <div className="max-w-none text-gray-100 prose-headings:text-gray-100 space-y-6 text-lg">
-          {report.summary.body.split('\n').map((line, index) => (
+          {content.body.split('\n').map((line, index) => (
             <p key={`line-${index}`} className="whitespace-pre-line text-justify">
               {line}
             </p>
           ))}
 
-          {/* Sources Section */}
-          {sourceBlocks.length > 0 && (
+          {/* Translation Info */}
+          {currentTranslation && (
+            <div className="mt-4 pt-4 border-t border-gray-800">
+              <p className="text-sm text-gray-400">
+                Translated on {new Date(currentTranslation.timestamp).toLocaleString()}
+              </p>
+            </div>
+          )}
+
+          {/* Sources Section - Only show for original content */}
+          {sourceBlocks.length > 0 && !selectedLanguage && (
             <div className="mt-8 pt-8 border-t border-gray-700">
               <h3 className="text-lg font-semibold mb-4">
                 Sources ({report.messageCount} messages)

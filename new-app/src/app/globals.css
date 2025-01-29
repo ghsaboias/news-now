@@ -10,7 +10,7 @@ body {
 
 /* Animation Keyframes */
 @layer utilities {
-  @keyframes slideUp {
+  @keyframes fade-out {
     from {
       opacity: 0;
       transform: translateY(10px);
@@ -21,16 +21,16 @@ body {
     }
   }
 
-  @keyframes fadeIn {
+  @keyframes fade-in {
     from { opacity: 0; }
     to { opacity: 1; }
   }
 
-  .animate-slide-up {
-    animation: slideUp 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  .animate-fade-out {
+    animation: fade-out 200ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .animate-fade-in {
-    animation: fadeIn 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    animation: fade-in 200ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 }

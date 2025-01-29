@@ -7,7 +7,7 @@ describe('Toast', () => {
   it('renders message and close button', () => {
     const onClose = jest.fn();
     render(<Toast message="Test message" onClose={onClose} />);
-    
+
     expect(screen.getByText('Test message')).toBeInTheDocument();
     expect(screen.getByRole('button')).toBeInTheDocument();
   });
@@ -15,7 +15,7 @@ describe('Toast', () => {
   it('uses theme spacing and colors', () => {
     const onClose = jest.fn();
     render(<Toast message="Test message" onClose={onClose} />);
-    
+
     const toast = screen.getByText('Test message').closest('div');
     expect(toast).toHaveClass(
       'gap-3',
@@ -29,19 +29,19 @@ describe('Toast', () => {
   it('uses theme transitions and animations', () => {
     const onClose = jest.fn();
     render(<Toast message="Test message" onClose={onClose} />);
-    
+
     const toast = screen.getByText('Test message').closest('div');
     expect(toast).toHaveClass(
       'transition-all',
       'duration-DEFAULT',
-      'animate-[slide-up_0.2s_ease-out,fade-out_0.15s_ease-in_forwards]'
+      'animate-[fade-in_5s_ease-out,fade-out_5s_ease-in_forwards]'
     );
   });
 
   it('calls onClose when close button is clicked', () => {
     const onClose = jest.fn();
     render(<Toast message="Test message" onClose={onClose} />);
-    
+
     fireEvent.click(screen.getByRole('button'));
     expect(onClose).toHaveBeenCalled();
   });
@@ -49,11 +49,11 @@ describe('Toast', () => {
   it('auto-closes after duration', () => {
     const onClose = jest.fn();
     render(<Toast message="Test message" onClose={onClose} duration={1000} />);
-    
+
     act(() => {
       jest.advanceTimersByTime(1000);
     });
-    
+
     expect(onClose).toHaveBeenCalled();
   });
 }); 
