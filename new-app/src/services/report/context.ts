@@ -108,6 +108,8 @@ export class ReportContextManager {
 
         const now = new Date();
         const candidates: Report[] = [];
+        const MAX_CHAIN_LENGTH = 2; // Prevent deep chains
+        let chainLength = 0;
 
         // Helper to check if a report is within maxAge hours
         const isWithinAge = (report: Report, maxAge: number): boolean => {
@@ -130,53 +132,63 @@ export class ReportContextManager {
         // Find primary report
         const primaryReports = channelReports[rules.primary.type];
         console.log(`[ReportContextManager] Searching for primary ${rules.primary.type} report within ${rules.primary.maxAge}h`, {
-            availableReports: primaryReports.length
+            availableReports: primaryReports.length,
+            chainLength
         });
 
-        const primary = primaryReports.find(report => isWithinAge(report, rules.primary.maxAge));
+        const primary = primaryReports.find(report => {
+            if (chainLength >= MAX_CHAIN_LENGTH) return false;
+            const isValid = isWithinAge(report, rules.primary.maxAge);
+            if (isValid) chainLength++;
+            return isValid;
+        });
+
         if (primary) {
             console.log(`[ReportContextManager] Found primary report:`, {
                 id: primary.id,
                 timeframe: primary.timeframe,
-                timestamp: primary.timestamp
+                timestamp: primary.timestamp,
+                chainLength
             });
             candidates.push(primary);
         }
 
-        // Find supporting reports
-        for (const rule of rules.supporting) {
-            const supportingReports = channelReports[rule.type];
-            console.log(`[ReportContextManager] Searching for supporting ${rule.type} reports within ${rule.maxAge}h`, {
-                availableReports: supportingReports.length,
-                requireOutsideWindow: rule.outsideCurrentWindow
-            });
-
-            const validSupporting = supportingReports
-                .filter(report => {
-                    const withinAge = isWithinAge(report, rule.maxAge);
-                    const outsideWindow = !rule.outsideCurrentWindow ||
-                        (primary && isOutsideWindow(report, primary));
-
-                    if (withinAge && !outsideWindow) {
-                        console.log(`[ReportContextManager] Skipping overlapping report:`, {
-                            id: report.id,
-                            timeframe: report.timeframe
-                        });
-                    }
-
-                    return withinAge && outsideWindow;
-                })
-                .slice(0, 1); // Take only the most recent matching report
-
-            if (validSupporting.length) {
-                console.log(`[ReportContextManager] Found supporting report:`, {
-                    id: validSupporting[0].id,
-                    timeframe: validSupporting[0].timeframe,
-                    timestamp: validSupporting[0].timestamp
+        // Find supporting reports (only if we haven't hit chain limit)
+        if (chainLength < MAX_CHAIN_LENGTH) {
+            for (const rule of rules.supporting) {
+                const supportingReports = channelReports[rule.type];
+                console.log(`[ReportContextManager] Searching for supporting ${rule.type} reports within ${rule.maxAge}h`, {
+                    availableReports: supportingReports.length,
+                    requireOutsideWindow: rule.outsideCurrentWindow
                 });
-            }
 
-            candidates.push(...validSupporting);
+                const validSupporting = supportingReports
+                    .filter(report => {
+                        const withinAge = isWithinAge(report, rule.maxAge);
+                        const outsideWindow = !rule.outsideCurrentWindow ||
+                            (primary && isOutsideWindow(report, primary));
+
+                        if (withinAge && !outsideWindow) {
+                            console.log(`[ReportContextManager] Skipping overlapping report:`, {
+                                id: report.id,
+                                timeframe: report.timeframe
+                            });
+                        }
+
+                        return withinAge && outsideWindow;
+                    })
+                    .slice(0, 1); // Take only the most recent matching report
+
+                if (validSupporting.length) {
+                    console.log(`[ReportContextManager] Found supporting report:`, {
+                        id: validSupporting[0].id,
+                        timeframe: validSupporting[0].timeframe,
+                        timestamp: validSupporting[0].timestamp
+                    });
+                }
+
+                candidates.push(...validSupporting);
+            }
         }
 
         return candidates;

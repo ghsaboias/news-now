@@ -179,7 +179,7 @@ export class DiscordClient {
             );
 
             // Optimized filtering with Set
-            const allowedEmojis = new Set(['🟡', '🔴', '🟠', '⚫']);
+            const allowedEmojis = new Set(['🔵', '🟡', '🔴', '🟠', '⚫']);
             const filteredChannels = response.data.filter((channel: DiscordChannel) => {
                 if (channel.type !== 0) return false;
                 if (channel.parent_id === '1112044935982633060') return true;

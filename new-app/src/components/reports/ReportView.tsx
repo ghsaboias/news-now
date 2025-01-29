@@ -135,7 +135,7 @@ function ReportViewContent({ report }: ReportViewProps) {
         <div className="border-b border-gray-800 p-4">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-medium text-gray-50 break-words leading-tight">
+              <h1 className="text-3xl sm:text-3xl md:text-3xl font-medium text-gray-50 leading-tight text-justify">
                 {report.summary.headline}
               </h1>
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-gray-400 leading-normal">
@@ -176,7 +176,7 @@ function ReportViewContent({ report }: ReportViewProps) {
 
       {/* Content */}
       <div className="p-4">
-        <div className="max-w-none text-gray-100 prose-headings:text-gray-100 space-y-6">
+        <div className="max-w-none text-gray-100 prose-headings:text-gray-100 space-y-6 text-lg">
           {report.summary.body.split('\n').map((line, index) => (
             <p key={`line-${index}`} className="whitespace-pre-line text-justify">
               {line}

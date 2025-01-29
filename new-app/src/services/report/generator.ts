@@ -2,7 +2,7 @@ import { AISummary, ClaudeClient, DiscordMessage } from '@/types';
 import { PerformanceTracker } from '@/utils/performance';
 
 export class ReportGenerator {
-    private readonly MAX_TOKENS = 2500;
+    private readonly MAX_TOKENS = 4000;
 
     constructor(
         private readonly claudeClient: ClaudeClient,

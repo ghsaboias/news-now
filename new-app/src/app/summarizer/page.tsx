@@ -202,7 +202,7 @@ function SummarizerContent() {
     const [selectedTimeframe, setSelectedTimeframe] = useState<'1h' | '4h' | '24h'>('1h');
     const [isGenerating, setIsGenerating] = useState(false);
 
-    const { setCurrentReport, fetchReports, currentReport } = useReports();
+    const { setCurrentReport, fetchReports, currentReport, findReportContext } = useReports();
 
     // Memoize callback functions
     const handleChannelSelect = useCallback((id: string) => {
@@ -257,8 +257,20 @@ function SummarizerContent() {
                 messageCount: messages.length
             });
 
-            // Only use previous summary if it's from the same channel
-            const previousSummary = currentReport?.channelId === selectedChannelId ? currentReport.summary : undefined;
+            // Use the report context system to find the most relevant previous summary
+            const reportContext = findReportContext(selectedChannelId, selectedTimeframe);
+
+            // Debug logging for context selection
+            console.log('[Report Generation] Context selection:', {
+                channelId: selectedChannelId,
+                timeframe: selectedTimeframe,
+                foundPrimaryReport: reportContext.primary?.id,
+                primaryReportTimeframe: reportContext.primary?.timeframe,
+                supportingReports: reportContext.supporting.length,
+                coverage: reportContext.coverage
+            });
+
+            const previousSummary = reportContext.primary?.summary;
 
             const summary = await generateSummaryAction(
                 selectedChannelId,
@@ -330,7 +342,8 @@ function SummarizerContent() {
         currentReport,
         updateProgress,
         setCurrentReport,
-        fetchReports
+        fetchReports,
+        findReportContext
     ]);
 
     // Memoize controls
