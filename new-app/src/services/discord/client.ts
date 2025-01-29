@@ -2,8 +2,9 @@ import { DiscordChannel, DiscordMessage } from '@/types';
 import { config } from '@/utils/config';
 import { PerformanceTracker } from '@/utils/performance';
 import axios, { AxiosInstance } from 'axios';
-import { DatabaseService } from '../db';
 import { MessageProcessor } from '../message/processor';
+import { MessageService } from '../redis/messages';
+import { SourceService } from '../redis/sources';
 
 // API Limits
 const MAX_REQUESTS_PER_SECOND = 48;
@@ -77,7 +78,7 @@ export class DiscordClient {
     private lastChannelFetch = 0;
     private messageCache: MessageCache;
 
-    constructor(dbService?: DatabaseService) {
+    constructor(messageService?: MessageService, sourceService?: SourceService) {
         this.api = axios.create({
             baseURL: this.baseUrl,
             headers: {
@@ -87,8 +88,8 @@ export class DiscordClient {
             timeout: config.REQUEST_TIMEOUT,
         });
 
-        if (dbService) {
-            this.messageProcessor = new MessageProcessor(dbService);
+        if (messageService && sourceService) {
+            this.messageProcessor = new MessageProcessor(messageService, sourceService);
         }
 
         this.messageCache = new MessageCache(CACHE_CONFIG.MAX_CACHED_MESSAGES);

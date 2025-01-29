@@ -1,11 +1,15 @@
 import { DiscordMessage, ExtractedSource } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
-import { DatabaseService } from '../db';
+import { SourceService } from '../redis/sources';
 
 export class SourceExtractor {
-    constructor(private db: DatabaseService) { }
+    private sourceService: SourceService;
 
-    extractFromMessage(message: DiscordMessage): ExtractedSource | null {
+    constructor(sourceService: SourceService) {
+        this.sourceService = sourceService;
+    }
+
+    extractFromMessage(message: DiscordMessage): Promise<ExtractedSource | null> {
         console.log('Attempting to extract source from message:', {
             content: message.content,
             hasEmbeds: (message.embeds?.length || 0) > 0
@@ -13,7 +17,7 @@ export class SourceExtractor {
 
         // Only process messages with embeds
         if (!message.embeds?.length) {
-            return null;
+            return Promise.resolve(null);
         }
 
         // Extract from URL in content
@@ -69,20 +73,20 @@ export class SourceExtractor {
         }
 
         console.log('No source URL found in content');
-        return null;
+        return Promise.resolve(null);
     }
 
-    private processSource(platform: 'telegram' | 'x', handle: string, timestamp: string): ExtractedSource {
+    private async processSource(platform: 'telegram' | 'x', handle: string, timestamp: string): Promise<ExtractedSource> {
         // Remove @ prefix if present
         handle = handle.replace(/^@/, '');
 
         // Try to find existing source
-        const existingSource = this.db.getSourceByHandle(platform, handle);
+        const existingSource = await this.sourceService.getByHandle(platform, handle);
 
         if (existingSource) {
             // Update last_seen_at if the message is newer
             if (timestamp > existingSource.last_seen_at) {
-                this.db.insertSource({
+                await this.sourceService.create({
                     ...existingSource,
                     last_seen_at: timestamp
                 });
@@ -104,7 +108,7 @@ export class SourceExtractor {
             last_seen_at: timestamp
         };
 
-        this.db.insertSource(source);
+        await this.sourceService.create(source);
         return {
             id: source.id,
             platform,
@@ -113,7 +117,15 @@ export class SourceExtractor {
         };
     }
 
-    async getSourceById(id: string): Promise<ExtractedSource | undefined> {
-        return this.db.getSourceById(id);
+    async getSourceById(id: string): Promise<ExtractedSource | null> {
+        const source = await this.sourceService.getById(id);
+        if (!source) return null;
+
+        return {
+            id: source.id,
+            platform: source.platform,
+            handle: source.handle,
+            timestamp: source.last_seen_at
+        };
     }
 } 

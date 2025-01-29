@@ -1,23 +1,38 @@
-import { ReportStorage } from '@/services/report/storage';
-import { Report } from '@/types';
+import { ReportService } from '@/services/redis/reports';
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function PUT(
-    request: NextRequest
-) {
+interface RouteParams {
+    params: {
+        id: string;
+    };
+}
+
+export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
-        const id = request.url.split('/').pop();
-        const report: Report = await request.json();
-        if (report.id !== id) {
+        const report = await ReportService.getReport(params.id);
+        if (!report) {
             return NextResponse.json(
-                { error: 'Report ID mismatch' },
-                { status: 400 }
+                { error: 'Report not found' },
+                { status: 404 }
             );
         }
-        await ReportStorage.updateReport(report);
+        return NextResponse.json(report);
+    } catch (error) {
+        console.error('Failed to fetch report:', error);
+        return NextResponse.json(
+            { error: 'Failed to fetch report' },
+            { status: 500 }
+        );
+    }
+}
+
+export async function PUT(request: NextRequest, { params }: RouteParams) {
+    try {
+        const report = await request.json();
+        await ReportService.updateReport(report);
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Error updating report:', error);
+        console.error('Failed to update report:', error);
         return NextResponse.json(
             { error: 'Failed to update report' },
             { status: 500 }
@@ -25,21 +40,12 @@ export async function PUT(
     }
 }
 
-export async function DELETE(
-    request: NextRequest
-) {
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
     try {
-        const id = request.url.split('/').pop();
-        if (!id) {
-            return NextResponse.json(
-                { error: 'Report ID is required' },
-                { status: 400 }
-            );
-        }
-        await ReportStorage.deleteReport(id);
+        await ReportService.deleteReport(params.id);
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Error deleting report:', error);
+        console.error('Failed to delete report:', error);
         return NextResponse.json(
             { error: 'Failed to delete report' },
             { status: 500 }

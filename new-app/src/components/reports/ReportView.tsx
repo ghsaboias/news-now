@@ -6,7 +6,7 @@ import { useReports } from '@/context/ReportsContext';
 import { useToast } from '@/context/ToastContext';
 import { Report } from '@/types';
 import { formatReportDate } from '@/utils/date';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Book, Copy, Globe, Trash2 } from 'react-feather';
 
 const SUPPORTED_LANGUAGES = [
@@ -115,12 +115,33 @@ function ReportViewContent({ report }: ReportViewProps) {
   const [isTranslating, setIsTranslating] = useState(false);
   const [forceUpdate, setForceUpdate] = useState(0);
 
+  // Get current content based on selected language and force update
+  const currentTranslation = useMemo(() => {
+    if (!report?.summary?.translations) return null;
+    if (!selectedLanguage) return null;
+    return report.summary.translations.find(t => t.language === selectedLanguage);
+  }, [selectedLanguage, report?.summary?.translations]);
+
+  const content = currentTranslation || report?.summary || {
+    headline: '',
+    body: '',
+    location: '',
+    sources: []
+  };
+
   // Force content update when translations change
   useEffect(() => {
     if (report?.summary?.translations) {
       setForceUpdate(prev => prev + 1);
     }
   }, [report?.summary?.translations]);
+
+  // Update selected language when translations change
+  useEffect(() => {
+    if (selectedLanguage && currentTranslation) {
+      console.log('Translation available for:', selectedLanguage);
+    }
+  }, [selectedLanguage, currentTranslation]);
 
   if (!report) {
     return (
@@ -133,12 +154,73 @@ function ReportViewContent({ report }: ReportViewProps) {
     );
   }
 
-  // Get current content based on selected language and force update
-  const currentTranslation = selectedLanguage && report.summary.translations
-    ? report.summary.translations.find(t => t.language === selectedLanguage)
-    : null;
+  const handleTranslate = async () => {
+    if (!selectedLanguage || isTranslating || !report) return;
 
-  const content = currentTranslation || report.summary;
+    setIsTranslating(true);
+    try {
+      console.log('Starting translation for:', selectedLanguage);
+
+      const response = await fetch(`/api/reports/${report.id}/translate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ language: selectedLanguage }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to translate report');
+      }
+
+      const { data: translation } = await response.json();
+      console.log('Translation received:', translation);
+
+      // Create new translations array
+      const translations = [...(report.summary.translations || [])];
+      const existingIndex = translations.findIndex(t => t.language === selectedLanguage);
+      if (existingIndex >= 0) {
+        translations[existingIndex] = translation;
+      } else {
+        translations.push(translation);
+      }
+
+      // Update the report with new translation
+      const updatedReport = {
+        ...report,
+        summary: {
+          ...report.summary,
+          translations,
+        },
+      };
+
+      // First update the report in context
+      updateReport(updatedReport);
+
+      // Then update in the database
+      await fetch(`/api/reports/${report.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedReport),
+      });
+
+      // Keep the selected language to show the translation
+      setSelectedLanguage(translation.language);
+
+      showToast({
+        text: 'Translation completed - Now showing translated version',
+        type: 'success'
+      });
+    } catch (err) {
+      console.error('Error translating report:', err);
+      showToast({
+        text: err instanceof Error ? err.message : 'Failed to translate report',
+        type: 'error'
+      });
+      setSelectedLanguage('');
+    } finally {
+      setIsTranslating(false);
+    }
+  };
 
   const handleCopy = () => {
     const { full: date, time } = formatReportDate(report.timeframe.start);
@@ -164,54 +246,46 @@ function ReportViewContent({ report }: ReportViewProps) {
     }
   };
 
-  const handleTranslate = async () => {
-    if (!selectedLanguage || isTranslating) return;
-
-    setIsTranslating(true);
-    try {
-      const response = await fetch(`/api/reports/${report.id}/translate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ language: selectedLanguage }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to translate report');
-      }
-
-      const { data: translation } = await response.json();
-      console.log('Translation received:', translation);
-
-      // Update report with new translation
-      const updatedReport = {
-        ...report,
-        summary: {
-          ...report.summary,
-          translations: [...(report.summary.translations || []), translation],
-        },
-      };
-
-      // Update the report in context
-      updateReport(updatedReport);
-
-      // Force a re-render
-      setForceUpdate(prev => prev + 1);
-
-      showToast('Translation completed - Now showing translated version');
-    } catch (err) {
-      console.error('Error translating report:', err);
-      showToast(err instanceof Error ? err.message : 'Failed to translate report');
-      setSelectedLanguage('');
-    } finally {
-      setIsTranslating(false);
-    }
-  };
-
   const { full: date, time } = formatReportDate(report.timeframe.start);
   const sourceBlocks = report.summary.translations?.find(t => t.language === selectedLanguage)
     ? []  // Don't show source blocks for translations
     : (report.summary.sources ? parseSourceBlocks(report.summary.sources) : []);
+
+  // Language selection UI
+  const renderLanguageControls = () => (
+    <div className="flex items-center gap-2">
+      <select
+        value={selectedLanguage}
+        onChange={(e) => setSelectedLanguage(e.target.value)}
+        className="bg-gray-800 text-gray-100 rounded-md text-sm py-1 pl-2 pr-8 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        <option value="">Original</option>
+        {SUPPORTED_LANGUAGES.map(lang => {
+          const hasTranslation = report.summary.translations?.some(t => t.language === lang.code);
+          return (
+            <option
+              key={lang.code}
+              value={lang.code}
+            >
+              {lang.name} {hasTranslation ? '(✓)' : ''}
+            </option>
+          );
+        })}
+      </select>
+      {selectedLanguage && !report.summary.translations?.some(t => t.language === selectedLanguage) && (
+        <Button
+          onClick={handleTranslate}
+          disabled={isTranslating}
+          loading={isTranslating}
+          icon={<Globe size={16} />}
+          variant="secondary"
+          className="!py-1"
+        >
+          Translate
+        </Button>
+      )}
+    </div>
+  );
 
   return (
     <div className="relative min-h-full bg-gray-900">
@@ -258,39 +332,7 @@ function ReportViewContent({ report }: ReportViewProps) {
                 <span className="hidden sm:inline">•</span>
                 <span>{time}</span>
                 <div className="flex items-center gap-2 shrink-0 ml-auto">
-                  {/* Language Controls */}
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={selectedLanguage}
-                      onChange={(e) => setSelectedLanguage(e.target.value)}
-                      className="bg-gray-800 text-gray-100 rounded-md text-sm py-1 pl-2 pr-8 border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Original</option>
-                      {SUPPORTED_LANGUAGES.map(lang => {
-                        const hasTranslation = report.summary.translations?.some(t => t.language === lang.code);
-                        return (
-                          <option
-                            key={lang.code}
-                            value={lang.code}
-                          >
-                            {lang.name} {hasTranslation ? '(✓)' : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
-                    {selectedLanguage && !report.summary.translations?.some(t => t.language === selectedLanguage) && (
-                      <Button
-                        onClick={handleTranslate}
-                        disabled={isTranslating}
-                        loading={isTranslating}
-                        icon={<Globe size={16} />}
-                        variant="secondary"
-                        className="!py-1"
-                      >
-                        Translate
-                      </Button>
-                    )}
-                  </div>
+                  {renderLanguageControls()}
                   <Button
                     onClick={handleCopy}
                     variant="secondary"

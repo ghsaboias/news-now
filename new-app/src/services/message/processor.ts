@@ -1,13 +1,16 @@
-import { DiscordMessage, MessageProcessingResult, ProcessedMessage, StoredMessage } from '@/types';
+import { DiscordMessage, MessageProcessingResult, ProcessedMessage } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
-import { DatabaseService } from '../db';
+import { MessageService } from '../redis/messages';
+import { SourceService } from '../redis/sources';
 import { SourceExtractor } from '../source/extractor';
 
 export class MessageProcessor {
     private sourceExtractor: SourceExtractor;
+    private messageService: MessageService;
 
-    constructor(private db: DatabaseService) {
-        this.sourceExtractor = new SourceExtractor(db);
+    constructor(messageService: MessageService, sourceService: SourceService) {
+        this.sourceExtractor = new SourceExtractor(sourceService);
+        this.messageService = messageService;
     }
 
     async processMessage(message: DiscordMessage, topicId: string): Promise<MessageProcessingResult> {
@@ -18,7 +21,7 @@ export class MessageProcessor {
 
         try {
             // Extract source information
-            const source = this.sourceExtractor.extractFromMessage(message);
+            const source = await this.sourceExtractor.extractFromMessage(message);
             if (!source) {
                 console.log('No source found for message:', message.id);
                 return {
@@ -34,15 +37,13 @@ export class MessageProcessor {
             const messageId = `msg_${topicPrefix}_${message.id}_${uuidv4()}`;
 
             // Create message record
-            const storedMessage: StoredMessage = {
+            const storedMessage = {
                 id: messageId,
                 topic_id: topicId,
-                discord_message_id: message.id,
-                source_id: source?.id || '',
+                source_id: source.id,
                 content: message.content,
                 embed_title: message.embeds?.[0]?.title || '',
                 embed_description: message.embeds?.[0]?.description || '',
-                embed_fields: message.embeds?.[0]?.fields,
                 timestamp: message.timestamp
             };
 
@@ -67,12 +68,12 @@ export class MessageProcessor {
                 };
             }) || [];
 
-            // Store message and fields in database
-            await this.db.insertMessage(storedMessage, fields);
+            // Store message and fields in Redis
+            await this.messageService.create(storedMessage, fields);
 
             return {
                 messageId,
-                sourceId: source?.id,
+                sourceId: source.id,
                 embedCount: message.embeds?.length || 0,
                 success: true
             };
@@ -94,12 +95,14 @@ export class MessageProcessor {
         for (const message of messages) {
             try {
                 const result = await this.processMessage(message, topicId);
+                const sourceInfo = result.sourceId ? await this.sourceExtractor.getSourceById(result.sourceId) : undefined;
+
                 results.push({
                     id: result.messageId,
                     content: message.content,
                     hasEmbeds: (message.embeds?.length || 0) > 0,
                     embedCount: message.embeds?.length || 0,
-                    sourceInfo: result.sourceId ? await this.sourceExtractor.getSourceById(result.sourceId) : undefined,
+                    sourceInfo: sourceInfo || undefined,
                     status: result.success ? 'success' : 'error'
                 });
 

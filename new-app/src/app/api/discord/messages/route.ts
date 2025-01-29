@@ -1,5 +1,7 @@
-import { DatabaseService } from '@/services/db';
 import { DiscordClient } from '@/services/discord/client';
+import { MessageService } from '@/services/redis/messages';
+import { SourceService } from '@/services/redis/sources';
+import { TopicService } from '@/services/redis/topics';
 import { DiscordMessage } from '@/types';
 import { NextRequest } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
@@ -146,7 +148,9 @@ export async function GET(request: NextRequest) {
 
     // Start processing in the background
     (async () => {
-        const db = new DatabaseService();
+        const topicService = new TopicService();
+        const messageService = new MessageService();
+        const sourceService = new SourceService();
         let client: DiscordClient | null = null;
 
         try {
@@ -161,9 +165,8 @@ export async function GET(request: NextRequest) {
                 status: 'Initializing...'
             });
 
-            db.initialize();
-            client = new DiscordClient(db);
-            logMilestone('Database and client initialized');
+            client = new DiscordClient(messageService, sourceService);
+            logMilestone('Services initialized');
 
             await sendUpdate({
                 type: 'progress',
@@ -179,13 +182,13 @@ export async function GET(request: NextRequest) {
                 type: 'progress',
                 stage: 'setup',
                 progress: 50,
-                status: 'Preparing database...'
+                status: 'Preparing topic...'
             });
 
             // Create topic
             const channelPrefix = channelName.split('|')[0].replace(/[^a-zA-Z0-9-]/g, '');
             const topicId = `topic_${channelPrefix}_${uuidv4()}`;
-            db.insertTopic({
+            await topicService.create({
                 id: topicId,
                 name: `${channelName}|${channelId}-${timeframe}-${new Date().toISOString()}`
             });
@@ -321,7 +324,6 @@ export async function GET(request: NextRequest) {
             }
 
             if (client) client.cleanup();
-            db.close();
             await writer.close();
             logMilestone('Cleanup complete');
             logMemoryUsage('Final');

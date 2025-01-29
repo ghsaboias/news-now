@@ -1,10 +1,12 @@
 import { AnthropicClient } from '@/services/claude/client';
-import { DatabaseService } from '@/services/db';
 import { DiscordClient } from '@/services/discord/client';
+import { MessageService } from '@/services/redis/messages';
+import { ReportService } from '@/services/redis/reports';
+import { SourceService } from '@/services/redis/sources';
+import { TopicService } from '@/services/redis/topics';
 import { ReportGenerator } from '@/services/report/generator';
 import { ChannelQueue } from '@/services/report/queue';
-import { ReportStorage } from '@/services/report/storage';
-import { ActivityThreshold, ChannelInfo, Report } from '@/types';
+import { ActivityThreshold, ChannelInfo, Report, ReportGroup } from '@/types';
 import { NextRequest } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -16,11 +18,11 @@ const DEFAULT_THRESHOLDS: ActivityThreshold[] = [
 ];
 
 async function getLatestReport(channelId: string): Promise<Report | undefined> {
-    const reportGroups = await ReportStorage.getAllReports();
+    const reportGroups = await ReportService.getAllReports();
     return reportGroups
-        .flatMap(group => group.reports)
-        .filter(r => r.channelId === channelId)
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+        .flatMap((group: ReportGroup) => group.reports)
+        .filter((r: Report) => r.channelId === channelId)
+        .sort((a: Report, b: Report) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
 }
 
 async function processChannel(
@@ -28,18 +30,18 @@ async function processChannel(
     timeframe: '1h' | '4h' | '24h',
     discordClient: DiscordClient,
     reportGenerator: ReportGenerator,
-    db: DatabaseService,
     controller: ReadableStreamDefaultController,
     threshold: ActivityThreshold
 ) {
-    const dbConnection = new DatabaseService();
-    try {
-        dbConnection.initialize();
+    const topicService = new TopicService();
+    const messageService = new MessageService();
+    const sourceService = new SourceService();
 
+    try {
         // Create topic
         const channelPrefix = channel.name.split('|')[0].replace(/[^a-zA-Z0-9-]/g, '');
         const topicId = `topic_${channelPrefix}_${uuidv4()}`;
-        dbConnection.insertTopic({
+        await topicService.create({
             id: topicId,
             name: `${channel.name}|${channel.id}-${timeframe}-${new Date().toISOString()}`
         });
@@ -101,7 +103,7 @@ async function processChannel(
             summary,
         };
 
-        await ReportStorage.saveReport(report);
+        await ReportService.addReport(report);
 
         // Send success update
         controller.enqueue(encoder.encode(
@@ -124,15 +126,15 @@ async function processChannel(
             })}\n\n`
         ));
         return null;
-    } finally {
-        dbConnection.close();
     }
 }
 
 const encoder = new TextEncoder();
 
 export async function GET(request: NextRequest) {
-    const db = new DatabaseService();
+    const topicService = new TopicService();
+    const messageService = new MessageService();
+    const sourceService = new SourceService();
 
     const stream = new ReadableStream({
         async start(controller) {
@@ -157,13 +159,12 @@ export async function GET(request: NextRequest) {
                     throw new Error('Missing required environment variables');
                 }
 
-                db.initialize();
-                const discordClient = new DiscordClient(db);
+                const discordClient = new DiscordClient(messageService, sourceService);
                 const claudeClient = new AnthropicClient(process.env.ANTHROPIC_API_KEY);
                 const reportGenerator = new ReportGenerator(claudeClient);
 
                 // Cache latest reports for all channels at start
-                const allReports = await ReportStorage.getAllReports();
+                const allReports = await ReportService.getAllReports();
                 console.log(`[BulkGenerate] Cached ${allReports.length} report groups`);
 
                 // Fetch channels
@@ -181,7 +182,6 @@ export async function GET(request: NextRequest) {
                             timeframe,
                             discordClient,
                             reportGenerator,
-                            db,
                             controller,
                             threshold
                         ).then(report => {

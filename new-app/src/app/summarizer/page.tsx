@@ -227,16 +227,56 @@ function SummarizerContent() {
         });
 
         try {
+            // Check cache through API
+            const cacheResponse = await fetch(
+                `/api/reports/cache?channelId=${selectedChannelId}&timeframe=${selectedTimeframe}`
+            );
+            const { data: cachedReport } = await cacheResponse.json();
+
+            if (cachedReport) {
+                setCurrentReport(cachedReport);
+                updateProgress({
+                    stage: 'Loaded from cache',
+                    percent: 100,
+                    messageCount: cachedReport.messageCount
+                });
+                setIsGenerating(false);
+                return;
+            }
+
+            // Track generation through API
+            await fetch('/api/reports/track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    channelId: selectedChannelId,
+                    timeframe: selectedTimeframe,
+                    status: 'started'
+                })
+            });
+
             // Fetch messages phase (0-45%)
             const messages = await fetchMessagesAction(
                 selectedChannelId,
                 channel.name,
                 selectedTimeframe,
-                (count) => {
+                async (count) => {
+                    const progress = count ? Math.min(45, Math.round((count / 50) * 45)) : 0;
                     updateProgress({
                         stage: 'Fetching messages',
                         messageCount: count || 0,
-                        percent: count ? Math.min(45, Math.round((count / 50) * 45)) : 0
+                        percent: progress
+                    });
+
+                    // Update progress through API
+                    await fetch('/api/reports/progress', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            channelId: selectedChannelId,
+                            timeframe: selectedTimeframe,
+                            progress
+                        })
                     });
                 }
             );
@@ -257,20 +297,9 @@ function SummarizerContent() {
                 messageCount: messages.length
             });
 
-            // Use the report context system to find the most relevant previous summary
-            const reportContext = findReportContext(selectedChannelId, selectedTimeframe);
-
-            // Debug logging for context selection
-            console.log('[Report Generation] Context selection:', {
-                channelId: selectedChannelId,
-                timeframe: selectedTimeframe,
-                foundPrimaryReport: reportContext.primary?.id,
-                primaryReportTimeframe: reportContext.primary?.timeframe,
-                supportingReports: reportContext.supporting.length,
-                coverage: reportContext.coverage
-            });
-
-            const previousSummary = reportContext.primary?.summary;
+            // Use the report context system
+            const reportContext = await findReportContext(selectedChannelId, selectedTimeframe);
+            const previousSummary = reportContext?.primary?.summary;
 
             const summary = await generateSummaryAction(
                 selectedChannelId,
@@ -306,6 +335,18 @@ function SummarizerContent() {
                 summary,
             };
 
+            // Save to cache through API
+            await fetch('/api/reports/cache', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    channelId: selectedChannelId,
+                    timeframe: selectedTimeframe,
+                    report
+                })
+            });
+
+            // Save to database
             await fetch('/api/reports', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -320,6 +361,7 @@ function SummarizerContent() {
                 percent: 100,
                 messageCount: messages.length
             });
+
         } catch (error) {
             console.error('Error generating report:', error);
             updateProgress({
@@ -330,7 +372,6 @@ function SummarizerContent() {
         } finally {
             setIsGenerating(false);
             setTimeout(() => {
-                setIsGenerating(false);
                 updateProgress(null);
             }, 2000);
         }

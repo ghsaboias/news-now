@@ -1,4 +1,4 @@
-import { ReportStorage } from '@/services/report/storage';
+import { ReportService } from '@/services/redis/reports';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function DELETE(request: NextRequest) {
@@ -10,7 +10,7 @@ export async function DELETE(request: NextRequest) {
                 { status: 400 }
             );
         }
-        await ReportStorage.deleteReportsByDate(date);
+        await ReportService.deleteReportsByDate(date);
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error('Error deleting reports:', error);

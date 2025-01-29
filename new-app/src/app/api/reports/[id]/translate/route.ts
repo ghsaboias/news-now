@@ -1,5 +1,5 @@
 import { AnthropicClient } from '@/services/claude/client';
-import { ReportStorage } from '@/services/report/storage';
+import { ReportService } from '@/services/redis/reports';
 import { TranslationService } from '@/services/translation/translator';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Get the report
-        const report = await ReportStorage.getReport(id);
+        const report = await ReportService.getReport(id);
         if (!report) {
             return NextResponse.json(
                 { error: 'Report not found' },
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
         ];
 
         // Save updated report
-        await ReportStorage.updateReport(report);
+        await ReportService.updateReport(report);
 
         return NextResponse.json({
             success: true,

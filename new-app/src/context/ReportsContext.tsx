@@ -1,155 +1,107 @@
 'use client';
 
-import { ReportContext, ReportContextManager } from '@/services/report/context';
-import { Report, ReportGroup } from '@/types';
-import { createContext, ReactNode, useCallback, useContext, useEffect, useReducer, useRef } from 'react';
+import type { Report, ReportGroup } from '@/types';
+import { createContext, ReactNode, useCallback, useContext, useState } from 'react';
 
-interface ReportsState {
+interface ReportsContextType {
   reports: ReportGroup[];
+  currentReport: Report | null;
   loading: boolean;
   error: string | null;
-  currentReport: Report | null;
-}
-
-type ReportsAction =
-  | { type: 'FETCH_START' }
-  | { type: 'FETCH_SUCCESS'; payload: ReportGroup[] }
-  | { type: 'FETCH_ERROR'; payload: string }
-  | { type: 'ADD_REPORT'; payload: Report }
-  | { type: 'UPDATE_REPORT'; payload: Report }
-  | { type: 'DELETE_REPORT'; payload: string }
-  | { type: 'SET_CURRENT_REPORT'; payload: Report | null };
-
-const initialState: ReportsState = {
-  reports: [],
-  loading: false,
-  error: null,
-  currentReport: null,
-};
-
-function reportsReducer(state: ReportsState, action: ReportsAction): ReportsState {
-  switch (action.type) {
-    case 'FETCH_START':
-      return { ...state, loading: true, error: null };
-    case 'FETCH_SUCCESS':
-      return { ...state, loading: false, reports: action.payload };
-    case 'FETCH_ERROR':
-      return { ...state, loading: false, error: action.payload };
-    case 'ADD_REPORT':
-      return {
-        ...state,
-        reports: addReportToGroups(state.reports, action.payload),
-      };
-    case 'UPDATE_REPORT':
-      return {
-        ...state,
-        reports: updateReportInGroups(state.reports, action.payload),
-      };
-    case 'DELETE_REPORT':
-      return {
-        ...state,
-        reports: deleteReportFromGroups(state.reports, action.payload),
-      };
-    case 'SET_CURRENT_REPORT':
-      return { ...state, currentReport: action.payload };
-    default:
-      return state;
-  }
-}
-
-function addReportToGroups(groups: ReportGroup[], report: Report): ReportGroup[] {
-  const date = new Date(report.timestamp).toISOString().split('T')[0];
-  const existingGroup = groups.find(g => g.date === date);
-
-  if (existingGroup) {
-    return groups.map(group =>
-      group.date === date
-        ? { ...group, reports: [report, ...group.reports] }
-        : group
-    );
-  }
-
-  return [{ date, reports: [report] }, ...groups];
-}
-
-function updateReportInGroups(groups: ReportGroup[], report: Report): ReportGroup[] {
-  return groups.map(group => ({
-    ...group,
-    reports: group.reports.map(r => (r.id === report.id ? report : r)),
-  }));
-}
-
-function deleteReportFromGroups(groups: ReportGroup[], reportId: string): ReportGroup[] {
-  return groups
-    .map(group => ({
-      ...group,
-      reports: group.reports.filter(r => r.id !== reportId),
-    }))
-    .filter(group => group.reports.length > 0);
-}
-
-interface ReportsContextType extends ReportsState {
-  fetchReports: () => Promise<void>;
-  addReport: (report: Report) => void;
-  updateReport: (report: Report) => void;
-  deleteReport: (id: string) => void;
   setCurrentReport: (report: Report | null) => void;
-  findReportContext: (channelId: string, timeframe: '1h' | '4h' | '24h') => ReportContext;
+  fetchReports: () => Promise<void>;
+  deleteReport: (id: string) => Promise<void>;
+  updateReport: (report: Report) => Promise<void>;
+  findReportContext: (channelId: string, timeframe: string) => Promise<{
+    primary: Report | null;
+    related: Report[];
+  }>;
 }
 
 const ReportsContext = createContext<ReportsContextType | null>(null);
 
 export function ReportsProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reportsReducer, initialState);
-  const contextManager = useRef(new ReportContextManager());
-
-  // Initialize context manager when reports change
-  useEffect(() => {
-    const allReports = state.reports.flatMap(group => group.reports);
-    contextManager.current.initialize(allReports);
-  }, [state.reports]);
-
-  const findReportContext = useCallback((channelId: string, timeframe: '1h' | '4h' | '24h') => {
-    return contextManager.current.findContextReports(channelId, timeframe);
-  }, []);
+  const [reports, setReports] = useState<ReportGroup[]>([]);
+  const [currentReport, setCurrentReport] = useState<Report | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchReports = useCallback(async () => {
-    dispatch({ type: 'FETCH_START' });
+    setLoading(true);
+    setError(null);
     try {
       const response = await fetch('/api/reports');
       if (!response.ok) throw new Error('Failed to fetch reports');
       const data = await response.json();
-      dispatch({ type: 'FETCH_SUCCESS', payload: data });
+      setReports(data);
     } catch (error) {
-      dispatch({ type: 'FETCH_ERROR', payload: error instanceof Error ? error.message : 'Failed to fetch reports' });
+      const message = error instanceof Error ? error.message : 'Failed to fetch reports';
+      setError(message);
+      console.error('Failed to fetch reports:', error);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  const addReport = useCallback((report: Report) => {
-    dispatch({ type: 'ADD_REPORT', payload: report });
-  }, []);
+  const deleteReport = useCallback(async (id: string) => {
+    try {
+      const response = await fetch(`/api/reports/${id}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) throw new Error('Failed to delete report');
+      await fetchReports(); // Refresh the reports list
+    } catch (error) {
+      console.error('Failed to delete report:', error);
+      throw error;
+    }
+  }, [fetchReports]);
 
-  const updateReport = useCallback((report: Report) => {
-    dispatch({ type: 'UPDATE_REPORT', payload: report });
-  }, []);
+  const updateReport = useCallback(async (report: Report) => {
+    try {
+      const response = await fetch(`/api/reports/${report.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(report)
+      });
+      if (!response.ok) throw new Error('Failed to update report');
+      await fetchReports(); // Refresh the reports list
+    } catch (error) {
+      console.error('Failed to update report:', error);
+      throw error;
+    }
+  }, [fetchReports]);
 
-  const deleteReport = useCallback((id: string) => {
-    dispatch({ type: 'DELETE_REPORT', payload: id });
-  }, []);
-
-  const setCurrentReport = useCallback((report: Report | null) => {
-    dispatch({ type: 'SET_CURRENT_REPORT', payload: report });
+  const findReportContext = useCallback(async (channelId: string, timeframe: string) => {
+    try {
+      const response = await fetch(`/api/reports/context?channelId=${channelId}&timeframe=${timeframe}`);
+      if (!response.ok) throw new Error('Failed to fetch report context');
+      const data = await response.json();
+      return {
+        primary: data.primary,
+        related: data.related
+      };
+    } catch (error) {
+      console.error('Failed to fetch report context:', error);
+      return {
+        primary: null,
+        related: []
+      };
+    }
   }, []);
 
   return (
     <ReportsContext.Provider
       value={{
-        ...state,
-        fetchReports,
-        addReport,
-        updateReport,
-        deleteReport,
+        reports,
+        currentReport,
+        loading,
+        error,
         setCurrentReport,
+        fetchReports,
+        deleteReport,
+        updateReport,
         findReportContext
       }}
     >
