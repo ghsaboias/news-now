@@ -55,29 +55,63 @@ export class ReportService {
         validation.warnings.push(...overlapWarnings, ...coverageWarnings);
 
         const date = new Date(report.timestamp).toISOString().split('T')[0];
-        const pipeline = redisClient.redis.pipeline();
 
-        // Store the report
-        pipeline.set(REPORT_KEY(report.id), JSON.stringify(report));
+        const maxRetries = 3;
+        let retryCount = 0;
 
-        // Add to sorted set of all reports
-        pipeline.zadd(`${REPORT_PREFIX}:all`, new Date(report.timestamp).getTime(), report.id);
+        while (retryCount < maxRetries) {
+            try {
+                // Ensure Redis connection is ready
+                await redisClient.redis.ping();
 
-        // Add to channel set
-        pipeline.zadd(REPORT_CHANNEL_KEY(report.channelId), new Date(report.timestamp).getTime(), report.id);
+                // Start a new transaction
+                const transaction = redisClient.redis.multi();
 
-        // Add to date set
-        pipeline.zadd(REPORT_DATE_KEY(date), new Date(report.timestamp).getTime(), report.id);
+                // Store the report
+                transaction.set(REPORT_KEY(report.id), JSON.stringify(report));
 
-        try {
-            await pipeline.exec();
-            return validation;
-        } catch (error) {
-            throw new ReportValidationError(
-                'Failed to store report',
-                'STORAGE_ERROR'
-            );
+                // Add to sorted set of all reports
+                transaction.zadd(`${REPORT_PREFIX}:all`, new Date(report.timestamp).getTime(), report.id);
+
+                // Add to channel set
+                transaction.zadd(REPORT_CHANNEL_KEY(report.channelId), new Date(report.timestamp).getTime(), report.id);
+
+                // Add to date set
+                transaction.zadd(REPORT_DATE_KEY(date), new Date(report.timestamp).getTime(), report.id);
+
+                // Execute transaction with a timeout
+                const results = await Promise.race([
+                    transaction.exec(),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Transaction timeout')), 5000)
+                    )
+                ]) as [Error | null, any][] | null;
+
+                // Verify all operations succeeded
+                if (!results || results.some(([err]) => err !== null)) {
+                    throw new Error('Transaction failed: Some operations were not successful');
+                }
+
+                return validation;
+            } catch (error) {
+                retryCount++;
+                console.error(`[ReportService] Transaction attempt ${retryCount} failed:`, error);
+
+                if (retryCount === maxRetries) {
+                    console.error('[ReportService] All retry attempts failed');
+                    throw new ReportValidationError(
+                        error instanceof Error ? error.message : 'Failed to store report',
+                        'STORAGE_ERROR'
+                    );
+                }
+
+                // Wait before retrying
+                await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+            }
         }
+
+        // This should never be reached due to the throw in the last retry
+        throw new ReportValidationError('Failed to store report', 'STORAGE_ERROR');
     }
 
     // Update an existing report with validation

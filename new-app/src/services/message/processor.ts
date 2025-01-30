@@ -14,11 +14,6 @@ export class MessageProcessor {
     }
 
     async processMessage(message: DiscordMessage, topicId: string): Promise<MessageProcessingResult> {
-        console.log('Processing message:', {
-            id: message.id,
-            embeds: message.embeds?.length
-        });
-
         try {
             // Extract source information
             const source = await this.sourceExtractor.extractFromMessage(message);

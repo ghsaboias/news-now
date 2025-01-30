@@ -94,18 +94,14 @@ export class ReportValidator {
         if (isNaN(end.getTime())) {
             throw new ReportValidationError('Invalid end date', 'INVALID_END_DATE');
         }
-        if (end.getTime() <= start.getTime()) {
+        if (end.getTime() < start.getTime()) {
             throw new ReportValidationError('End date must be after start date', 'INVALID_DATE_ORDER');
         }
 
         // Validate duration
         const duration = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-        const expectedDuration = parseInt(timeframe.type);
-        if (Math.abs(duration - expectedDuration) > 0.1) { // Allow 6 minutes tolerance
-            throw new ReportValidationError(
-                `Duration mismatch: expected ${expectedDuration}h, got ${duration.toFixed(1)}h`,
-                'DURATION_MISMATCH'
-            );
+        if (duration > parseInt(timeframe.type)) {
+            throw new ReportValidationError('Duration is greater than timeframe', 'DURATION_GREATER_THAN_TIMEFRAME');
         }
 
         return {

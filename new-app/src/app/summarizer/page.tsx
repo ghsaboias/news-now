@@ -22,6 +22,7 @@ import { SplitView } from '@/components/layout/SplitView';
 import { RecentReports } from '@/components/reports/RecentReports';
 import { ReportView } from '@/components/reports/ReportView';
 import { ReportsProvider, useReports } from '@/context/ReportsContext';
+import { useToast } from '@/context/ToastContext';
 import type { AISummary, DiscordChannel, DiscordMessage } from '@/types';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
@@ -190,17 +191,33 @@ async function generateSummaryAction(
         throw new Error('No valid messages found within the specified timeframe');
     }
 
+    // Sort messages by timestamp to ensure correct order
+    const sortedMessages = [...validMessages].sort((a, b) => {
+        const aTime = new Date(a.timestamp).getTime();
+        const bTime = new Date(b.timestamp).getTime();
+        return aTime - bTime;
+    });
+
+    // Use sorted messages for timestamps
+    const startTimestamp = sortedMessages[0].timestamp;
+    const endTimestamp = sortedMessages[sortedMessages.length - 1].timestamp;
+
     // Ensure end timestamp is after start timestamp
-    const startTimestamp = validMessages[0].timestamp;
-    const endTimestamp = validMessages.length === 1
-        ? new Date(new Date(validMessages[0].timestamp).getTime() + 1000).toISOString()
-        : validMessages[validMessages.length - 1].timestamp;
+    const startTime = new Date(startTimestamp).getTime();
+    const endTime = new Date(endTimestamp).getTime();
+
+    // If timestamps are equal or end is before start, add 1 second to end
+    const adjustedEndTimestamp = endTime <= startTime
+        ? new Date(startTime + 1000).toISOString()
+        : endTimestamp;
 
     console.log('[Debug] Report timestamps:', {
         start: startTimestamp,
-        end: endTimestamp,
+        end: adjustedEndTimestamp,
         messageCount: validMessages.length,
-        warningCount: warnings.length
+        warningCount: warnings.length,
+        firstMessageTime: new Date(startTimestamp).toLocaleString(),
+        lastMessageTime: new Date(adjustedEndTimestamp).toLocaleString()
     });
 
     const response = await fetch(`/api/discord/summary?channelId=${channelId}&channelName=${channelName}&timeframe=${timeframe}`, {
@@ -209,12 +226,12 @@ async function generateSummaryAction(
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            messages: validMessages,
+            messages: sortedMessages,
             warnings,
             previousSummary: previousReport ? {
                 ...previousReport,
                 period_start: startTimestamp,
-                period_end: endTimestamp
+                period_end: adjustedEndTimestamp
             } : undefined
         }),
     });
@@ -307,6 +324,7 @@ function SummarizerContent() {
     const [selectedTimeframe, setSelectedTimeframe] = useState<'1h' | '4h' | '24h'>('1h');
     const [isGenerating, setIsGenerating] = useState(false);
     const [forceRefresh, setForceRefresh] = useState(false);
+    const { showToast } = useToast();
 
     const { setCurrentReport, fetchReports, currentReport, findReportContext } = useReports();
 
@@ -404,6 +422,25 @@ function SummarizerContent() {
                 return;
             }
 
+            // Sort messages and prepare timestamps
+            const sortedMessages = [...messages].sort((a, b) => {
+                const aTime = new Date(a.timestamp).getTime();
+                const bTime = new Date(b.timestamp).getTime();
+                return aTime - bTime;
+            });
+
+            const startTimestamp = sortedMessages[0].timestamp;
+            const endTimestamp = sortedMessages[sortedMessages.length - 1].timestamp;
+
+            // Ensure end timestamp is after start timestamp
+            const startTime = new Date(startTimestamp).getTime();
+            const endTime = new Date(endTimestamp).getTime();
+
+            // If timestamps are equal or end is before start, add 1 second to end
+            const adjustedEndTimestamp = endTime <= startTime
+                ? new Date(startTime + 1000).toISOString()
+                : endTimestamp;
+
             // Summary generation phase (45-85%)
             updateProgress({
                 stage: 'Analyzing messages',
@@ -419,7 +456,7 @@ function SummarizerContent() {
                 selectedChannelId,
                 channel.name,
                 selectedTimeframe,
-                messages,
+                sortedMessages,
                 previousSummary
             );
 
@@ -443,15 +480,15 @@ function SummarizerContent() {
                 timestamp: new Date().toISOString(),
                 timeframe: {
                     type: selectedTimeframe,
-                    start: messages[0].timestamp,
-                    end: messages[messages.length - 1].timestamp,
+                    start: startTimestamp,
+                    end: adjustedEndTimestamp,
                 },
                 messageCount: messages.length,
                 summary,
             };
 
             // Save to cache through API
-            await fetch('/api/reports/cache', {
+            const cacheResponse = await fetch('/api/reports/cache', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -461,15 +498,25 @@ function SummarizerContent() {
                 })
             });
 
+            if (!cacheResponse.ok) {
+                throw new Error('Failed to cache report');
+            }
+
             // Save to database
-            await fetch('/api/reports', {
+            const saveResponse = await fetch('/api/reports', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(report),
             });
 
-            setCurrentReport(report);
+            if (!saveResponse.ok) {
+                const error = await saveResponse.json();
+                throw new Error(error.error || 'Failed to save report');
+            }
+
+            // Wait for reports to be fetched before updating UI
             await fetchReports();
+            setCurrentReport(report);
 
             updateProgress({
                 stage: 'Complete',
@@ -479,6 +526,7 @@ function SummarizerContent() {
 
         } catch (error) {
             console.error('Error generating report:', error);
+            showToast(error instanceof Error ? error.message : 'Failed to generate report');
             updateProgress({
                 stage: 'Error generating report',
                 percent: 100,
@@ -490,17 +538,7 @@ function SummarizerContent() {
                 updateProgress(null);
             }, 2000);
         }
-    }, [
-        selectedChannelId,
-        channels,
-        selectedTimeframe,
-        isGenerating,
-        currentReport,
-        updateProgress,
-        setCurrentReport,
-        fetchReports,
-        findReportContext
-    ]);
+    }, [selectedChannelId, selectedTimeframe, fetchReports, setCurrentReport, showToast, setIsGenerating, updateProgress]);
 
     // Memoize controls
     const controls = useMemo(() => (
