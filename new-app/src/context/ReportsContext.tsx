@@ -12,6 +12,7 @@ interface ReportsContextType {
   fetchReports: () => Promise<void>;
   deleteReport: (id: string) => Promise<void>;
   updateReport: (report: Report) => Promise<void>;
+  addReport: (report: Report) => Promise<void>;
   findReportContext: (channelId: string, timeframe: string) => Promise<{
     primary: Report | null;
     related: Report[];
@@ -73,6 +74,23 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
     }
   }, [fetchReports]);
 
+  const addReport = useCallback(async (report: Report) => {
+    try {
+      const response = await fetch('/api/reports', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(report)
+      });
+      if (!response.ok) throw new Error('Failed to add report');
+      await fetchReports(); // Refresh the reports list
+    } catch (error) {
+      console.error('Failed to add report:', error);
+      throw error;
+    }
+  }, [fetchReports]);
+
   const findReportContext = useCallback(async (channelId: string, timeframe: string) => {
     try {
       const response = await fetch(`/api/reports/context?channelId=${channelId}&timeframe=${timeframe}`);
@@ -102,6 +120,7 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
         fetchReports,
         deleteReport,
         updateReport,
+        addReport,
         findReportContext
       }}
     >

@@ -1,4 +1,6 @@
+import { Report } from '@/types';
 import Redis from 'ioredis';
+import { KEYS, TTL } from './keys';
 
 export class RedisClient {
     public redis: Redis;
@@ -26,21 +28,21 @@ export class RedisClient {
                 }
                 return false;
             },
-            lazyConnect: true, // Don't connect immediately
-            // Production settings
+            lazyConnect: true,
             showFriendlyErrorStack: process.env.NODE_ENV !== 'production',
             enableOfflineQueue: true,
             connectTimeout: 10000,
             keepAlive: 30000,
-            family: 4, // IPv4
-            keyPrefix: process.env.REDIS_PREFIX || 'newsnow:'
+            family: 4
         };
 
-        // Main client for commands
         this.redis = new Redis(config);
         this.subscriber = new Redis(config);
 
-        // Connection handling
+        this.setupEventHandlers();
+    }
+
+    private setupEventHandlers() {
         this.redis.on('connect', () => {
             const host = process.env.REDIS_HOST || 'localhost';
             console.log(`Redis connected to ${host}`);
@@ -57,7 +59,6 @@ export class RedisClient {
             this.isConnected = false;
         });
 
-        // Handle process termination
         process.on('SIGTERM', () => this.close());
         process.on('SIGINT', () => this.close());
     }
@@ -73,7 +74,6 @@ export class RedisClient {
         }
     }
 
-    // Wrap Redis operations with connection check
     async execute<T>(operation: () => Promise<T>): Promise<T> {
         await this.ensureConnection();
         try {
@@ -84,42 +84,79 @@ export class RedisClient {
         }
     }
 
-    // Report caching methods
-    async cacheReport(channelId: string, timeframe: string, report: any) {
+    // Report caching methods with new key structure
+    async cacheReport(channelId: string, timeframe: string, report: Report) {
         return this.execute(async () => {
-            const key = `report:${channelId}:${timeframe}`;
-            await this.redis.set(key, JSON.stringify(report), 'EX', 3600); // 1 hour expiry
+            const key = KEYS.CACHE.REPORT(channelId, timeframe);
+            const pipeline = this.redis.pipeline();
+
+            // Store the report in cache
+            pipeline.set(
+                key,
+                JSON.stringify(report),
+                'EX',
+                TTL.REPORT.CACHE
+            );
+
+            // Add to channel index
+            pipeline.zadd(
+                KEYS.REPORT.BY_CHANNEL(channelId),
+                new Date(report.timestamp).getTime(),
+                report.id
+            );
+
+            // Add to date index
+            const date = new Date(report.timestamp).toISOString().split('T')[0];
+            pipeline.zadd(
+                KEYS.REPORT.BY_DATE(date),
+                new Date(report.timestamp).getTime(),
+                report.id
+            );
+
+            await pipeline.exec();
         });
     }
 
     async getCachedReport(channelId: string, timeframe: string) {
-        const key = `report:${channelId}:${timeframe}`;
+        const key = KEYS.CACHE.REPORT(channelId, timeframe);
         const cached = await this.redis.get(key);
         return cached ? JSON.parse(cached) : null;
     }
 
-    // Active generation tracking
+    // Generation tracking with new key structure
     async trackGeneration(channelId: string, timeframe: string) {
-        const key = `generation:${channelId}:${timeframe}`;
-        await this.redis.set(key, JSON.stringify({
-            startedAt: new Date().toISOString(),
-            status: 'running'
-        }), 'EX', 300); // 5 minutes expiry
+        const key = KEYS.GENERATION.STATUS(channelId);
+        await this.redis.set(
+            key,
+            JSON.stringify({
+                startedAt: new Date().toISOString(),
+                status: 'running',
+                timeframe
+            }),
+            'EX',
+            TTL.GENERATION.STATUS
+        );
     }
 
     async updateGenerationProgress(channelId: string, timeframe: string, progress: number) {
-        const key = `generation:${channelId}:${timeframe}`;
-        await this.redis.set(key, JSON.stringify({
-            startedAt: new Date().toISOString(),
-            status: 'running',
-            progress
-        }), 'EX', 300);
+        const key = KEYS.GENERATION.PROGRESS(channelId);
+        await this.redis.set(
+            key,
+            JSON.stringify({
+                startedAt: new Date().toISOString(),
+                status: 'running',
+                timeframe,
+                progress
+            }),
+            'EX',
+            TTL.GENERATION.PROGRESS
+        );
     }
 
-    // Channel status tracking
+    // Channel status tracking with new key structure
     async updateChannelStatus(channelId: string, status: 'active' | 'idle') {
-        const key = `channel:${channelId}:status`;
-        await this.redis.set(key, status, 'EX', 60); // 1 minute expiry
+        const key = KEYS.CHANNEL.STATUS(channelId);
+        await this.redis.set(key, status, 'EX', TTL.CHANNEL.STATUS);
     }
 
     // Pub/Sub methods
@@ -131,7 +168,11 @@ export class RedisClient {
         this.subscriber.subscribe(channel);
         this.subscriber.on('message', (ch: string, message: string) => {
             if (ch === channel) {
-                callback(JSON.parse(message));
+                try {
+                    callback(JSON.parse(message));
+                } catch (error) {
+                    console.error('Failed to parse message:', error);
+                }
             }
         });
     }

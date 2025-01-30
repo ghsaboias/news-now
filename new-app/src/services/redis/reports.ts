@@ -1,5 +1,6 @@
 import { Report, ReportGroup } from '@/types';
 import { redisClient } from './client';
+import { ReportValidationError, ReportValidator, ValidationResult } from './validation';
 
 const REPORT_PREFIX = 'reports';
 const REPORT_KEY = (id: string) => `${REPORT_PREFIX}:${id}`;
@@ -32,8 +33,27 @@ export class ReportService {
         return report ? JSON.parse(report) : null;
     }
 
-    // Add a new report
-    static async addReport(report: Report): Promise<void> {
+    // Add a new report with validation
+    static async addReport(report: Report): Promise<ValidationResult> {
+        // Validate report
+        const validation = ReportValidator.validateReport(report);
+        if (!validation.isValid) {
+            throw new ReportValidationError(
+                `Invalid report: ${validation.errors.join(', ')}`,
+                'INVALID_REPORT'
+            );
+        }
+
+        // Check for overlapping timeframes
+        const existingReports = await this.getReportsByChannel(report.channelId, report.timeframe.type);
+        const timeframes = existingReports.map(r => ReportValidator.validateTimeframe(r.timeframe));
+        timeframes.push(ReportValidator.validateTimeframe(report.timeframe));
+
+        const overlapWarnings = ReportValidator.validateTimeframeOverlap(timeframes);
+        const coverageWarnings = ReportValidator.validateTimeframeCoverage(timeframes);
+
+        validation.warnings.push(...overlapWarnings, ...coverageWarnings);
+
         const date = new Date(report.timestamp).toISOString().split('T')[0];
         const pipeline = redisClient.redis.pipeline();
 
@@ -49,18 +69,75 @@ export class ReportService {
         // Add to date set
         pipeline.zadd(REPORT_DATE_KEY(date), new Date(report.timestamp).getTime(), report.id);
 
-        await pipeline.exec();
+        try {
+            await pipeline.exec();
+            return validation;
+        } catch (error) {
+            throw new ReportValidationError(
+                'Failed to store report',
+                'STORAGE_ERROR'
+            );
+        }
     }
 
-    // Update an existing report
-    static async updateReport(report: Report): Promise<void> {
-        await redisClient.redis.set(REPORT_KEY(report.id), JSON.stringify(report));
+    // Update an existing report with validation
+    static async updateReport(report: Report): Promise<ValidationResult> {
+        // Validate report
+        const validation = ReportValidator.validateReport(report);
+        if (!validation.isValid) {
+            throw new ReportValidationError(
+                `Invalid report: ${validation.errors.join(', ')}`,
+                'INVALID_REPORT'
+            );
+        }
+
+        // Get existing report
+        const existingReport = await this.getReport(report.id);
+        if (!existingReport) {
+            throw new ReportValidationError(
+                'Report not found',
+                'REPORT_NOT_FOUND'
+            );
+        }
+
+        // Check for timeframe changes
+        if (existingReport.timeframe.type !== report.timeframe.type ||
+            existingReport.timeframe.start !== report.timeframe.start ||
+            existingReport.timeframe.end !== report.timeframe.end) {
+
+            // Validate new timeframe against other reports
+            const otherReports = (await this.getReportsByChannel(report.channelId, report.timeframe.type))
+                .filter(r => r.id !== report.id);
+
+            const timeframes = otherReports.map(r => ReportValidator.validateTimeframe(r.timeframe));
+            timeframes.push(ReportValidator.validateTimeframe(report.timeframe));
+
+            const overlapWarnings = ReportValidator.validateTimeframeOverlap(timeframes);
+            const coverageWarnings = ReportValidator.validateTimeframeCoverage(timeframes);
+
+            validation.warnings.push(...overlapWarnings, ...coverageWarnings);
+        }
+
+        try {
+            await redisClient.redis.set(REPORT_KEY(report.id), JSON.stringify(report));
+            return validation;
+        } catch (error) {
+            throw new ReportValidationError(
+                'Failed to update report',
+                'STORAGE_ERROR'
+            );
+        }
     }
 
-    // Delete a report
+    // Delete a report with validation
     static async deleteReport(reportId: string): Promise<void> {
         const report = await this.getReport(reportId);
-        if (!report) return;
+        if (!report) {
+            throw new ReportValidationError(
+                'Report not found',
+                'REPORT_NOT_FOUND'
+            );
+        }
 
         const date = new Date(report.timestamp).toISOString().split('T')[0];
         const pipeline = redisClient.redis.pipeline();
@@ -73,20 +150,69 @@ export class ReportService {
         pipeline.zrem(REPORT_CHANNEL_KEY(report.channelId), reportId);
         pipeline.zrem(REPORT_DATE_KEY(date), reportId);
 
-        await pipeline.exec();
+        try {
+            await pipeline.exec();
+        } catch (error) {
+            throw new ReportValidationError(
+                'Failed to delete report',
+                'STORAGE_ERROR'
+            );
+        }
     }
 
-    // Get reports by channel and timeframe
+    // Get reports by channel and timeframe with validation
     static async getReportsByChannel(channelId: string, timeframe: string): Promise<Report[]> {
+        // Validate timeframe
+        if (!['1h', '4h', '24h'].includes(timeframe)) {
+            throw new ReportValidationError(
+                'Invalid timeframe type',
+                'INVALID_TIMEFRAME_TYPE'
+            );
+        }
+
+        // Validate channel ID
+        if (!channelId || !/^\d+$/.test(channelId)) {
+            throw new ReportValidationError(
+                'Invalid channel ID',
+                'INVALID_CHANNEL_ID'
+            );
+        }
+
         const reportIds: string[] = await redisClient.redis.zrange(REPORT_CHANNEL_KEY(channelId), 0, -1);
         const reports = await Promise.all(
             reportIds.map(id => this.getReport(id))
         );
-        return reports.filter((report): report is Report => report !== null);
+
+        // Filter and validate reports
+        const validReports = reports
+            .filter((report): report is Report => report !== null)
+            .filter(report => {
+                try {
+                    ReportValidator.validateReport(report);
+                    return true;
+                } catch (error) {
+                    console.warn(`[ReportService] Skipping invalid report:`, {
+                        id: report.id,
+                        error: error instanceof Error ? error.message : 'Unknown error'
+                    });
+                    return false;
+                }
+            });
+
+        return validReports;
     }
 
-    // Delete all reports for a specific date
+    // Delete all reports for a specific date with validation
     static async deleteReportsByDate(date: string): Promise<void> {
+        // Validate date format
+        const dateObj = new Date(date);
+        if (isNaN(dateObj.getTime())) {
+            throw new ReportValidationError(
+                'Invalid date format',
+                'INVALID_DATE'
+            );
+        }
+
         // Get all report IDs for the date
         const reportIds: string[] = await redisClient.redis.zrange(REPORT_DATE_KEY(date), 0, -1);
 
@@ -103,6 +229,16 @@ export class ReportService {
         for (const report of reports) {
             if (!report) continue;
 
+            try {
+                ReportValidator.validateReport(report);
+            } catch (error) {
+                console.warn(`[ReportService] Skipping invalid report during deletion:`, {
+                    id: report.id,
+                    error: error instanceof Error ? error.message : 'Unknown error'
+                });
+                continue;
+            }
+
             // Remove the report
             pipeline.del(REPORT_KEY(report.id));
 
@@ -112,6 +248,13 @@ export class ReportService {
             pipeline.zrem(REPORT_DATE_KEY(date), report.id);
         }
 
-        await pipeline.exec();
+        try {
+            await pipeline.exec();
+        } catch (error) {
+            throw new ReportValidationError(
+                'Failed to delete reports',
+                'STORAGE_ERROR'
+            );
+        }
     }
 } 

@@ -29,6 +29,8 @@ export interface DiscordChannel {
     type: number;
     position?: number;
     parent_id?: string;
+    archived?: boolean;
+    status?: 'active' | 'archived' | 'disabled';
 }
 
 // Translation Types

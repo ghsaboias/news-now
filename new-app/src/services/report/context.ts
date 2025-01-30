@@ -1,5 +1,13 @@
 import { Report } from '@/types';
 
+// Validation error types
+export class ContextValidationError extends Error {
+    constructor(message: string, public code: string) {
+        super(message);
+        this.name = 'ContextValidationError';
+    }
+}
+
 interface TimeWindow {
     start: Date;
     end: Date;
@@ -9,6 +17,7 @@ export interface ReportContext {
     primary: Report | null;
     supporting: Report[];
     coverage: TimeWindow[];
+    validationWarnings?: string[];
 }
 
 interface TimeframeRule {
@@ -30,12 +39,26 @@ export class ReportContextManager {
         byChannel: Record<string, ChannelReports>;
     } = { byChannel: {} };
 
-    // Initialize indexes from reports
+    // Initialize indexes from reports with validation
     initialize(reports: Report[]) {
         console.log(`[ReportContextManager] Initializing with ${reports.length} reports`);
         this.indexes = { byChannel: {} };
 
-        for (const report of reports) {
+        // Validate reports before indexing
+        const validatedReports = reports.filter(report => {
+            try {
+                this.validateReport(report);
+                return true;
+            } catch (error) {
+                console.warn(`[ReportContextManager] Skipping invalid report:`, {
+                    id: report.id,
+                    error: error instanceof Error ? error.message : 'Unknown error'
+                });
+                return false;
+            }
+        });
+
+        for (const report of validatedReports) {
             if (!this.indexes.byChannel[report.channelId]) {
                 this.indexes.byChannel[report.channelId] = {
                     '1h': [],
@@ -61,14 +84,54 @@ export class ReportContextManager {
         console.log(`[ReportContextManager] Indexed reports for ${Object.keys(this.indexes.byChannel).length} channels`);
     }
 
-    // Core method to find context reports
+    // Core method to find context reports with enhanced validation
     findContextReports(channelId: string, timeframe: TimeframeType): ReportContext {
         console.log(`[ReportContextManager] Finding context for channel ${channelId}, timeframe ${timeframe}`);
+
+        // Validate input parameters
+        this.validateChannelId(channelId);
+        this.validateTimeframeType(timeframe);
+
         const rules = this.getTimeframeRules(timeframe);
         const candidates = this.findCandidateReports(channelId, rules);
-        const context = this.validateAndOrderReports(candidates);
-        console.log(`[ReportContextManager] Found ${context.supporting.length + (context.primary ? 1 : 0)} relevant reports`);
-        return context;
+        return this.validateAndOrderReports(candidates, channelId, timeframe);
+    }
+
+    private validateReport(report: Report): void {
+        if (!report.id) {
+            throw new ContextValidationError('Report ID is required', 'INVALID_REPORT_ID');
+        }
+        if (!report.channelId) {
+            throw new ContextValidationError('Channel ID is required', 'INVALID_CHANNEL_ID');
+        }
+        if (!report.timeframe || !report.timeframe.type || !report.timeframe.start || !report.timeframe.end) {
+            throw new ContextValidationError('Invalid timeframe structure', 'INVALID_TIMEFRAME');
+        }
+        if (!report.timestamp) {
+            throw new ContextValidationError('Report timestamp is required', 'INVALID_TIMESTAMP');
+        }
+
+        // Validate timeframe boundaries
+        const start = new Date(report.timeframe.start);
+        const end = new Date(report.timeframe.end);
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+            throw new ContextValidationError('Invalid timeframe dates', 'INVALID_TIMEFRAME_DATES');
+        }
+        if (end.getTime() <= start.getTime()) {
+            throw new ContextValidationError('Timeframe end must be after start', 'INVALID_TIMEFRAME_ORDER');
+        }
+    }
+
+    private validateChannelId(channelId: string): void {
+        if (!channelId || !/^\d+$/.test(channelId)) {
+            throw new ContextValidationError('Invalid channel ID format', 'INVALID_CHANNEL_ID_FORMAT');
+        }
+    }
+
+    private validateTimeframeType(timeframe: string): void {
+        if (!['1h', '4h', '24h'].includes(timeframe)) {
+            throw new ContextValidationError('Invalid timeframe type', 'INVALID_TIMEFRAME_TYPE');
+        }
     }
 
     private getTimeframeRules(timeframe: TimeframeType): TimeframeRules {
@@ -108,8 +171,9 @@ export class ReportContextManager {
 
         const now = new Date();
         const candidates: Report[] = [];
-        const MAX_CHAIN_LENGTH = 2; // Prevent deep chains
+        const MAX_CHAIN_LENGTH = 3; // Increased to allow for more context
         let chainLength = 0;
+        const validationWarnings: string[] = [];
 
         // Helper to check if a report is within maxAge hours
         const isWithinAge = (report: Report, maxAge: number): boolean => {
@@ -129,76 +193,79 @@ export class ReportContextManager {
                 reportStart.getTime() >= referenceEnd.getTime();
         };
 
-        // Find primary report
+        // Find primary report with validation
         const primaryReports = channelReports[rules.primary.type];
-        console.log(`[ReportContextManager] Searching for primary ${rules.primary.type} report within ${rules.primary.maxAge}h`, {
-            availableReports: primaryReports.length,
-            chainLength
-        });
-
         const primary = primaryReports.find(report => {
-            if (chainLength >= MAX_CHAIN_LENGTH) return false;
-            const isValid = isWithinAge(report, rules.primary.maxAge);
-            if (isValid) chainLength++;
-            return isValid;
+            try {
+                this.validateReport(report);
+                if (chainLength >= MAX_CHAIN_LENGTH) {
+                    validationWarnings.push('Chain length limit reached for primary report');
+                    return false;
+                }
+                const isValid = isWithinAge(report, rules.primary.maxAge);
+                if (isValid) chainLength++;
+                return isValid;
+            } catch (error) {
+                console.warn(`[ReportContextManager] Invalid primary report:`, {
+                    id: report.id,
+                    error: error instanceof Error ? error.message : 'Unknown error'
+                });
+                return false;
+            }
         });
 
         if (primary) {
-            console.log(`[ReportContextManager] Found primary report:`, {
-                id: primary.id,
-                timeframe: primary.timeframe,
-                timestamp: primary.timestamp,
-                chainLength
-            });
             candidates.push(primary);
         }
 
-        // Find supporting reports (only if we haven't hit chain limit)
+        // Find supporting reports with validation
         if (chainLength < MAX_CHAIN_LENGTH) {
             for (const rule of rules.supporting) {
                 const supportingReports = channelReports[rule.type];
-                console.log(`[ReportContextManager] Searching for supporting ${rule.type} reports within ${rule.maxAge}h`, {
-                    availableReports: supportingReports.length,
-                    requireOutsideWindow: rule.outsideCurrentWindow
-                });
-
                 const validSupporting = supportingReports
                     .filter(report => {
-                        const withinAge = isWithinAge(report, rule.maxAge);
-                        const outsideWindow = !rule.outsideCurrentWindow ||
-                            (primary && isOutsideWindow(report, primary));
+                        try {
+                            this.validateReport(report);
+                            const withinAge = isWithinAge(report, rule.maxAge);
+                            const outsideWindow = !rule.outsideCurrentWindow ||
+                                (primary && isOutsideWindow(report, primary));
 
-                        if (withinAge && !outsideWindow) {
-                            console.log(`[ReportContextManager] Skipping overlapping report:`, {
+                            if (withinAge && !outsideWindow) {
+                                validationWarnings.push(`Skipping overlapping report: ${report.id}`);
+                            }
+
+                            return withinAge && outsideWindow;
+                        } catch (error) {
+                            console.warn(`[ReportContextManager] Invalid supporting report:`, {
                                 id: report.id,
-                                timeframe: report.timeframe
+                                error: error instanceof Error ? error.message : 'Unknown error'
                             });
+                            return false;
                         }
-
-                        return withinAge && outsideWindow;
                     })
-                    .slice(0, 1); // Take only the most recent matching report
-
-                if (validSupporting.length) {
-                    console.log(`[ReportContextManager] Found supporting report:`, {
-                        id: validSupporting[0].id,
-                        timeframe: validSupporting[0].timeframe,
-                        timestamp: validSupporting[0].timestamp
-                    });
-                }
+                    .slice(0, MAX_CHAIN_LENGTH - chainLength);
 
                 candidates.push(...validSupporting);
+                chainLength += validSupporting.length;
             }
         }
 
         return candidates;
     }
 
-    private validateAndOrderReports(candidates: Report[]): ReportContext {
+    private validateAndOrderReports(candidates: Report[], channelId: string, timeframe: TimeframeType): ReportContext {
         if (!candidates.length) {
-            console.log(`[ReportContextManager] No valid candidates found`);
-            return { primary: null, supporting: [], coverage: [] };
+            return { primary: null, supporting: [], coverage: [], validationWarnings: ['No valid candidates found'] };
         }
+
+        const validationWarnings: string[] = [];
+
+        // Validate channel consistency
+        candidates.forEach(report => {
+            if (report.channelId !== channelId) {
+                validationWarnings.push(`Report ${report.id} has mismatched channel ID`);
+            }
+        });
 
         // Sort reports by start time
         const sortedReports = [...candidates].sort(
@@ -218,27 +285,17 @@ export class ReportContextManager {
         // Merge overlapping coverage periods
         const mergedCoverage = this.mergeCoveragePeriods(coverage);
 
-        console.log(`[ReportContextManager] Final context:`, {
-            primary: primary ? {
-                id: primary.id,
-                timeframe: primary.timeframe,
-                timestamp: primary.timestamp
-            } : null,
-            supporting: supporting.map(r => ({
-                id: r.id,
-                timeframe: r.timeframe,
-                timestamp: r.timestamp
-            })),
-            coverage: mergedCoverage.map(c => ({
-                start: c.start.toISOString(),
-                end: c.end.toISOString()
-            }))
-        });
+        // Validate coverage gaps
+        const gaps = this.findCoverageGaps(mergedCoverage);
+        if (gaps.length > 0) {
+            validationWarnings.push(`Found ${gaps.length} coverage gaps in the timeline`);
+        }
 
         return {
             primary,
             supporting,
-            coverage: mergedCoverage
+            coverage: mergedCoverage,
+            validationWarnings
         };
     }
 
@@ -265,5 +322,21 @@ export class ReportContextManager {
         }
 
         return merged;
+    }
+
+    private findCoverageGaps(coverage: TimeWindow[]): TimeWindow[] {
+        const gaps: TimeWindow[] = [];
+        for (let i = 1; i < coverage.length; i++) {
+            const current = coverage[i];
+            const previous = coverage[i - 1];
+
+            if (current.start.getTime() > previous.end.getTime()) {
+                gaps.push({
+                    start: previous.end,
+                    end: current.start
+                });
+            }
+        }
+        return gaps;
     }
 }

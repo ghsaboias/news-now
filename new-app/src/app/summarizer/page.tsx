@@ -13,6 +13,7 @@ declare global {
 import { Button } from '@/components/common/Button';
 import { Progress } from '@/components/common/Progress';
 import { BulkGenerateButton } from '@/components/controls/bulk-generate/BulkGenerateButton';
+import { CacheControl } from '@/components/controls/CacheControl';
 import { ChannelSelect } from '@/components/controls/ChannelSelect';
 import { ControlsContainer } from '@/components/controls/ControlsContainer';
 import { TimeSelect, TimeframeOption } from '@/components/controls/TimeSelect';
@@ -39,8 +40,11 @@ async function fetchMessagesAction(
     timeframe: string,
     onProgress?: (messageCount: number) => void
 ): Promise<DiscordMessage[]> {
+    console.log(`[fetchMessagesAction] Fetching messages for channel ${channelName} (${channelId}) with timeframe ${timeframe}`);
+
     const response = await fetch(`/api/discord/messages?channelId=${channelId}&channelName=${encodeURIComponent(channelName)}&timeframe=${timeframe}`);
     if (!response.ok) {
+        console.error('[fetchMessagesAction] Failed to fetch messages:', await response.text());
         throw new Error('Failed to fetch messages', { cause: response });
     }
 
@@ -69,15 +73,18 @@ async function fetchMessagesAction(
                     const data = JSON.parse(line.replace('data: ', ''));
 
                     if (data.type === 'batch') {
+                        console.log(`[fetchMessagesAction] Received batch of ${data.botMessages} messages`);
                         onProgress?.(data.botMessages);
                     } else if (data.type === 'complete') {
+                        console.log(`[fetchMessagesAction] Completed with ${data.messages.length} messages`);
                         messages = data.messages;
                         return messages;
                     } else if (data.type === 'error') {
+                        console.error('[fetchMessagesAction] Error in stream:', data.error);
                         throw new Error(data.error || 'Failed to fetch messages');
                     }
                 } catch (parseError) {
-                    console.warn('Failed to parse SSE message:', parseError);
+                    console.warn('[fetchMessagesAction] Failed to parse SSE message:', parseError);
                     continue;
                 }
             }
@@ -100,24 +107,122 @@ async function fetchMessagesAction(
     return messages;
 }
 
-async function generateSummaryAction(channelId: string, channelName: string, messages: DiscordMessage[], previousReport?: AISummary): Promise<AISummary> {
-    const response = await fetch(`/api/discord/summary?channelId=${channelId}&channelName=${channelName}`, {
+// Helper functions for message validation
+function validateAndSortMessages(messages: DiscordMessage[], timeframe: string): {
+    validMessages: DiscordMessage[];
+    warnings: string[];
+} {
+    const warnings: string[] = [];
+    const now = new Date();
+    const timeframeMs = {
+        '1h': 60 * 60 * 1000,
+        '4h': 4 * 60 * 60 * 1000,
+        '24h': 24 * 60 * 60 * 1000
+    }[timeframe] || 24 * 60 * 60 * 1000;
+
+    const timeframeStart = new Date(now.getTime() - timeframeMs);
+
+    // Sort messages chronologically
+    const sortedMessages = [...messages].sort((a, b) => {
+        const aTime = new Date(a.timestamp);
+        const bTime = new Date(b.timestamp);
+        return aTime.getTime() - bTime.getTime();
+    });
+
+    // Validate timestamps and filter messages
+    const validMessages = sortedMessages.filter(msg => {
+        try {
+            const msgTime = new Date(msg.timestamp);
+
+            // Check for invalid dates
+            if (isNaN(msgTime.getTime())) {
+                warnings.push(`Invalid timestamp format for message ${msg.id}`);
+                return false;
+            }
+
+            // Check for future dates
+            if (msgTime > now) {
+                warnings.push(`Message ${msg.id} has future timestamp`);
+                return false;
+            }
+
+            // Check if message is within timeframe
+            if (msgTime < timeframeStart) {
+                warnings.push(`Message ${msg.id} is outside requested timeframe`);
+                return false;
+            }
+
+            return true;
+        } catch (error: any) {
+            warnings.push(`Failed to process message ${msg.id}: ${error.message}`);
+            return false;
+        }
+    });
+
+    // Log validation results
+    console.log('[Message Validation]', {
+        originalCount: messages.length,
+        validCount: validMessages.length,
+        warningCount: warnings.length,
+        timeframe,
+        timeframeStart: timeframeStart.toISOString(),
+        timeframeEnd: now.toISOString()
+    });
+
+    return { validMessages, warnings };
+}
+
+async function generateSummaryAction(
+    channelId: string,
+    channelName: string,
+    timeframe: string,
+    messages: DiscordMessage[],
+    previousReport?: AISummary
+): Promise<AISummary> {
+    // Validate and sort messages
+    const { validMessages, warnings } = validateAndSortMessages(messages, timeframe);
+
+    if (warnings.length > 0) {
+        console.warn('[Message Validation Warnings]', warnings);
+    }
+
+    if (validMessages.length === 0) {
+        throw new Error('No valid messages found within the specified timeframe');
+    }
+
+    // Ensure end timestamp is after start timestamp
+    const startTimestamp = validMessages[0].timestamp;
+    const endTimestamp = validMessages.length === 1
+        ? new Date(new Date(validMessages[0].timestamp).getTime() + 1000).toISOString()
+        : validMessages[validMessages.length - 1].timestamp;
+
+    console.log('[Debug] Report timestamps:', {
+        start: startTimestamp,
+        end: endTimestamp,
+        messageCount: validMessages.length,
+        warningCount: warnings.length
+    });
+
+    const response = await fetch(`/api/discord/summary?channelId=${channelId}&channelName=${channelName}&timeframe=${timeframe}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            messages,
+            messages: validMessages,
+            warnings,
             previousSummary: previousReport ? {
                 ...previousReport,
-                period_start: messages[0].timestamp,
-                period_end: messages[messages.length - 1].timestamp
+                period_start: startTimestamp,
+                period_end: endTimestamp
             } : undefined
         }),
     });
+
     if (!response.ok) {
         throw new Error('Failed to generate summary', { cause: response });
     }
+
     return response.json();
 }
 
@@ -201,6 +306,7 @@ function SummarizerContent() {
     const [selectedChannelId, setSelectedChannelId] = useState('');
     const [selectedTimeframe, setSelectedTimeframe] = useState<'1h' | '4h' | '24h'>('1h');
     const [isGenerating, setIsGenerating] = useState(false);
+    const [forceRefresh, setForceRefresh] = useState(false);
 
     const { setCurrentReport, fetchReports, currentReport, findReportContext } = useReports();
 
@@ -227,21 +333,23 @@ function SummarizerContent() {
         });
 
         try {
-            // Check cache through API
-            const cacheResponse = await fetch(
-                `/api/reports/cache?channelId=${selectedChannelId}&timeframe=${selectedTimeframe}`
-            );
-            const { data: cachedReport } = await cacheResponse.json();
+            // Check cache through API (only if not forcing refresh)
+            if (!forceRefresh) {
+                const cacheResponse = await fetch(
+                    `/api/reports/cache?channelId=${selectedChannelId}&timeframe=${selectedTimeframe}`
+                );
+                const { data: cachedReport } = await cacheResponse.json();
 
-            if (cachedReport) {
-                setCurrentReport(cachedReport);
-                updateProgress({
-                    stage: 'Loaded from cache',
-                    percent: 100,
-                    messageCount: cachedReport.messageCount
-                });
-                setIsGenerating(false);
-                return;
+                if (cachedReport) {
+                    setCurrentReport(cachedReport);
+                    updateProgress({
+                        stage: 'Loaded from cache',
+                        percent: 100,
+                        messageCount: cachedReport.messageCount
+                    });
+                    setIsGenerating(false);
+                    return;
+                }
             }
 
             // Track generation through API
@@ -256,6 +364,12 @@ function SummarizerContent() {
             });
 
             // Fetch messages phase (0-45%)
+            console.log(
+                'Fetching messages',
+                selectedChannelId,
+                channel.name,
+                selectedTimeframe
+            );
             const messages = await fetchMessagesAction(
                 selectedChannelId,
                 channel.name,
@@ -304,6 +418,7 @@ function SummarizerContent() {
             const summary = await generateSummaryAction(
                 selectedChannelId,
                 channel.name,
+                selectedTimeframe,
                 messages,
                 previousSummary
             );
@@ -420,6 +535,17 @@ function SummarizerContent() {
                     >
                         {isGenerating ? 'Generating...' : 'Create Report'}
                     </Button>
+                    <div className="flex items-center justify-between gap-2">
+                        <label className="flex items-center gap-2 text-sm text-gray-400">
+                            <input
+                                type="checkbox"
+                                checked={forceRefresh}
+                                onChange={(e) => setForceRefresh(e.target.checked)}
+                                className="rounded border-gray-700 bg-gray-800 text-blue-500 focus:ring-blue-500"
+                            />
+                            Force Refresh (Skip Cache)
+                        </label>
+                    </div>
                     {progress && (
                         <MemoizedProgress
                             stage={progress.stage}
@@ -427,6 +553,11 @@ function SummarizerContent() {
                         />
                     )}
                 </div>
+
+                <CacheControl
+                    channelId={selectedChannelId}
+                    timeframe={selectedTimeframe}
+                />
             </>
         )
     ), [
@@ -438,7 +569,8 @@ function SummarizerContent() {
         selectedTimeframe,
         handleChannelSelect,
         handleTimeframeChange,
-        handleGenerateReport
+        handleGenerateReport,
+        forceRefresh
     ]);
 
     return (
