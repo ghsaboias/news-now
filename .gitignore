@@ -79,3 +79,14 @@ REDIS.md
 docs/
 
 scripts/
+
+# Cursor
+.cursor/
+
+# App AI World
+app-aiworld.service
+**/app-aiworld.service
+new-app/app-aiworld.service
+
+# Cursor Rules
+.cursor/rules/
