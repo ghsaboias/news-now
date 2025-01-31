@@ -1,7 +1,6 @@
 import { useDisclosure } from '@/hooks/useDisclosure';
 import { ReactNode } from 'react';
-import { ChevronDown, ChevronUp } from 'react-feather';
-import { Button } from '../common/Button';
+import { Button } from '../ui/button';
 import { Stack } from './Stack';
 
 interface SectionProps {
@@ -73,7 +72,6 @@ export function Section({
             <Button
               variant="secondary"
               onClick={onToggle}
-              icon={isOpen ? <ChevronUp /> : <ChevronDown />}
               className="w-full justify-between !p-4"
             >
               <span className="text-sm font-medium">{title}</span>

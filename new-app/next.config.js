@@ -1,7 +1,5 @@
-import type { NextConfig } from 'next';
-import type { Configuration as WebpackConfig } from 'webpack';
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   output: 'standalone',  // Optimized for production
   poweredByHeader: false,  // Security enhancement
   compress: true,  // Enable compression
@@ -45,7 +43,7 @@ const nextConfig: NextConfig = {
   },
 
   // Webpack Optimizations
-  webpack: (config: WebpackConfig, { dev, isServer }) => {
+  webpack: (config, { dev, isServer }) => {
     // Production optimizations only
     if (!dev && !isServer) {
       config.optimization = {
@@ -67,7 +65,7 @@ const nextConfig: NextConfig = {
             },
             lib: {
               test: /[\\/]node_modules[\\/]/,
-              name(module: any) {
+              name(module) {
                 if (!module.context) return 'vendors';
                 const match = module.context.match(/[\\/]node_modules[\\/](.*?)([\\/]|$)/);
                 const packageName = match ? match[1] : 'vendors';
@@ -100,4 +98,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;

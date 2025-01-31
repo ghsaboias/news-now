@@ -1,6 +1,6 @@
+import { Progress } from '@/components/ui/progress';
 import { DiscordMessage } from '@/types';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Progress } from '../common/Progress';
 
 interface ReportGeneratorProps {
   channelId: string;
@@ -32,12 +32,12 @@ interface BasePerformanceLogData {
   [key: string]: unknown;  // Allow any additional debug data
 }
 
-export function ReportGenerator({ 
-  channelId, 
+export function ReportGenerator({
+  channelId,
   channelName,
   timeframe,
   onComplete,
-  onError 
+  onError
 }: ReportGeneratorProps) {
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState<'setup' | 'fetching' | 'processing'>();
@@ -76,7 +76,7 @@ export function ReportGenerator({
     startTime.current = Date.now();
     lastUpdateTime.current = Date.now();
     fetchAttempts.current = 0;
-    
+
     logPerformance('ReportGenerator mounted', {
       channelId,
       channelName,
@@ -94,7 +94,7 @@ export function ReportGenerator({
   }, [channelId, channelName, timeframe, onError, logPerformance]);
 
   const handleUpdate = useCallback((update: StreamUpdate) => {
-    logPerformance('Received update', { 
+    logPerformance('Received update', {
       updateType: update.type,
       updateStage: update.stage,
       updateProgress: update.progress,
@@ -148,13 +148,13 @@ export function ReportGenerator({
 
   useEffect(() => {
     const abortController = new AbortController();
-    
+
     async function fetchMessages() {
       try {
         fetchAttempts.current += 1;
         setStage('fetching');
         setStatus('Connecting to server...');
-        
+
         logPerformance('Starting fetch', {
           channelId,
           channelName,
@@ -165,7 +165,7 @@ export function ReportGenerator({
         const url = `/api/discord/messages?channelId=${channelId}&channelName=${encodeURIComponent(channelName)}&timeframe=${timeframe}`;
         logPerformance('Fetching URL', { url });
 
-        const response = await fetch(url, { 
+        const response = await fetch(url, {
           signal: abortController.signal,
           headers: {
             'Accept': 'text/event-stream',
@@ -183,7 +183,7 @@ export function ReportGenerator({
         if (!response.ok) {
           throw new Error(`Failed to fetch messages: ${response.status} ${response.statusText}`);
         }
-        
+
         if (!response.body) {
           throw new Error('No response body received from server');
         }
@@ -199,16 +199,16 @@ export function ReportGenerator({
         while (true) {
           const { value, done } = await reader.read();
           if (done) {
-            logPerformance('Stream complete', { 
+            logPerformance('Stream complete', {
               totalChunks: chunkCount,
-              finalBufferSize: buffer.length 
+              finalBufferSize: buffer.length
             });
             break;
           }
 
           chunkCount++;
           const chunk = decoder.decode(value, { stream: true });
-          logPerformance('Chunk received', { 
+          logPerformance('Chunk received', {
             chunkNumber: chunkCount,
             chunkSize: chunk.length,
             chunkContent: chunk.length > 100 ? chunk.substring(0, 100) + '...' : chunk
@@ -224,7 +224,7 @@ export function ReportGenerator({
                 const update = JSON.parse(line.slice(6)) as StreamUpdate;
                 handleUpdate(update);
               } catch (parseError) {
-                logPerformance('Failed to parse update', { 
+                logPerformance('Failed to parse update', {
                   line,
                   error: parseError instanceof Error ? parseError.message : 'Unknown parse error'
                 });
@@ -239,7 +239,7 @@ export function ReportGenerator({
             logPerformance('Fetch aborted');
             return;
           }
-          logPerformance('Error occurred', { 
+          logPerformance('Error occurred', {
             error: err.message,
             stack: err.stack
           });
@@ -267,16 +267,12 @@ export function ReportGenerator({
     <div className="space-y-4">
       <Progress
         value={progress}
-        stage={stage}
-        status={status}
-        error={error}
         className="w-full"
       />
       {/* Add detailed debug info in development */}
       {process.env.NODE_ENV === 'development' && (
         <div className="text-xs font-mono space-y-1 text-gray-500">
           <div>Time elapsed: {((Date.now() - startTime.current) / 1000).toFixed(1)}s</div>
-          <div>Stage: {stage || 'none'}</div>
           <div>Status: {status}</div>
           {error && <div className="text-red-500">Error: {error}</div>}
           <div>Messages: {messages.length}</div>

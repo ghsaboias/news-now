@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { ReportService } from '@/services/redis/reports';
 import { NextRequest, NextResponse } from 'next/server';
 

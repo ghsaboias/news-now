@@ -3,7 +3,7 @@ import { TimeframeBadge } from '@/components/common/badges/TimeframeBadge';
 import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 import { Button } from '@/components/ui/button';
 import { useReports } from '@/context/ReportsContext';
-import { useToast } from '@/context/ToastContext';
+import { useAppToast } from '@/hooks/useAppToast';
 import { Report } from '@/types';
 import { formatReportDate } from '@/utils/date';
 import { useEffect, useMemo, useState } from 'react';
@@ -110,7 +110,7 @@ function parseSourceBlocks(sources: string[]): SourceBlock[] {
 
 function ReportViewContent({ report }: ReportViewProps) {
   const { deleteReport, setCurrentReport, updateReport } = useReports();
-  const { showToast } = useToast();
+  const toast = useAppToast();
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [isTranslating, setIsTranslating] = useState(false);
   const [forceUpdate, setForceUpdate] = useState(0);
@@ -206,16 +206,10 @@ function ReportViewContent({ report }: ReportViewProps) {
       // Keep the selected language to show the translation
       setSelectedLanguage(translation.language);
 
-      showToast({
-        text: 'Translation completed - Now showing translated version',
-        type: 'success'
-      });
+      toast.success('Translation completed - Now showing translated version');
     } catch (err) {
       console.error('Error translating report:', err);
-      showToast({
-        text: err instanceof Error ? err.message : 'Failed to translate report',
-        type: 'error'
-      });
+      toast.error(err instanceof Error ? err.message : 'Failed to translate report');
       setSelectedLanguage('');
     } finally {
       setIsTranslating(false);
@@ -226,7 +220,7 @@ function ReportViewContent({ report }: ReportViewProps) {
     const { full: date, time } = formatReportDate(report.timeframe.start);
     const text = `${report.summary.headline}\n\n${report.summary.location} • ${date} • ${time}\n\n${report.summary.body}\n\n${report.summary.sources ? 'Sources:\n' + report.summary.sources.join('\n') : ''}`;
     navigator.clipboard.writeText(text);
-    showToast('Report copied to clipboard');
+    toast.success('Report copied to clipboard');
   };
 
   const handleDelete = async () => {
@@ -242,7 +236,7 @@ function ReportViewContent({ report }: ReportViewProps) {
       setCurrentReport(null);
     } catch (err) {
       console.error('Error deleting report:', err);
-      showToast('Failed to delete report');
+      toast.error('Failed to delete report');
     }
   };
 

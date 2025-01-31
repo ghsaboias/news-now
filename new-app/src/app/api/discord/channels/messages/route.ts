@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { DiscordClient } from '@/services/discord/client';
 import { DiscordMessage } from '@/types';
 

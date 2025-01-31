@@ -1,4 +1,4 @@
-import { Badge } from './Badge';
+import { Badge } from '@/components/ui/badge';
 
 interface MessageCountBadgeProps {
   /** Number of messages */
@@ -18,7 +18,7 @@ interface MessageCountBadgeProps {
 export function MessageCountBadge({ count, className }: MessageCountBadgeProps) {
   return (
     <Badge
-      variant="warning"
+      variant="default"
       title={`${count} messages processed`}
       className={className}
     >

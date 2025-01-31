@@ -21,8 +21,9 @@ import { RecentReports } from '@/components/reports/RecentReports';
 import { ReportView } from '@/components/reports/ReportView';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { ReportsProvider, useReports } from '@/context/ReportsContext';
-import { useToast } from '@/context/ToastContext';
+import { Toaster } from '@/components/ui/toaster';
+import { useReports } from '@/context/ReportsContext';
+import { useAppToast } from '@/hooks/useAppToast';
 import type { AISummary, DiscordChannel, DiscordMessage } from '@/types';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
@@ -324,7 +325,7 @@ function SummarizerContent() {
     const [selectedTimeframe, setSelectedTimeframe] = useState<'1h' | '4h' | '24h'>('1h');
     const [isGenerating, setIsGenerating] = useState(false);
     const [forceRefresh, setForceRefresh] = useState(false);
-    const { showToast } = useToast();
+    const toast = useAppToast();
 
     const { setCurrentReport, fetchReports, currentReport, findReportContext } = useReports();
 
@@ -526,7 +527,7 @@ function SummarizerContent() {
 
         } catch (error) {
             console.error('Error generating report:', error);
-            showToast(error instanceof Error ? error.message : 'Failed to generate report');
+            toast.error(error instanceof Error ? error.message : 'Failed to generate report');
             updateProgress({
                 stage: 'Error generating report',
                 percent: 100,
@@ -538,7 +539,7 @@ function SummarizerContent() {
                 updateProgress(null);
             }, 2000);
         }
-    }, [selectedChannelId, selectedTimeframe, fetchReports, setCurrentReport, showToast, setIsGenerating, updateProgress]);
+    }, [selectedChannelId, selectedTimeframe, fetchReports, setCurrentReport, toast, setIsGenerating, updateProgress]);
 
     // Memoize controls
     const controls = useMemo(() => (
@@ -624,10 +625,9 @@ function SummarizerContent() {
 
 export default function SummarizerPage() {
     return (
-        <ReportsProvider>
-            <ErrorBoundary>
-                <SummarizerContent />
-            </ErrorBoundary>
-        </ReportsProvider>
+        <ErrorBoundary>
+            <SummarizerContent />
+            <Toaster />
+        </ErrorBoundary>
     );
 } 

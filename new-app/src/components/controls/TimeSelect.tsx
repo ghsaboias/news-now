@@ -1,4 +1,4 @@
-import { Button } from '@/components/common/Button';
+import { Button } from '@/components/ui/button';
 
 export type TimeframeValue = '1h' | '4h' | '24h';
 
@@ -51,9 +51,8 @@ export function TimeSelect({
             key={option.value}
             onClick={() => onChange(option.value)}
             disabled={disabled}
-            variant={value === option.value ? 'primary' : 'secondary'}
+            variant={value === option.value ? 'default' : 'outline'}
             size="sm"
-            fullWidth
           >
             {option.label}
           </Button>

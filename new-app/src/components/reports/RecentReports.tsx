@@ -3,7 +3,7 @@ import { TimeframeBadge } from '@/components/common/badges/TimeframeBadge';
 import { ErrorMessage } from '@/components/common/messages/ErrorMessage';
 import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 import { useReports } from '@/context/ReportsContext';
-import { useToast } from '@/context/ToastContext';
+import { useAppToast } from '@/hooks/useAppToast';
 import { formatReportDate } from '@/utils/date';
 import { useEffect } from 'react';
 import { Copy, Trash2, X } from 'react-feather';
@@ -18,7 +18,7 @@ function RecentReportsContent() {
     deleteReport,
     setCurrentReport
   } = useReports();
-  const { showToast } = useToast();
+  const toast = useAppToast();
 
   const handleClearDate = async (date: string, reportsInGroup: number) => {
     if (!confirm(`Are you sure you want to delete all ${reportsInGroup} reports from ${formatReportDate(date).full}?`)) {
@@ -41,10 +41,10 @@ function RecentReportsContent() {
       }
 
       await fetchReports();
-      showToast('Reports cleared successfully');
+      toast.success('Reports cleared successfully');
     } catch (err) {
       console.error('Error clearing reports:', err);
-      showToast('Failed to clear reports');
+      toast.error('Failed to clear reports');
     }
   };
 
@@ -129,7 +129,7 @@ function RecentReportsContent() {
                           e.stopPropagation();
                           const text = `${report.summary.headline}\n\n${report.summary.location}\n\n${report.summary.body}\n\n${report.summary.sources ? 'Sources:\n' + report.summary.sources.join('\n') : ''}`;
                           navigator.clipboard.writeText(text);
-                          showToast('Report copied to clipboard');
+                          toast.success('Report copied to clipboard');
                         }}
                         className="
                           p-2 text-gray-400 rounded-lg 
@@ -156,7 +156,7 @@ function RecentReportsContent() {
                             setCurrentReport(null);
                           } catch (err) {
                             console.error('Error deleting report:', err);
-                            showToast('Failed to delete report');
+                            toast.error('Failed to delete report');
                           }
                         }}
                         className="

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { AnthropicClient } from '@/services/claude/client';
 import { DiscordClient } from '@/services/discord/client';
 import { MessageService } from '@/services/redis/messages';

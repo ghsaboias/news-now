@@ -1,7 +1,6 @@
+import { ReportsProvider } from '@/context/ReportsContext';
 import '@testing-library/jest-dom';
 import { render, screen, waitFor } from '@testing-library/react';
-import { ReportsProvider } from '../../../context/ReportsContext';
-import { ToastProvider } from '../../../context/ToastContext';
 import { RecentReports } from '../RecentReports';
 
 const mockReport = {
@@ -20,11 +19,9 @@ const mockReport = {
 
 function renderWithProviders(ui: React.ReactElement) {
   return render(
-    <ToastProvider>
-      <ReportsProvider>
-        {ui}
-      </ReportsProvider>
-    </ToastProvider>
+    <ReportsProvider>
+      {ui}
+    </ReportsProvider>
   );
 }
 
@@ -50,10 +47,10 @@ describe('RecentReports', () => {
     });
 
     renderWithProviders(<RecentReports />);
-    
+
     // First verify loading state
     expect(screen.getByTestId('report-skeleton')).toBeInTheDocument();
-    
+
     // Wait for content to load
     await waitFor(() => {
       expect(screen.getByText('Test report content')).toBeInTheDocument();
@@ -67,10 +64,10 @@ describe('RecentReports', () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('Failed to fetch reports'));
 
     renderWithProviders(<RecentReports />);
-    
+
     // First verify loading state
     expect(screen.getByTestId('report-skeleton')).toBeInTheDocument();
-    
+
     // Wait for error state
     await waitFor(() => {
       expect(screen.getByText('Failed to fetch reports')).toBeInTheDocument();
@@ -86,10 +83,10 @@ describe('RecentReports', () => {
     });
 
     renderWithProviders(<RecentReports />);
-    
+
     // First verify loading state
     expect(screen.getByTestId('report-skeleton')).toBeInTheDocument();
-    
+
     // Wait for empty state
     await waitFor(() => {
       expect(screen.getByText('No reports yet')).toBeInTheDocument();

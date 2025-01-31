@@ -3,9 +3,11 @@
 import { Grid } from '@/components/layout/Grid';
 import { Stack } from '@/components/layout/Stack';
 import { usePerformanceMonitor } from '@/hooks/usePerformanceMonitor';
+import dynamic from 'next/dynamic';
 import Link from "next/link";
 
-function HomeContent() {
+// Dynamically import HomeContent with no SSR to avoid hydration issues
+const HomeContent = dynamic(() => Promise.resolve(function HomeContent() {
     // Monitor performance on the client side only
     usePerformanceMonitor('HomeContent', {
         logMemory: true,
@@ -79,13 +81,8 @@ function HomeContent() {
                 </nav>
             </header>
             <div className="flex-grow flex flex-col justify-center items-center gap-4">
-
-
-
                 {hero}
                 {features}
-
-
             </div>
             <footer className="pb-8 w-full">
                 <div className="text-center text-gray-400 text-sm">
@@ -94,7 +91,7 @@ function HomeContent() {
             </footer>
         </div>
     );
-}
+}), { ssr: false });
 
 export default function Home() {
     return <HomeContent />;

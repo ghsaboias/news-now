@@ -1,4 +1,4 @@
-import { Button } from '@/components/common/Button';
+import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 
 type CacheType = 'all' | 'reports' | 'channel-status' | 'generation';
@@ -74,7 +74,7 @@ export function CacheControl({
                 <Button
                     onClick={() => clearCache('all')}
                     disabled={isClearing}
-                    variant="danger"
+                    variant="destructive"
                     size="sm"
                 >
                     Clear All Caches

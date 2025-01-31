@@ -1,8 +1,7 @@
-import { Button } from '@/components/common/Button';
-import { Progress } from '@/components/common/Progress';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { useDisclosure } from '@/hooks/useDisclosure';
 import { ChannelActivity } from '@/types';
-import { ChevronDown, ChevronUp } from 'react-feather';
 import { ChannelList } from './ChannelList';
 
 interface ProgressDisplayProps {
@@ -45,9 +44,6 @@ export function ProgressDisplay({
       {channels.length > 0 && (
         <Progress
           value={status === 'complete' ? 100 : percent}
-          stage={getStage()}
-          status={`${processedChannels} of ${totalChannels} channels`}
-          error={error}
         />
       )}
 
@@ -55,7 +51,6 @@ export function ProgressDisplay({
         <Button
           variant="secondary"
           onClick={onToggle}
-          icon={isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           size="sm"
         >
           {isOpen ? 'Hide Details' : 'Show Details'}
