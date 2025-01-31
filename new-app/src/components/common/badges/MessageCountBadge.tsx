@@ -18,7 +18,7 @@ interface MessageCountBadgeProps {
 export function MessageCountBadge({ count, className }: MessageCountBadgeProps) {
   return (
     <Badge
-      variant="default"
+      variant="success"
       title={`${count} messages processed`}
       className={className}
     >

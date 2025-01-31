@@ -1,4 +1,4 @@
-import { Message, MessageField } from '@/types';
+import { Message, MessageField } from '@/types/redis';
 import { redisClient } from './client';
 
 const KEYS = {

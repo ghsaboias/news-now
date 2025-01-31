@@ -1,4 +1,4 @@
-import { Report, ReportGroup } from '@/types';
+import { Report, ReportGroup } from '@/types/report';
 import { redisClient } from './client';
 import { ReportValidationError, ReportValidator, ValidationResult } from './validation';
 

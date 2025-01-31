@@ -1,4 +1,4 @@
-import { Source } from '@/types';
+import { Source } from '@/types/source';
 import { redisClient } from './client';
 
 const KEYS = {

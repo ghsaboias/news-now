@@ -51,7 +51,7 @@ export function TimeSelect({
             key={option.value}
             onClick={() => onChange(option.value)}
             disabled={disabled}
-            variant={value === option.value ? 'default' : 'outline'}
+            variant={value === option.value ? 'outline' : 'default'}
             size="sm"
           >
             {option.label}

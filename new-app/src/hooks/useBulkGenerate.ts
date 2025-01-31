@@ -1,5 +1,6 @@
 import { useReports } from '@/context/ReportsContext';
-import { ChannelActivity, Report } from '@/types';
+import { ChannelActivity } from '@/types/discord';
+import { Report } from '@/types/report';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLoadingState } from './useLoadingState';
 

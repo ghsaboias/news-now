@@ -15,7 +15,7 @@ export function SplitView({ sidebarContent, mainContent }: SplitViewProps) {
           {/* Desktop Sidebar */}
           <div className="
             hidden lg:block
-            w-[400px] min-w-[400px] 
+            w-[450px] min-w-[450px] 
             overflow-y-auto 
             border-r border-gray-800 
             bg-gray-900/50 backdrop-blur-sm

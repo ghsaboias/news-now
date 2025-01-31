@@ -1,5 +1,5 @@
 import { Progress } from '@/components/ui/progress';
-import { DiscordMessage } from '@/types';
+import { DiscordMessage } from '@/types/discord';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface ReportGeneratorProps {

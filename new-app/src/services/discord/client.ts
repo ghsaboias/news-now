@@ -1,4 +1,4 @@
-import { DiscordChannel, DiscordMessage } from '@/types';
+import { DiscordChannel, DiscordMessage } from '@/types/discord';
 import { config } from '@/utils/config';
 import { PerformanceTracker } from '@/utils/performance';
 import axios, { AxiosInstance } from 'axios';

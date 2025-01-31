@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { DiscordClient } from '@/services/discord/client';
-import { DiscordMessage } from '@/types';
+import { DiscordMessage } from '@/types/discord';
 
 const TIME_PERIODS = ['1h', '4h', '24h'] as const;
 type TimePeriod = typeof TIME_PERIODS[number];

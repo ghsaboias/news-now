@@ -1,5 +1,5 @@
 import { DiscordClient } from '@/services/discord/client';
-import { DiscordChannel } from '@/types';
+import { DiscordChannel } from '@/types/discord';
 import { NextResponse } from 'next/server';
 
 // Cache channels in memory with a 5-minute TTL

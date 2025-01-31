@@ -1,4 +1,4 @@
-import { Report } from '@/types';
+import { Report } from '@/types/report';
 import Redis from 'ioredis';
 import { KEYS, TTL } from './keys';
 

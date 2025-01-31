@@ -1,4 +1,5 @@
-import { ChannelInfo, Report } from '@/types';
+import { ChannelInfo } from '@/types/discord';
+import { Report } from '@/types/report';
 import { EventEmitter } from 'events';
 
 interface QueuedChannel {

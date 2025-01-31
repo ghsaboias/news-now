@@ -1,4 +1,4 @@
-import { DiscordMessage, MessageProcessingResult, ProcessedMessage } from '@/types';
+import { DiscordMessage, MessageProcessingResult, ProcessedMessage } from '@/types/discord';
 import { v4 as uuidv4 } from 'uuid';
 import { MessageService } from '../redis/messages';
 import { SourceService } from '../redis/sources';

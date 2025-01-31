@@ -1,4 +1,4 @@
-import { ChannelActivity } from '@/types';
+import { ChannelActivity } from '@/types/discord';
 
 interface ChannelListProps {
   channels: ChannelActivity[];

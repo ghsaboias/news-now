@@ -24,7 +24,8 @@ import { Progress } from '@/components/ui/progress';
 import { Toaster } from '@/components/ui/toaster';
 import { useReports } from '@/context/ReportsContext';
 import { useAppToast } from '@/hooks/useAppToast';
-import type { AISummary, DiscordChannel, DiscordMessage } from '@/types';
+import type { DiscordChannel, DiscordMessage } from '@/types/discord';
+import type { AISummary } from '@/types/report';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -569,6 +570,7 @@ function SummarizerContent() {
                     <Button
                         onClick={handleGenerateReport}
                         disabled={!selectedChannelId || isGenerating}
+                        className="w-full"
                     >
                         {isGenerating ? 'Generating...' : 'Create Report'}
                     </Button>

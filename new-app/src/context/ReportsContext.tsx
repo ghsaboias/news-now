@@ -1,6 +1,6 @@
 'use client';
 
-import type { Report, ReportGroup } from '@/types';
+import type { Report, ReportGroup } from '@/types/report';
 import { createContext, ReactNode, useCallback, useContext, useState } from 'react';
 
 interface ReportsContextType {

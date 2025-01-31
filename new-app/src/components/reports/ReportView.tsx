@@ -4,7 +4,7 @@ import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 import { Button } from '@/components/ui/button';
 import { useReports } from '@/context/ReportsContext';
 import { useAppToast } from '@/hooks/useAppToast';
-import { Report } from '@/types';
+import { Report } from '@/types/report';
 import { formatReportDate } from '@/utils/date';
 import { useEffect, useMemo, useState } from 'react';
 import { Book, Globe } from 'react-feather';
@@ -315,7 +315,7 @@ function ReportViewContent({ report }: ReportViewProps) {
               </h1>
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-gray-400 leading-normal">
                 <span className="truncate max-w-[200px]">{report.channelName}</span>
-                <TimeframeBadge timeframe={report.timeframe.type} className="ml-1" />
+                <TimeframeBadge timeframe={report.timeframe.type} />
                 <MessageCountBadge count={report.messageCount} />
                 <span className="hidden sm:inline">•</span>
                 <span className="truncate max-w-[300px]">{content.location}</span>

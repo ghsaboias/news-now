@@ -1,4 +1,5 @@
-import { DiscordMessage, ExtractedSource } from '@/types';
+import { DiscordMessage } from '@/types/discord';
+import { ExtractedSource } from '@/types/source';
 import { v4 as uuidv4 } from 'uuid';
 import { SourceService } from '../redis/sources';
 

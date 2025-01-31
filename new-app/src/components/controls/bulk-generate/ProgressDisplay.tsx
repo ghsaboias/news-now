@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useDisclosure } from '@/hooks/useDisclosure';
-import { ChannelActivity } from '@/types';
+import { ChannelActivity } from '@/types/discord';
 import { ChannelList } from './ChannelList';
 
 interface ProgressDisplayProps {

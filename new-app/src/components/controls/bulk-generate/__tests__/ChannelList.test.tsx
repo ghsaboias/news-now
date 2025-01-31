@@ -1,4 +1,4 @@
-import { ChannelActivity } from '@/types';
+import { ChannelActivity } from '@/types/discord';
 import { render, screen } from '@testing-library/react';
 import { ChannelList } from '../ChannelList';
 
@@ -43,7 +43,7 @@ describe('ChannelList', () => {
 
   it('shows channel status indicators', () => {
     render(<ChannelList channels={mockChannels} />);
-    
+
     // Success channel shows message count
     const successChannel = screen.getByText('general').closest('[role="listitem"]');
     expect(successChannel).toHaveClass(
@@ -57,7 +57,7 @@ describe('ChannelList', () => {
       'text-gray-300'
     );
     expect(screen.getByText('100 msgs')).toBeInTheDocument();
-    
+
     // Processing channel shows loader
     const processingChannel = screen.getByText('random').closest('[role="listitem"]');
     expect(processingChannel).toHaveClass(

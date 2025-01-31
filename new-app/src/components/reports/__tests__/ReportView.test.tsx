@@ -1,6 +1,6 @@
+import { ToastProvider } from '@/components/ui/toast';
 import { ReportsProvider } from '@/context/ReportsContext';
-import { ToastProvider } from '@/context/ToastContext';
-import { Report } from '@/types';
+import { Report } from '@/types/report';
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import { ReportView } from '../ReportView';

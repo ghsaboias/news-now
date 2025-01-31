@@ -9,7 +9,8 @@ import { TopicService } from '@/services/redis/topics';
 import { ReportGenerator } from '@/services/report/generator';
 import { ChannelQueue } from '@/services/report/queue';
 import { BulkGenerationError, BulkGenerationValidator } from '@/services/report/validation';
-import { ActivityThreshold, ChannelInfo, Report } from '@/types';
+import { ActivityThreshold, ChannelInfo } from '@/types/discord';
+import { Report } from '@/types/report';
 import { NextRequest } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 

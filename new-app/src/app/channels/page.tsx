@@ -2,22 +2,22 @@
 
 import { Card } from '@/components/layout/Card';
 import { Grid } from '@/components/layout/Grid';
-import { DiscordChannel } from '@/types';
+import { DiscordChannel } from '@/types/discord';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 // Performance logging helper
 const perf = {
     metrics: new Map<string, { start: number; updates?: number }>(),
-    
+
     start: (label: string) => {
         // Only run on client side
         if (typeof window === 'undefined') return;
-        
+
         const startTime = performance.now();
         console.time(`⏱️ ${label}`);
         performance.mark(`${label}-start`);
         perf.metrics.set(label, { start: startTime });
-        
+
         // Log memory if available
         if (performance.memory) {
             console.log(`📊 Memory before ${label}:`, {
@@ -26,20 +26,20 @@ const perf = {
             });
         }
     },
-    
+
     end: (label: string, details?: { updates?: number }) => {
         // Only run on client side
         if (typeof window === 'undefined') return;
-        
+
         const endTime = performance.now();
         const metric = perf.metrics.get(label);
-        
+
         if (metric) {
             const duration = endTime - metric.start;
             console.timeEnd(`⏱️ ${label}`);
             performance.mark(`${label}-end`);
             performance.measure(label, `${label}-start`, `${label}-end`);
-            
+
             console.log(`📈 ${label} stats:`, {
                 durationMs: Math.round(duration),
                 ...(details?.updates && { updatesProcessed: details.updates })
@@ -75,13 +75,13 @@ async function getChannels(): Promise<DiscordChannel[]> {
     if (typeof window !== 'undefined') {
         perf.start('fetchChannels');
     }
-    
+
     try {
         const channelsCache = sessionStorage.getItem('discord_channels');
         if (channelsCache) {
             const cached = JSON.parse(channelsCache);
             const cacheAge = Date.now() - cached.timestamp;
-            
+
             // Use cache if less than 5 minutes old
             if (cacheAge < 300000) {
                 return cached.channels;
@@ -91,13 +91,13 @@ async function getChannels(): Promise<DiscordChannel[]> {
         const res = await fetch('/api/discord/channels', {
             cache: 'no-store'
         });
-        
+
         if (!res.ok) {
             throw new Error('Failed to fetch channels');
         }
-        
+
         const channels = await res.json();
-        
+
         // Update cache only on client side
         if (typeof window !== 'undefined') {
             sessionStorage.setItem('discord_channels', JSON.stringify({
@@ -105,7 +105,7 @@ async function getChannels(): Promise<DiscordChannel[]> {
                 timestamp: Date.now()
             }));
         }
-        
+
         return channels;
     } finally {
         if (typeof window !== 'undefined') {
@@ -160,13 +160,13 @@ export default function ChannelsPage() {
     useEffect(() => {
         let mounted = true;
         let eventSource: EventSource | null = null;
-        
+
         const fetchData = async () => {
             perf.start('initialLoad');
             try {
                 const channelData = await getChannels();
                 if (!mounted) return;
-                
+
                 const initialLoadingStates: LoadingState = {};
                 channelData.forEach(channel => {
                     initialLoadingStates[channel.id] = new Set(['1h', '4h', '24h']);
@@ -213,12 +213,12 @@ export default function ChannelsPage() {
 
     // Memoize the grid content
     const gridContent = useMemo(() => (
-        <Grid 
-            columns={{ sm: 1, md: 2, lg: 3 }} 
+        <Grid
+            columns={{ sm: 1, md: 2, lg: 3 }}
             spacing="relaxed"
         >
             {state.channels.map((channel) => (
-                <Card 
+                <Card
                     key={channel.id}
                     title={channel.name}
                     messageCounts={state.messageCounts[channel.id]}
@@ -245,7 +245,7 @@ export default function ChannelsPage() {
                         Real-time message activity across all monitored channels
                     </p>
                 </div>
-                
+
                 <div className="max-w-6xl mx-auto">
                     {gridContent}
                 </div>

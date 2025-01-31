@@ -1,4 +1,4 @@
-import { Topic } from '@/types';
+import { Topic } from '@/types/redis';
 import { redisClient } from './client';
 
 const KEYS = {

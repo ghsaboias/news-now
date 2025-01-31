@@ -1,4 +1,4 @@
-import { Timeframe } from '@/types';
+import { Timeframe } from '@/types/report';
 
 // Key namespace types for type safety
 type KeyNamespace = 'report' | 'channel' | 'generation' | 'cache';

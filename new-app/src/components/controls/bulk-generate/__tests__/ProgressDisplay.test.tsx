@@ -1,4 +1,4 @@
-import { ChannelActivity } from '@/types';
+import { ChannelActivity } from '@/types/discord';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { ProgressDisplay } from '../ProgressDisplay';
 
@@ -10,7 +10,7 @@ const mockChannels: ChannelActivity[] = [
 describe('ProgressDisplay', () => {
   it('renders idle state correctly', () => {
     render(
-      <ProgressDisplay 
+      <ProgressDisplay
         status="idle"
         channels={[]}
       />
@@ -20,8 +20,8 @@ describe('ProgressDisplay', () => {
 
   it('renders scanning state with channels', () => {
     render(
-      <ProgressDisplay 
-        status="scanning"
+      <ProgressDisplay
+        status="processing"
         channels={mockChannels}
       />
     );
@@ -31,21 +31,21 @@ describe('ProgressDisplay', () => {
 
   it('toggles channel list visibility when button is clicked', () => {
     render(
-      <ProgressDisplay 
-        status="scanning"
+      <ProgressDisplay
+        status="processing"
         channels={mockChannels}
       />
     );
-    
+
     // Initially hidden
     const channelList = screen.getByText('channel-1').closest('div[class*="transition-all"]');
     expect(channelList).toHaveClass('opacity-0', 'max-h-0');
-    
+
     // Show channels
     const toggleButton = screen.getByRole('button', { name: /show channels/i });
     fireEvent.click(toggleButton);
     expect(channelList).toHaveClass('opacity-100', 'max-h-96');
-    
+
     // Hide channels
     fireEvent.click(toggleButton);
     expect(channelList).toHaveClass('opacity-0', 'max-h-0');
@@ -53,7 +53,7 @@ describe('ProgressDisplay', () => {
 
   it('renders complete state correctly', () => {
     render(
-      <ProgressDisplay 
+      <ProgressDisplay
         status="complete"
         channels={mockChannels}
       />
@@ -63,8 +63,8 @@ describe('ProgressDisplay', () => {
 
   it('shows channel count in toggle button', () => {
     render(
-      <ProgressDisplay 
-        status="scanning"
+      <ProgressDisplay
+        status="processing"
         channels={mockChannels}
       />
     );
@@ -74,8 +74,8 @@ describe('ProgressDisplay', () => {
 
   it('updates progress based on completed channels', () => {
     render(
-      <ProgressDisplay 
-        status="scanning"
+      <ProgressDisplay
+        status="processing"
         channels={mockChannels}
       />
     );
@@ -87,8 +87,8 @@ describe('ProgressDisplay', () => {
 
   it('shows total message count', () => {
     render(
-      <ProgressDisplay 
-        status="scanning"
+      <ProgressDisplay
+        status="processing"
         channels={mockChannels}
       />
     );

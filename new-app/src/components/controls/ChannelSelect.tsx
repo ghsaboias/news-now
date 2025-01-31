@@ -1,4 +1,4 @@
-import { DiscordChannel } from '@/types';
+import { DiscordChannel } from '@/types/discord';
 import { useCallback, useEffect, useMemo } from 'react';
 
 interface ChannelSelectProps {

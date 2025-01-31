@@ -2,7 +2,7 @@ import { DiscordClient } from '@/services/discord/client';
 import { MessageService } from '@/services/redis/messages';
 import { SourceService } from '@/services/redis/sources';
 import { TopicService } from '@/services/redis/topics';
-import { DiscordMessage } from '@/types';
+import { DiscordMessage } from '@/types/discord';
 import { NextRequest } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 

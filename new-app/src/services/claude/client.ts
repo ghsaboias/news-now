@@ -1,4 +1,4 @@
-import { ClaudeClient, ClaudeMessage, ClaudeResponse } from '@/types';
+import { ClaudeClient, ClaudeMessage, ClaudeResponse } from '@/types/claude';
 import Anthropic from '@anthropic-ai/sdk';
 
 export class AnthropicClient implements ClaudeClient {

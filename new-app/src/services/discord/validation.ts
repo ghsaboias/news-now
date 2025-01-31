@@ -1,4 +1,4 @@
-import { DiscordMessage } from '@/types';
+import { DiscordMessage } from '@/types/discord';
 
 // Validation error types
 export class MessageValidationError extends Error {

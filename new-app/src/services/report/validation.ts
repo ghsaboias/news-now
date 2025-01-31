@@ -1,4 +1,4 @@
-import { ChannelInfo } from '@/types';
+import { ChannelInfo } from '@/types/discord';
 
 // Validation error types
 export class BulkGenerationError extends Error {

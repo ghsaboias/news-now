@@ -1,4 +1,6 @@
-import { AISummary, ClaudeClient, Translation } from '@/types';
+import { ClaudeClient } from '@/types/claude';
+import { AISummary } from '@/types/report';
+import { Translation } from '@/types/translation';
 import { PerformanceTracker } from '@/utils/performance';
 
 export class TranslationService {

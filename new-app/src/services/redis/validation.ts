@@ -1,4 +1,4 @@
-import { Report } from '@/types';
+import { Report } from '@/types/report';
 
 // Validation error types
 export class ReportValidationError extends Error {

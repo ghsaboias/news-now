@@ -1,4 +1,4 @@
-import { Source } from '@/types';
+import { Source } from '@/types/source';
 import { SourceService } from '../../redis/sources';
 import { SourceExtractor } from '../extractor';
 

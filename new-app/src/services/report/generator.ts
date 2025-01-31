@@ -1,4 +1,6 @@
-import { AISummary, ClaudeClient, DiscordMessage } from '@/types';
+import { ClaudeClient } from '@/types/claude';
+import { DiscordMessage } from '@/types/discord';
+import { AISummary } from '@/types/report';
 import { PerformanceTracker } from '@/utils/performance';
 
 export class ReportGenerator {
