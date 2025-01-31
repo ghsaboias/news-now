@@ -10,8 +10,6 @@ declare global {
     }
 }
 
-import { Button } from '@/components/common/Button';
-import { Progress } from '@/components/common/Progress';
 import { BulkGenerateButton } from '@/components/controls/bulk-generate/BulkGenerateButton';
 import { CacheControl } from '@/components/controls/CacheControl';
 import { ChannelSelect } from '@/components/controls/ChannelSelect';
@@ -21,6 +19,8 @@ import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 import { SplitView } from '@/components/layout/SplitView';
 import { RecentReports } from '@/components/reports/RecentReports';
 import { ReportView } from '@/components/reports/ReportView';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { ReportsProvider, useReports } from '@/context/ReportsContext';
 import { useToast } from '@/context/ToastContext';
 import type { AISummary, DiscordChannel, DiscordMessage } from '@/types';
@@ -568,8 +568,6 @@ function SummarizerContent() {
                     <Button
                         onClick={handleGenerateReport}
                         disabled={!selectedChannelId || isGenerating}
-                        loading={isGenerating}
-                        fullWidth
                     >
                         {isGenerating ? 'Generating...' : 'Create Report'}
                     </Button>
@@ -586,7 +584,6 @@ function SummarizerContent() {
                     </div>
                     {progress && (
                         <MemoizedProgress
-                            stage={progress.stage}
                             value={progress.percent}
                         />
                     )}

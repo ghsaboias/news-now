@@ -1,4 +1,4 @@
-import { Button } from '@/components/common/Button';
+import { Button } from '@/components/ui/button';
 import { useBulkGenerate } from '@/hooks/useBulkGenerate';
 import { useState } from 'react';
 import { TimeSelect, TimeframeOption, TimeframeValue } from '../TimeSelect';
@@ -50,10 +50,9 @@ export function BulkGenerateButton() {
 
         {/* Generate Button */}
         <Button
-          variant="primary"
+          variant="default"
           onClick={() => generate({ timeframe: selectedTimeframe, minMessages })}
           disabled={isLoading}
-          loading={isLoading}
           size="lg"
           className="w-full transition-transform duration-DEFAULT active:scale-[0.99]"
         >

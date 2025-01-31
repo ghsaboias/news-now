@@ -1,13 +1,13 @@
 import { MessageCountBadge } from '@/components/common/badges/MessageCountBadge';
 import { TimeframeBadge } from '@/components/common/badges/TimeframeBadge';
-import { Button } from '@/components/common/Button';
 import { ErrorBoundary } from '@/components/error/ErrorBoundary';
+import { Button } from '@/components/ui/button';
 import { useReports } from '@/context/ReportsContext';
 import { useToast } from '@/context/ToastContext';
 import { Report } from '@/types';
 import { formatReportDate } from '@/utils/date';
 import { useEffect, useMemo, useState } from 'react';
-import { Book, Copy, Globe, Trash2 } from 'react-feather';
+import { Book, Globe } from 'react-feather';
 
 const SUPPORTED_LANGUAGES = [
   { code: 'es', name: 'Spanish' },
@@ -276,8 +276,6 @@ function ReportViewContent({ report }: ReportViewProps) {
         <Button
           onClick={handleTranslate}
           disabled={isTranslating}
-          loading={isTranslating}
-          icon={<Globe size={16} />}
           variant="secondary"
           className="!py-1"
         >
@@ -336,7 +334,6 @@ function ReportViewContent({ report }: ReportViewProps) {
                   <Button
                     onClick={handleCopy}
                     variant="secondary"
-                    icon={<Copy size={16} />}
                     title="Copy Report"
                     className="!p-0 bg-transparent hover:bg-transparent"
                   >
@@ -344,8 +341,7 @@ function ReportViewContent({ report }: ReportViewProps) {
                   </Button>
                   <Button
                     onClick={handleDelete}
-                    variant="danger"
-                    icon={<Trash2 size={16} />}
+                    variant="destructive"
                     title="Delete Report"
                     className="!p-0 bg-transparent hover:bg-transparent"
                   >

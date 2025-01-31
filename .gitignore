@@ -90,3 +90,6 @@ new-app/app-aiworld.service
 
 # Cursor Rules
 .cursor/rules/
+
+# Structure
+structure.json

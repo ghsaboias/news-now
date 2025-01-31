@@ -1,10 +1,10 @@
+import { Badge } from '@/components/ui/badge';
 import { Timeframe } from '@/types';
-import { Badge } from './Badge';
 
-const timeframeVariants: Record<Timeframe['type'], 'info' | 'success' | 'warning'> = {
-  '1h': 'success',
-  '4h': 'info',
-  '24h': 'warning',
+const timeframeVariants: Record<Timeframe['type'], 'default' | 'destructive' | 'outline' | 'secondary' | null | undefined> = {
+  '1h': 'default',
+  '4h': 'default',
+  '24h': 'default',
 };
 
 const timeframeLabels: Record<Timeframe['type'], string> = {
