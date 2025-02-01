@@ -1,12 +1,12 @@
 import { Progress } from '@/components/ui/progress';
-import { DiscordMessage } from '@/types/discord';
+import { OptimizedMessage } from '@/types/discord';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface ReportGeneratorProps {
   channelId: string;
   channelName: string;
   timeframe: string;
-  onComplete?: (messages: DiscordMessage[]) => void;
+  onComplete?: (messages: OptimizedMessage[]) => void;
   onError?: (error: string) => void;
 }
 
@@ -16,7 +16,7 @@ interface StreamUpdate {
   batchCount?: number;
   batchSize?: number;
   progress?: number;
-  messages?: DiscordMessage[];
+  messages?: OptimizedMessage[];
   totalMessages?: number;
   error?: string;
 }
@@ -43,7 +43,7 @@ export function ReportGenerator({
   const [stage, setStage] = useState<'setup' | 'fetching' | 'processing'>();
   const [status, setStatus] = useState('Initializing...');
   const [error, setError] = useState('');
-  const [messages, setMessages] = useState<DiscordMessage[]>([]);
+  const [messages, setMessages] = useState<OptimizedMessage[]>([]);
   const startTime = useRef(Date.now());
   const lastUpdateTime = useRef(Date.now());
   const fetchAttempts = useRef(0);

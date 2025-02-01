@@ -1,6 +1,7 @@
+import { ValidationResult } from '@/types/redisValidation';
 import { Report, ReportGroup } from '@/types/report';
 import { redisClient } from './client';
-import { ReportValidationError, ReportValidator, ValidationResult } from './validation';
+import { ReportValidationError, ReportValidator } from './validation';
 
 const REPORT_PREFIX = 'reports';
 const REPORT_KEY = (id: string) => `${REPORT_PREFIX}:${id}`;

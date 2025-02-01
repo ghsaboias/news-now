@@ -24,7 +24,7 @@ import { Progress } from '@/components/ui/progress';
 import { Toaster } from '@/components/ui/toaster';
 import { useReports } from '@/context/ReportsContext';
 import { useAppToast } from '@/hooks/useAppToast';
-import type { DiscordChannel, DiscordMessage } from '@/types/discord';
+import type { DiscordChannel, OptimizedMessage } from '@/types/discord';
 import type { AISummary } from '@/types/report';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
@@ -42,7 +42,7 @@ async function fetchMessagesAction(
     channelName: string,
     timeframe: string,
     onProgress?: (messageCount: number) => void
-): Promise<DiscordMessage[]> {
+): Promise<OptimizedMessage[]> {
     console.log(`[fetchMessagesAction] Fetching messages for channel ${channelName} (${channelId}) with timeframe ${timeframe}`);
 
     const response = await fetch(`/api/discord/messages?channelId=${channelId}&channelName=${encodeURIComponent(channelName)}&timeframe=${timeframe}`);
@@ -57,7 +57,7 @@ async function fetchMessagesAction(
     }
 
     const decoder = new TextDecoder();
-    let messages: DiscordMessage[] = [];
+    let messages: OptimizedMessage[] = [];
     let buffer = '';
 
     try {
@@ -111,8 +111,8 @@ async function fetchMessagesAction(
 }
 
 // Helper functions for message validation
-function validateAndSortMessages(messages: DiscordMessage[], timeframe: string): {
-    validMessages: DiscordMessage[];
+function validateAndSortMessages(messages: OptimizedMessage[], timeframe: string): {
+    validMessages: OptimizedMessage[];
     warnings: string[];
 } {
     const warnings: string[] = [];
@@ -179,7 +179,7 @@ async function generateSummaryAction(
     channelId: string,
     channelName: string,
     timeframe: string,
-    messages: DiscordMessage[],
+    messages: OptimizedMessage[],
     previousReport?: AISummary
 ): Promise<AISummary> {
     // Validate and sort messages

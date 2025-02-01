@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Validate messages within timeframe
+        // Validate transformed messages within timeframe
         const timeframeWindow = MessageValidator.getTimeframeWindow(validatedTimeframe);
         const messageValidation = MessageValidator.validateMessages(messages, timeframeWindow);
 
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
         });
 
         const summary = await reportGenerator.createAISummary(
-            messageValidation.validMessages,
+            messages,
             channelName,
             validatedTimeframe === '24h' ? 24 : validatedTimeframe === '4h' ? 4 : 1,
             previousSummary

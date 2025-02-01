@@ -1,7 +1,9 @@
 import { ClaudeClient } from '@/types/claude';
-import { DiscordMessage } from '@/types/discord';
+import { OptimizedMessage } from '@/types/discord';
 import { AISummary } from '@/types/report';
 import { PerformanceTracker } from '@/utils/performance';
+import fs from 'fs';
+import path from 'path';
 
 export class ReportGenerator {
     private readonly MAX_TOKENS = 4000;
@@ -11,17 +13,13 @@ export class ReportGenerator {
         private readonly logger: Console = console
     ) { }
 
-    private formatMessagesForClaude(messages: DiscordMessage[]): string {
+    private formatMessagesForClaude(messages: OptimizedMessage[]): string {
         return PerformanceTracker.track('report.formatMessages', () => {
-            return messages
-                .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+            const sortedMessages = messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+            console.log("sortedMessages", sortedMessages)
+            return sortedMessages
                 .map((msg) => {
-                    const timestamp = new Date(msg.timestamp)
-                        .toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: false
-                        });
+                    const timestamp = new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' });
 
                     const parts = [`[${timestamp}]`];
 
@@ -64,24 +62,8 @@ export class ReportGenerator {
                     }
 
                     // Add embed information
-                    const embeds = msg.embeds || [];
-                    embeds.forEach((embed) => {
-                        if (embed.title) parts.push(`Channel: ${embed.title}`);
-                        if (embed.description) parts.push(`Content: ${embed.description}`);
-                    });
-
-                    // Add fields (quotes, translations, etc.)
-                    const fields = msg.embeds?.[0]?.fields || [];
-                    fields.forEach((field) => {
-                        if (field.name.toLowerCase().includes('quote from')) {
-                            const attribution = field.name.replace(/quote from:?\s*/i, '').trim();
-                            parts.push(`Quote from ${attribution}: ${field.value}`);
-                        } else if (field.name.toLowerCase() === 'translated from') {
-                            parts.push(`[Translated from ${field.value}]`);
-                        } else if (field.name.toLowerCase() !== 'source') { // Skip source as we have the URL
-                            parts.push(`${field.name}: ${field.value}`);
-                        }
-                    });
+                    if (msg.embeds?.[0]?.title) parts.push(`Embed Title: ${msg.embeds[0].title}`);
+                    if (msg.embeds?.[0]?.description) parts.push(`Embed Description: ${msg.embeds[0].description}`);
 
                     // Add link if available
                     if (msg.content) {
@@ -193,7 +175,7 @@ export class ReportGenerator {
                 throw new Error('Invalid summary format: missing required components');
             }
 
-            return {
+            const summaryObj = {
                 headline,
                 location,
                 body,
@@ -201,15 +183,18 @@ export class ReportGenerator {
                 raw_response: text,
                 timestamp: new Date().toISOString()
             };
+            this.logger.log(`[Report Generator] Parsed summary: Headline: ${headline}, Location: ${location}, Body length: ${body.length}, Sources count: ${sources.length}`);
+            return summaryObj;
         });
     }
 
     async createAISummary(
-        messages: DiscordMessage[],
+        messages: OptimizedMessage[],
         channelName: string,
         requestedHours: number,
         previousSummary?: AISummary
     ): Promise<AISummary | null> {
+        console.log("messages!!", messages)
         return PerformanceTracker.track('report.createSummary', async () => {
             if (!messages.length) return null;
 
@@ -228,6 +213,9 @@ export class ReportGenerator {
             );
 
             const formattedText = this.formatMessagesForClaude(messages);
+            const prompt = this.createPrompt(formattedText, previousSummary);
+            this.logger.log(`[Report Generator] Timestamp distribution for ${channelName} (${requestedHours}h):`, Object.entries(timestampDistribution));
+            this.logger.log(`[Report Generator] Generated prompt snippet: ${prompt.slice(0, 200)}...`);
 
             try {
                 const response = await PerformanceTracker.track('report.claudeRequest', () =>
@@ -238,7 +226,7 @@ export class ReportGenerator {
                         messages: [
                             {
                                 role: 'user',
-                                content: this.createPrompt(formattedText, previousSummary),
+                                content: prompt,
                             },
                         ],
                     })
@@ -248,6 +236,37 @@ export class ReportGenerator {
                     this.logger.error('Claude returned empty response');
                     return null;
                 }
+
+                // Save snapshot data to claude_test.json
+                try {
+                    const snapshot = {
+                        timestamp: new Date().toISOString(),
+                        channelName,
+                        messageCount: messages.length,
+                        prompt, // prompt used for request
+                        claudeResponse: response.content[0].text
+                    };
+                    const snapshotPath = path.join(process.cwd(), 'claude_test.json');
+                    let existingSnapshots = [];
+                    if (fs.existsSync(snapshotPath)) {
+                        try {
+                            const raw = fs.readFileSync(snapshotPath, 'utf8');
+                            existingSnapshots = JSON.parse(raw);
+                            if (!Array.isArray(existingSnapshots)) {
+                                existingSnapshots = [];
+                            }
+                        } catch (e) {
+                            existingSnapshots = [];
+                        }
+                    }
+                    existingSnapshots.push(snapshot);
+                    fs.writeFileSync(snapshotPath, JSON.stringify(existingSnapshots, null, 2));
+                    this.logger.log(`[Report Generator] Saved snapshot to claude_test.json`);
+                } catch (err) {
+                    this.logger.error('Failed to save snapshot:', err);
+                }
+
+                this.logger.log(`[Report Generator] Raw response from Claude: ${response.content[0].text.slice(0, 200)}...`);
                 return this.parseAISummary(response.content[0].text);
             } catch (error) {
                 this.logger.error('Error generating summary:', error);
@@ -267,7 +286,7 @@ export class ReportGenerator {
             const prevStart = new Date(previousSummary.period_start);
             const prevEnd = new Date(previousSummary.period_end);
             previousSummaryText = `CONTEXT FROM PREVIOUS REPORT
-                Time period: ${prevStart.toLocaleString()} to ${prevEnd.toLocaleString()} UTC
+                Time period: ${prevStart.toISOString()} to ${prevEnd.toISOString()}
 
                 ${previousSummary.raw_response}
 
@@ -276,7 +295,7 @@ export class ReportGenerator {
             `;
         }
 
-        return `Create a concise, journalistic report covering the key developments, incorporating context from the previous report when relevant.
+        return `Create a concise, journalistic report covering the key developments, incorporating context from the previous report when relevant. Focus on the most important recent developments.
 
             ${previousSummaryText} Updates to analyze:
             ${formattedText}

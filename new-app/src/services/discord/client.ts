@@ -1,5 +1,6 @@
-import { DiscordChannel, DiscordMessage } from '@/types/discord';
+import { DiscordChannel, OptimizedMessage } from '@/types/discord';
 import { config } from '@/utils/config';
+import { optimizeMessage } from '@/utils/messageOptimization';
 import { PerformanceTracker } from '@/utils/performance';
 import axios, { AxiosInstance } from 'axios';
 import { MessageProcessor } from '../message/processor';
@@ -22,7 +23,7 @@ const CACHE_CONFIG = {
 // LRU Cache implementation for messages
 class MessageCache {
     private cache: Map<string, {
-        messages: DiscordMessage[];
+        messages: OptimizedMessage[];
         timestamp: number;
     }>;
     private maxSize: number;
@@ -32,7 +33,7 @@ class MessageCache {
         this.maxSize = maxSize;
     }
 
-    get(key: string): DiscordMessage[] | null {
+    get(key: string): OptimizedMessage[] | null {
         const entry = this.cache.get(key);
         if (!entry) return null;
 
@@ -45,7 +46,7 @@ class MessageCache {
         return entry.messages;
     }
 
-    set(key: string, messages: DiscordMessage[]): void {
+    set(key: string, messages: OptimizedMessage[]): void {
         if (this.cache.size >= this.maxSize) {
             const oldestKey = this.cache.keys().next().value;
             if (oldestKey !== undefined) {
@@ -73,7 +74,7 @@ export class DiscordClient {
     private requestsInCurrentWindow = 0;
     private windowStartTime = Date.now();
     private channelNames: Map<string, string> = new Map();
-    public onMessageBatch?: (batchSize: number, botMessages: number, messages: DiscordMessage[]) => Promise<void>;
+    public onMessageBatch?: (batchSize: number, botMessages: number, messages: OptimizedMessage[]) => Promise<void>;
     private cachedChannels: DiscordChannel[] | null = null;
     private lastChannelFetch = 0;
     private messageCache: MessageCache;
@@ -211,7 +212,7 @@ export class DiscordClient {
         channelId: string,
         lastMessageId?: string,
         batchSize: number = DEFAULT_BATCH_SIZE
-    ): Promise<DiscordMessage[]> {
+    ): Promise<OptimizedMessage[]> {
         return PerformanceTracker.track('discord.fetchBatch', async () => {
             try {
                 const params = new URLSearchParams({
@@ -240,7 +241,7 @@ export class DiscordClient {
         lastMessageId?: string,
         topicId?: string,
         batchSize: number = DEFAULT_BATCH_SIZE
-    ): Promise<DiscordMessage[]> {
+    ): Promise<OptimizedMessage[]> {
         return PerformanceTracker.track('discord.fetchTimeframe', async () => {
             // Check cache first
             const cacheKey = `${channelId}-${hours}-${lastMessageId || 'initial'}`;
@@ -252,7 +253,7 @@ export class DiscordClient {
             let currentLastMessageId = lastMessageId;
             let batchCount = 0;
             let totalMessages = 0;
-            const allMessages: DiscordMessage[] = [];
+            const allMessages: OptimizedMessage[] = [];
 
             // Calculate cutoff time
             const cutoffTime = new Date();
@@ -275,17 +276,20 @@ export class DiscordClient {
                     new Date(msg.timestamp) >= cutoffTime
                 );
 
-                // Add filtered messages to result
-                allMessages.push(...batchMessages);
+                // Early transformation: optimize messages immediately
+                const optimizedBatchMessages = batchMessages.map(optimizeMessage);
+
+                // Add filtered and optimized messages to result
+                allMessages.push(...optimizedBatchMessages);
 
                 // Process messages in database if needed
-                if (this.messageProcessor && topicId && batchMessages.length > 0) {
-                    await this.messageProcessor.processBatch(batchMessages, topicId);
+                if (this.messageProcessor && topicId && optimizedBatchMessages.length > 0) {
+                    await this.messageProcessor.processBatch(optimizedBatchMessages, topicId);
                 }
 
-                // Notify about the batch
+                // Notify about the batch with optimized messages
                 if (this.onMessageBatch) {
-                    await this.onMessageBatch(batch.length, batchMessages.length, batchMessages);
+                    await this.onMessageBatch(batch.length, batchMessages.length, optimizedBatchMessages);
                 }
 
                 // Check if we should stop
@@ -313,7 +317,7 @@ export class DiscordClient {
         });
     }
 
-    formatRawMessageReport(channelName: string, messages: DiscordMessage[]): string {
+    formatRawMessageReport(channelName: string, messages: OptimizedMessage[]): string {
         let report = `📊 Report for #${channelName}\n\n`;
 
         if (messages.length === 0) {

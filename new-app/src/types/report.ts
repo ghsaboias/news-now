@@ -1,3 +1,4 @@
+import { ChannelInfo } from "@/types/discord";
 import { Translation } from "@/types/translation";
 
 export interface AISummary {
@@ -45,4 +46,31 @@ export interface ReportResponse {
         period_start: Date;
         period_end: Date;
     };
+}
+
+// Report Validation Types migrated from report/validation.ts
+export interface BulkGenerationParams {
+    timeframe: '1h' | '4h' | '24h';
+    minMessages: number;
+    batchSize?: number;
+}
+
+export interface BulkValidationResult {
+    isValid: boolean;
+    errors: string[];
+    warnings: string[];
+    validChannels: ChannelInfo[];
+    skippedChannels: Array<{
+        channel: ChannelInfo;
+        reason: string;
+    }>;
+}
+
+// Report Queue Types
+export interface QueuedChannel {
+    channel: ChannelInfo;
+    status: 'pending' | 'processing' | 'completed' | 'error';
+    progress?: number;
+    error?: string;
+    report?: Report;
 }

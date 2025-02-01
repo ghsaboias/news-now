@@ -1,4 +1,5 @@
 import { Report } from '@/types/report';
+import { ChannelReports, ReportContext, TimeframeRules, TimeframeType, TimeWindow } from '@/types/reportContext';
 
 // Validation error types
 export class ContextValidationError extends Error {
@@ -7,32 +8,6 @@ export class ContextValidationError extends Error {
         this.name = 'ContextValidationError';
     }
 }
-
-interface TimeWindow {
-    start: Date;
-    end: Date;
-}
-
-export interface ReportContext {
-    primary: Report | null;
-    supporting: Report[];
-    coverage: TimeWindow[];
-    validationWarnings?: string[];
-}
-
-interface TimeframeRule {
-    type: '1h' | '4h' | '24h';
-    maxAge: number;
-    outsideCurrentWindow?: boolean;
-}
-
-interface TimeframeRules {
-    primary: TimeframeRule;
-    supporting: TimeframeRule[];
-}
-
-type TimeframeType = '1h' | '4h' | '24h';
-type ChannelReports = Record<TimeframeType, Report[]>;
 
 export class ReportContextManager {
     private indexes: {

@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { DiscordClient } from '@/services/discord/client';
-import { DiscordMessage } from '@/types/discord';
+import { OptimizedMessage } from '@/types/discord';
 
 const TIME_PERIODS = ['1h', '4h', '24h'] as const;
 type TimePeriod = typeof TIME_PERIODS[number];
@@ -38,7 +38,7 @@ async function processChannel(
 
     // Sort tasks by hours descending to fetch longest timeframe first
     const sortedTasks = [...channelTasks].sort((a, b) => b.hours - a.hours);
-    let cachedMessages: DiscordMessage[] | undefined;
+    let cachedMessages: OptimizedMessage[] | undefined;
 
     // Process all periods for this channel, reusing messages where possible
     for (const task of sortedTasks) {

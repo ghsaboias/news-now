@@ -2,6 +2,7 @@
 
 import { Card } from '@/components/layout/Card';
 import { Grid } from '@/components/layout/Grid';
+import { LoadingState, MessageCounts, UpdateData } from '@/types/channels';
 import { DiscordChannel } from '@/types/discord';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -48,27 +49,6 @@ const perf = {
         }
     }
 };
-
-interface MessageCounts {
-    [channelId: string]: {
-        [period: string]: number;
-    };
-}
-
-interface LoadingState {
-    [channelId: string]: Set<string>;
-}
-
-interface MessageResult {
-    channelId: string;
-    period: string;
-    count: number;
-}
-
-interface UpdateData {
-    type: 'update';
-    results: MessageResult[];
-}
 
 async function getChannels(): Promise<DiscordChannel[]> {
     // Only start performance monitoring on client side

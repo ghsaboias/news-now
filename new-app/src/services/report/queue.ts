@@ -1,14 +1,6 @@
 import { ChannelInfo } from '@/types/discord';
-import { Report } from '@/types/report';
+import { QueuedChannel, Report } from '@/types/report';
 import { EventEmitter } from 'events';
-
-interface QueuedChannel {
-    channel: ChannelInfo;
-    status: 'pending' | 'processing' | 'completed' | 'error';
-    progress?: number;
-    error?: string;
-    report?: Report;
-}
 
 export class ChannelQueue extends EventEmitter {
     private channels: QueuedChannel[] = [];

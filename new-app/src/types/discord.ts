@@ -39,7 +39,8 @@ export type MessageProcessingStatus = 'pending' | 'processing' | 'success' | 'er
 export interface MessageProcessingResult {
     messageId: string;
     sourceId?: string;
-    embedCount: number;
+    embed_title?: string;
+    embed_description?: string;
     success: boolean;
     error?: string;
 }
@@ -48,7 +49,8 @@ export interface ProcessedMessage {
     id: string;
     content: string;
     hasEmbeds: boolean;
-    embedCount: number;
+    embed_title?: string;
+    embed_description?: string;
     sourceInfo?: ExtractedSource;
     status: MessageProcessingStatus;
 }
@@ -86,4 +88,18 @@ export interface Topic {
     id: string;
     name: string;
     created_at: string;
+}
+
+export interface OptimizedMessage {
+    id: string;
+    content: string;
+    timestamp: string;
+    author: {
+        username: string;
+        discriminator: string;
+    };
+    embeds: {
+        title: string;
+        description: string;
+    }[];
 }

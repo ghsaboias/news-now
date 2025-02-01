@@ -1,4 +1,4 @@
-import { DiscordMessage, MessageProcessingResult, ProcessedMessage } from '@/types/discord';
+import { MessageProcessingResult, OptimizedMessage, ProcessedMessage } from '@/types/discord';
 import { v4 as uuidv4 } from 'uuid';
 import { MessageService } from '../redis/messages';
 import { SourceService } from '../redis/sources';
@@ -13,7 +13,7 @@ export class MessageProcessor {
         this.messageService = messageService;
     }
 
-    async processMessage(message: DiscordMessage, topicId: string): Promise<MessageProcessingResult> {
+    async processMessage(message: OptimizedMessage, topicId: string): Promise<MessageProcessingResult> {
         try {
             // Extract source information
             const source = await this.sourceExtractor.extractFromMessage(message);
@@ -21,7 +21,8 @@ export class MessageProcessor {
                 console.log('No source found for message:', message.id);
                 return {
                     messageId: message.id,
-                    embedCount: message.embeds?.length || 0,
+                    embed_title: message.embeds?.[0]?.title || '',
+                    embed_description: message.embeds?.[0]?.description || '',
                     success: false,
                     error: 'No source found'
                 };
@@ -42,48 +43,29 @@ export class MessageProcessor {
                 timestamp: message.timestamp
             };
 
-            // Extract fields from embeds with descriptive IDs
-            const fields = message.embeds?.[0]?.fields?.map(field => {
-                // Handle quote fields
-                if (field.name.toLowerCase().includes('quote from')) {
-                    const attribution = field.name.replace(/quote from:?\s*/i, '').trim();
-                    // Store the quote with its attribution
-                    return {
-                        message_id: messageId,
-                        name: 'quote',
-                        value: `${attribution}: ${field.value.trim()}`
-                    };
-                }
-
-                // Handle other fields normally
-                return {
-                    message_id: messageId,
-                    name: field.name,
-                    value: field.value
-                };
-            }) || [];
-
-            // Store message and fields in Redis
-            await this.messageService.create(storedMessage, fields);
+            // Store message in Redis (without fields since OptimizedMessage doesn't have them)
+            await this.messageService.create(storedMessage, []);
 
             return {
                 messageId,
                 sourceId: source.id,
-                embedCount: message.embeds?.length || 0,
+                embed_title: message.embeds?.[0]?.title || '',
+                embed_description: message.embeds?.[0]?.description || '',
                 success: true
             };
         } catch (error) {
             console.error('Error processing message:', error);
             return {
                 messageId: message.id,
-                embedCount: message.embeds?.length || 0,
+                embed_title: message.embeds?.[0]?.title || '',
+                embed_description: message.embeds?.[0]?.description || '',
                 success: false,
                 error: error instanceof Error ? error.message : 'Unknown error'
             };
         }
     }
 
-    async processBatch(messages: DiscordMessage[], topicId: string): Promise<ProcessedMessage[]> {
+    async processBatch(messages: OptimizedMessage[], topicId: string): Promise<ProcessedMessage[]> {
         const results: ProcessedMessage[] = [];
         console.log(`Starting to process batch of ${messages.length} messages for topic ${topicId}`);
 
@@ -96,7 +78,8 @@ export class MessageProcessor {
                     id: result.messageId,
                     content: message.content,
                     hasEmbeds: (message.embeds?.length || 0) > 0,
-                    embedCount: message.embeds?.length || 0,
+                    embed_title: message.embeds?.[0]?.title || '',
+                    embed_description: message.embeds?.[0]?.description || '',
                     sourceInfo: sourceInfo || undefined,
                     status: result.success ? 'success' : 'error'
                 });
@@ -110,7 +93,8 @@ export class MessageProcessor {
                     id: message.id,
                     content: message.content,
                     hasEmbeds: (message.embeds?.length || 0) > 0,
-                    embedCount: message.embeds?.length || 0,
+                    embed_title: message.embeds?.[0]?.title || '',
+                    embed_description: message.embeds?.[0]?.description || '',
                     status: 'error'
                 });
             }

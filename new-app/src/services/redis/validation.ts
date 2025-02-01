@@ -1,3 +1,4 @@
+import { TimeframeValidation, ValidationResult } from '@/types/redisValidation';
 import { Report } from '@/types/report';
 
 // Validation error types
@@ -6,19 +7,6 @@ export class ReportValidationError extends Error {
         super(message);
         this.name = 'ReportValidationError';
     }
-}
-
-// Validation types
-export interface TimeframeValidation {
-    type: '1h' | '4h' | '24h';
-    start: Date;
-    end: Date;
-}
-
-export interface ValidationResult {
-    isValid: boolean;
-    errors: string[];
-    warnings: string[];
 }
 
 // Validation functions

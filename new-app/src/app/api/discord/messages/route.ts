@@ -2,7 +2,7 @@ import { DiscordClient } from '@/services/discord/client';
 import { MessageService } from '@/services/redis/messages';
 import { SourceService } from '@/services/redis/sources';
 import { TopicService } from '@/services/redis/topics';
-import { DiscordMessage } from '@/types/discord';
+import { OptimizedMessage } from '@/types/discord';
 import { NextRequest } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -13,31 +13,6 @@ const RETRY_DELAY = 1000; // 1 second
 const MAX_MESSAGES_IN_MEMORY = 100;
 const MEMORY_CHECK_INTERVAL = 20; // Check memory every N messages
 const BATCH_PROCESSING_DELAY = 100; // ms between batches to prevent memory spikes
-
-// Memory-efficient message structure
-interface OptimizedMessage {
-    id: string;
-    content: string;
-    timestamp: string;
-    author: {
-        username: string;
-        discriminator: string;
-    };
-    embedCount: number;
-}
-
-function optimizeMessage(msg: DiscordMessage): OptimizedMessage {
-    return {
-        id: msg.id,
-        content: msg.content,
-        timestamp: msg.timestamp,
-        author: {
-            username: msg.author?.username || '',
-            discriminator: msg.author?.discriminator || ''
-        },
-        embedCount: msg.embeds?.length || 0
-    };
-}
 
 // Memory monitoring with garbage collection hints
 function logMemoryUsage(context: string) {
@@ -53,41 +28,13 @@ function logMemoryUsage(context: string) {
     }
 }
 
-// Batch processing with memory management
-async function processBatch(
-    messages: DiscordMessage[],
-    optimizedMessages: OptimizedMessage[]
-): Promise<OptimizedMessage[]> {
-    // Optimize messages
-    const newMessages = messages.map(optimizeMessage);
-
-    // Add to optimized messages array
-    optimizedMessages.push(...newMessages);
-
-    // Memory management: keep only recent messages if exceeding limit
-    if (optimizedMessages.length > MAX_MESSAGES_IN_MEMORY) {
-        optimizedMessages = optimizedMessages.slice(-MAX_MESSAGES_IN_MEMORY);
-        if (global.gc) {
-            global.gc();
-        }
-    }
-
-    // Clear original messages to help GC
-    messages.length = 0;
-
-    // Add delay between batches to prevent memory spikes
-    await new Promise(resolve => setTimeout(resolve, BATCH_PROCESSING_DELAY));
-
-    return optimizedMessages;
-}
-
 interface StreamUpdate {
     type: 'init' | 'progress' | 'batch' | 'complete' | 'error';
     stage?: 'setup' | 'fetching' | 'processing' | 'complete' | 'error';
     batchCount?: number;
     batchSize?: number;
     progress?: number;
-    messages?: DiscordMessage[];
+    messages?: OptimizedMessage[];
     totalMessages?: number;
     error?: string;
     status?: string;
@@ -117,15 +64,25 @@ export async function GET(request: NextRequest) {
     let messageCount = 0;
     let optimizedMessages: OptimizedMessage[] = [];
 
-    const logMilestone = (name: string) => {
+    // New inner processBatch function that accepts only new optimized messages
+    async function processBatch(newMessages: OptimizedMessage[]): Promise<void> {
+        optimizedMessages.push(...newMessages);
+        if (optimizedMessages.length > MAX_MESSAGES_IN_MEMORY) {
+            optimizedMessages = optimizedMessages.slice(-MAX_MESSAGES_IN_MEMORY);
+            if (global.gc) {
+                global.gc();
+            }
+        }
+        await new Promise(resolve => setTimeout(resolve, BATCH_PROCESSING_DELAY));
+    }
+
+    function logMilestone(name: string) {
         milestones[name] = Date.now() - startTime;
         console.log(`[Milestone] ${name}: ${milestones[name]}ms`);
-
-        // Log memory usage at key milestones
         if (name.includes('Batch') || name.includes('complete')) {
             logMemoryUsage(name);
         }
-    };
+    }
 
     // Set up streaming
     const encoder = new TextEncoder();
@@ -135,9 +92,7 @@ export async function GET(request: NextRequest) {
     // Helper function to send updates
     const sendUpdate = async (update: StreamUpdate) => {
         try {
-            await writer.write(
-                encoder.encode(`data: ${JSON.stringify(update)}\n\n`)
-            );
+            await writer.write(encoder.encode(`data: ${JSON.stringify(update)}\n\n`));
             if (update.stage) {
                 logMilestone(`Stage: ${update.stage} (${update.status}) - Progress: ${update.progress}%`);
             }
@@ -206,7 +161,7 @@ export async function GET(request: NextRequest) {
             });
 
             // Override message batch handler with memory-efficient processing
-            client.onMessageBatch = async (batchSize: number, botMessages: number, messages: DiscordMessage[]) => {
+            client.onMessageBatch = async (batchSize: number, botMessages: number, messages: OptimizedMessage[]) => {
                 const now = Date.now();
                 const batchDuration = now - lastBatchTime;
                 lastBatchTime = now;
@@ -215,14 +170,10 @@ export async function GET(request: NextRequest) {
                 messageCount += messages.length;
 
                 // Process batch with memory management
-                optimizedMessages = await processBatch(messages, optimizedMessages);
+                await processBatch(messages);
 
                 // Calculate progress
-                const fetchProgress = Math.min(
-                    60 + Math.round((messageCount / (hours * 50)) * 30),
-                    90
-                );
-
+                const fetchProgress = Math.min(60 + Math.round((messageCount / (hours * 50)) * 30), 90);
                 logMilestone(`Batch ${batchCount} processed - ${messages.length} messages in ${batchDuration}ms (${(messages.length / batchDuration * 1000).toFixed(1)} msgs/sec)`);
 
                 if (batchCount % MEMORY_CHECK_INTERVAL === 0) {
@@ -236,7 +187,7 @@ export async function GET(request: NextRequest) {
                     batchSize,
                     progress: fetchProgress,
                     status: `Processing batch ${batchCount} (${messageCount} messages)`,
-                    messages: optimizedMessages.slice(-batchSize), // Send only latest batch
+                    messages: optimizedMessages.slice(-batchSize),
                     totalMessages: messageCount
                 });
             };
@@ -253,13 +204,7 @@ export async function GET(request: NextRequest) {
                     });
 
                     const fetchStartTime = Date.now();
-                    await client.fetchMessagesInTimeframe(
-                        channelId,
-                        hours,
-                        undefined,
-                        topicId,
-                        BATCH_SIZE
-                    );
+                    await client.fetchMessagesInTimeframe(channelId, hours, undefined, topicId, BATCH_SIZE);
                     logMilestone(`All messages fetched in ${Date.now() - fetchStartTime}ms`);
 
                     await sendUpdate({

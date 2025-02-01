@@ -1,4 +1,5 @@
 import { ChannelInfo } from '@/types/discord';
+import { BulkGenerationParams, BulkValidationResult } from '@/types/report';
 
 // Validation error types
 export class BulkGenerationError extends Error {
@@ -6,24 +7,6 @@ export class BulkGenerationError extends Error {
         super(message);
         this.name = 'BulkGenerationError';
     }
-}
-
-// Validation types
-export interface BulkGenerationParams {
-    timeframe: '1h' | '4h' | '24h';
-    minMessages: number;
-    batchSize?: number;
-}
-
-export interface BulkValidationResult {
-    isValid: boolean;
-    errors: string[];
-    warnings: string[];
-    validChannels: ChannelInfo[];
-    skippedChannels: Array<{
-        channel: ChannelInfo;
-        reason: string;
-    }>;
 }
 
 // Validation functions
