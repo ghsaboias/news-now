@@ -64,11 +64,7 @@ export class ReportGenerator {
 
                     // Add link if available
                     if (msg.content) {
-                        if (platform === 'Telegram' && handle) {
-                            parts.push(`Link: t.me/${handle}`);
-                        } else if (platform === 'X' && handle) {
-                            parts.push(`Link: twitter.com/${handle}`);
-                        }
+                        parts.push(`Link: ${msg.content}`);
                     }
 
                     return parts.join('\n');
@@ -187,6 +183,7 @@ export class ReportGenerator {
     ): Promise<AISummary | null> {
         return PerformanceTracker.track('report.createSummary', async () => {
             if (!messages.length) return null;
+            console.log("MESSAGESSS", messages)
 
             const formattedText = this.formatMessagesForClaude(messages);
             const prompt = this.createPrompt(formattedText, previousSummary);
@@ -265,12 +262,12 @@ export class ReportGenerator {
               [Platform] @handle
               ¹[HH:mm] Quote used in summary
                 Original: Full message content
-                Link: t.me/handle or twitter.com/handle
+                Link: t.me/post or twitter.com/post
 
               [Platform] @handle
               ²[HH:mm] Quote used in summary
                 Original: Full message content
-                Link: t.me/handle or twitter.com/handle
+                Link: t.me/post or twitter.com/post
             - For each source, include:
               1. The superscript number used in the report
               2. The time in 24-hour format [HH:mm]

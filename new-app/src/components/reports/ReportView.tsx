@@ -241,9 +241,6 @@ function ReportViewContent({ report }: ReportViewProps) {
   };
 
   const { full: date, time } = formatReportDate(report.timeframe.start);
-  const sourceBlocks = report.summary.translations?.find(t => t.language === selectedLanguage)
-    ? []  // Don't show source blocks for translations
-    : (report.summary.sources ? parseSourceBlocks(report.summary.sources) : []);
 
   // Language selection UI
   const renderLanguageControls = () => (
@@ -278,6 +275,8 @@ function ReportViewContent({ report }: ReportViewProps) {
       )}
     </div>
   );
+
+  console.log(report.summary.sources)
 
   return (
     <div className="relative min-h-full bg-gray-900">
@@ -367,13 +366,13 @@ function ReportViewContent({ report }: ReportViewProps) {
           )}
 
           {/* Sources Section - Only show for original content */}
-          {sourceBlocks.length > 0 && !selectedLanguage && (
+          {report.summary.sources.length > 0 && !selectedLanguage && (
             <div className="mt-8 pt-8 border-t border-gray-700">
               <h3 className="text-lg font-semibold mb-4">
                 Sources ({report.messageCount} messages)
               </h3>
               <div className="space-y-6">
-                {sourceBlocks.map((block, blockIndex) => (
+                {parseSourceBlocks(report.summary.sources).map((block, blockIndex) => (
                   <div key={`block-${blockIndex}`} className="space-y-3">
                     <a
                       href={`https://${block.platform === 'Telegram' ? `t.me/${block.handle}` : `twitter.com/${block.handle}`}`}

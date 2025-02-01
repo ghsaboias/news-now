@@ -11,7 +11,6 @@ declare global {
 }
 
 import { BulkGenerateButton } from '@/components/controls/bulk-generate/BulkGenerateButton';
-import { CacheControl } from '@/components/controls/CacheControl';
 import { ChannelSelect } from '@/components/controls/ChannelSelect';
 import { ControlsContainer } from '@/components/controls/ControlsContainer';
 import { TimeSelect, TimeframeOption } from '@/components/controls/TimeSelect';
@@ -591,11 +590,6 @@ function SummarizerContent() {
                         />
                     )}
                 </div>
-
-                <CacheControl
-                    channelId={selectedChannelId}
-                    timeframe={selectedTimeframe}
-                />
             </>
         )
     ), [
