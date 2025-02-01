@@ -1,6 +1,7 @@
 import { AnthropicClient } from '@/services/claude/client';
 import { MessageValidationError, MessageValidator } from '@/services/discord/validation';
 import { ReportGenerator } from '@/services/report/generator';
+import { TimeframeType } from '@/types/reportContext';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
@@ -8,17 +9,7 @@ export async function POST(request: NextRequest) {
         const searchParams = request.nextUrl.searchParams;
         const channelId = searchParams.get('channelId');
         const channelName = searchParams.get('channelName');
-        const timeframe = searchParams.get('timeframe');
-
-        // Validate query parameters
-        const queryParams = MessageValidator.validateQueryParams({
-            channelId: channelId || undefined,
-            timeframe: timeframe as '1h' | '4h' | '24h' | undefined,
-            limit: 100
-        });
-
-        // Get timeframe from validated params
-        const validatedTimeframe = queryParams.timeframe;
+        const timeframe = searchParams.get('timeframe') as TimeframeType;
 
         if (!channelName) {
             return NextResponse.json(
@@ -44,7 +35,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Validate transformed messages within timeframe
-        const timeframeWindow = MessageValidator.getTimeframeWindow(validatedTimeframe);
+        const timeframeWindow = MessageValidator.getTimeframeWindow(timeframe);
         const messageValidation = MessageValidator.validateMessages(messages, timeframeWindow);
 
         if (!messageValidation.isValid || messageValidation.validMessages.length === 0) {
@@ -64,7 +55,7 @@ export async function POST(request: NextRequest) {
         const summary = await reportGenerator.createAISummary(
             messages,
             channelName,
-            validatedTimeframe === '24h' ? 24 : validatedTimeframe === '4h' ? 4 : 1,
+            timeframe === '24h' ? 24 : timeframe === '4h' ? 4 : 1,
             previousSummary
         );
 

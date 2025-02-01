@@ -1,9 +1,10 @@
 import { OptimizedMessage } from '@/types/discord';
+import { BaseValidator, TIMEFRAME_HOURS, TimeframeType, TimeframeWindow, ValidationError } from '../validation/base';
 
 // Validation error types
-export class MessageValidationError extends Error {
-    constructor(message: string, public code: string) {
-        super(message);
+export class MessageValidationError extends ValidationError {
+    constructor(message: string, code: string) {
+        super(message, code);
         this.name = 'MessageValidationError';
     }
 }
@@ -11,7 +12,7 @@ export class MessageValidationError extends Error {
 // Validation interfaces
 export interface MessageQueryParams {
     channelId: string;
-    timeframe: '1h' | '4h' | '24h';
+    timeframe: TimeframeType;
     before?: string;
     after?: string;
     limit?: number;
@@ -28,20 +29,10 @@ export interface MessageValidationResult {
     }>;
 }
 
-export interface TimeframeWindow {
-    start: Date;
-    end: Date;
-}
-
 // Message Validator class
-export class MessageValidator {
+export class MessageValidator extends BaseValidator {
     private static readonly MAX_MESSAGES = 100;
     private static readonly MIN_MESSAGES = 1;
-    private static readonly TIMEFRAME_HOURS = {
-        '1h': 1,
-        '4h': 4,
-        '24h': 24
-    };
 
     static validateQueryParams(params: Partial<MessageQueryParams>): MessageQueryParams {
         const errors: string[] = [];
@@ -56,7 +47,7 @@ export class MessageValidator {
         // Validate timeframe
         if (!params.timeframe) {
             errors.push('Timeframe is required');
-        } else if (!['1h', '4h', '24h'].includes(params.timeframe)) {
+        } else if (!Object.keys(TIMEFRAME_HOURS).includes(params.timeframe)) {
             errors.push('Invalid timeframe type');
         }
 
@@ -86,7 +77,7 @@ export class MessageValidator {
 
         return {
             channelId: params.channelId!,
-            timeframe: params.timeframe as '1h' | '4h' | '24h',
+            timeframe: params.timeframe as TimeframeType,
             before: params.before,
             after: params.after,
             limit: params.limit || this.MAX_MESSAGES
@@ -168,13 +159,8 @@ export class MessageValidator {
         }
     }
 
-    private static isValidTimestamp(timestamp: string): boolean {
-        const date = new Date(timestamp);
-        return !isNaN(date.getTime());
-    }
-
     static getTimeframeWindow(timeframe: '1h' | '4h' | '24h', referenceTime: Date = new Date()): TimeframeWindow {
-        const hours = this.TIMEFRAME_HOURS[timeframe];
+        const hours = TIMEFRAME_HOURS[timeframe];
         return {
             start: new Date(referenceTime.getTime() - (hours * 60 * 60 * 1000)),
             end: referenceTime

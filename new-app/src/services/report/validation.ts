@@ -1,16 +1,17 @@
 import { ChannelInfo } from '@/types/discord';
 import { BulkGenerationParams, BulkValidationResult } from '@/types/report';
+import { BaseValidator, TIMEFRAME_HOURS, TimeframeType, ValidationError } from '../validation/base';
 
 // Validation error types
-export class BulkGenerationError extends Error {
-    constructor(message: string, public code: string) {
-        super(message);
+export class BulkGenerationError extends ValidationError {
+    constructor(message: string, code: string) {
+        super(message, code);
         this.name = 'BulkGenerationError';
     }
 }
 
 // Validation functions
-export class BulkGenerationValidator {
+export class BulkGenerationValidator extends BaseValidator {
     private static readonly DEFAULT_BATCH_SIZE = 3;
     private static readonly MIN_MESSAGES_LIMITS = {
         '1h': 3,
@@ -24,7 +25,7 @@ export class BulkGenerationValidator {
         // Validate timeframe
         if (!params.timeframe) {
             errors.push('Timeframe is required');
-        } else if (!['1h', '4h', '24h'].includes(params.timeframe)) {
+        } else if (!Object.keys(TIMEFRAME_HOURS).includes(params.timeframe)) {
             errors.push('Invalid timeframe type');
         }
 
@@ -53,7 +54,7 @@ export class BulkGenerationValidator {
         }
 
         return {
-            timeframe: params.timeframe as '1h' | '4h' | '24h',
+            timeframe: params.timeframe as TimeframeType,
             minMessages: params.minMessages!,
             batchSize: params.batchSize || this.DEFAULT_BATCH_SIZE
         };
@@ -81,7 +82,7 @@ export class BulkGenerationValidator {
                 this.validateChannel(channel);
                 validChannels.push(channel);
             } catch (error) {
-                if (error instanceof BulkGenerationError) {
+                if (error instanceof ValidationError) {
                     skippedChannels.push({
                         channel,
                         reason: error.message

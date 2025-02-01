@@ -1,16 +1,17 @@
-import { TimeframeValidation, ValidationResult } from '@/types/redisValidation';
+import { TimeframeValidation } from '@/types/redisValidation';
 import { Report } from '@/types/report';
+import { BaseValidator, ValidationError, ValidationResult } from '../validation/base';
 
 // Validation error types
-export class ReportValidationError extends Error {
-    constructor(message: string, public code: string) {
-        super(message);
+export class ReportValidationError extends ValidationError {
+    constructor(message: string, code: string) {
+        super(message, code);
         this.name = 'ReportValidationError';
     }
 }
 
 // Validation functions
-export class ReportValidator {
+export class ReportValidator extends BaseValidator {
     static validateReport(report: Report): ValidationResult {
         const errors: string[] = [];
         const warnings: string[] = [];
@@ -33,7 +34,7 @@ export class ReportValidator {
             try {
                 this.validateTimeframe(report.timeframe);
             } catch (error) {
-                if (error instanceof ReportValidationError) {
+                if (error instanceof ValidationError) {
                     errors.push(error.message);
                 }
             }
