@@ -316,22 +316,4 @@ export class DiscordClient {
             channelName: this.channelNames.get(channelId)
         });
     }
-
-    formatRawMessageReport(channelName: string, messages: OptimizedMessage[]): string {
-        let report = `📊 Report for #${channelName}\n\n`;
-
-        if (messages.length === 0) {
-            return report + 'No messages found in the specified timeframe\\.';
-        }
-
-        for (const msg of messages) {
-            const timestamp = new Date(msg.timestamp)
-                .toISOString()
-                .replace(/T/, ' ')
-                .replace(/\..+/, ' UTC');
-            report += `🕒 \`${timestamp}\`\n${msg.content}\n\n`;
-        }
-
-        return report;
-    }
 } 

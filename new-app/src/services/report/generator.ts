@@ -2,8 +2,6 @@ import { ClaudeClient } from '@/types/claude';
 import { OptimizedMessage } from '@/types/discord';
 import { AISummary } from '@/types/report';
 import { PerformanceTracker } from '@/utils/performance';
-import fs from 'fs';
-import path from 'path';
 
 export class ReportGenerator {
     private readonly MAX_TOKENS = 4000;
@@ -16,7 +14,6 @@ export class ReportGenerator {
     private formatMessagesForClaude(messages: OptimizedMessage[]): string {
         return PerformanceTracker.track('report.formatMessages', () => {
             const sortedMessages = messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-            console.log("sortedMessages", sortedMessages)
             return sortedMessages
                 .map((msg) => {
                     const timestamp = new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' });
@@ -78,12 +75,6 @@ export class ReportGenerator {
                 })
                 .join('\n\n');
         });
-    }
-
-    private validateSource(source: string): boolean {
-        // Source format: "¹[YYYY-MM-DD HH:mm:ss UTC] content" or "¹⁰[YYYY-MM-DD HH:mm:ss UTC] content"
-        const sourcePattern = /^(?:[¹²³⁴⁵⁶⁷⁸⁹][⁰¹²³⁴⁵⁶⁷⁸⁹]?)\[\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\s+UTC\]/;
-        return sourcePattern.test(source);
     }
 
     private parseAISummary(text: string): AISummary {
@@ -194,28 +185,11 @@ export class ReportGenerator {
         requestedHours: number,
         previousSummary?: AISummary
     ): Promise<AISummary | null> {
-        console.log("messages!!", messages)
         return PerformanceTracker.track('report.createSummary', async () => {
             if (!messages.length) return null;
 
-            // Debug: Log message timestamp distribution
-            const timestampDistribution: { [key: string]: number } = {};
-            for (const msg of messages) {
-                const hourKey = new Date(msg.timestamp).toISOString().slice(0, 13);
-                timestampDistribution[hourKey] = (timestampDistribution[hourKey] || 0) + 1;
-            }
-
-            console.log(`[Report Generator] Message timestamp distribution for ${channelName} (${requestedHours}h):`,
-                Object.entries(timestampDistribution)
-                    .sort(([a], [b]) => a.localeCompare(b))
-                    .map(([hour, count]) => `\n  ${hour}Z: ${count} messages`)
-                    .join('')
-            );
-
             const formattedText = this.formatMessagesForClaude(messages);
             const prompt = this.createPrompt(formattedText, previousSummary);
-            this.logger.log(`[Report Generator] Timestamp distribution for ${channelName} (${requestedHours}h):`, Object.entries(timestampDistribution));
-            this.logger.log(`[Report Generator] Generated prompt snippet: ${prompt.slice(0, 200)}...`);
 
             try {
                 const response = await PerformanceTracker.track('report.claudeRequest', () =>
@@ -237,36 +211,6 @@ export class ReportGenerator {
                     return null;
                 }
 
-                // Save snapshot data to claude_test.json
-                try {
-                    const snapshot = {
-                        timestamp: new Date().toISOString(),
-                        channelName,
-                        messageCount: messages.length,
-                        prompt, // prompt used for request
-                        claudeResponse: response.content[0].text
-                    };
-                    const snapshotPath = path.join(process.cwd(), 'claude_test.json');
-                    let existingSnapshots = [];
-                    if (fs.existsSync(snapshotPath)) {
-                        try {
-                            const raw = fs.readFileSync(snapshotPath, 'utf8');
-                            existingSnapshots = JSON.parse(raw);
-                            if (!Array.isArray(existingSnapshots)) {
-                                existingSnapshots = [];
-                            }
-                        } catch (e) {
-                            existingSnapshots = [];
-                        }
-                    }
-                    existingSnapshots.push(snapshot);
-                    fs.writeFileSync(snapshotPath, JSON.stringify(existingSnapshots, null, 2));
-                    this.logger.log(`[Report Generator] Saved snapshot to claude_test.json`);
-                } catch (err) {
-                    this.logger.error('Failed to save snapshot:', err);
-                }
-
-                this.logger.log(`[Report Generator] Raw response from Claude: ${response.content[0].text.slice(0, 200)}...`);
                 return this.parseAISummary(response.content[0].text);
             } catch (error) {
                 this.logger.error('Error generating summary:', error);

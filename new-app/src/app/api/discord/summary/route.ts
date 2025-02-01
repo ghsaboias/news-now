@@ -61,15 +61,6 @@ export async function POST(request: NextRequest) {
         const claudeClient = new AnthropicClient(process.env.ANTHROPIC_API_KEY);
         const reportGenerator = new ReportGenerator(claudeClient);
 
-        console.log(`[Summary Generator] Timeframe analysis:`, {
-            requestedTimeframe: validatedTimeframe,
-            actualTimeframeHours: (timeframeWindow.end.getTime() - timeframeWindow.start.getTime()) / (1000 * 60 * 60),
-            firstMessage: messageValidation.validMessages[0]?.timestamp || null,
-            lastMessage: messageValidation.validMessages[messageValidation.validMessages.length - 1]?.timestamp || null,
-            messageCount: messageValidation.validMessages.length,
-            skippedCount: messageValidation.skippedMessages.length
-        });
-
         const summary = await reportGenerator.createAISummary(
             messages,
             channelName,

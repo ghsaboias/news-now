@@ -13,6 +13,13 @@ export class MessageProcessor {
         this.messageService = messageService;
     }
 
+    private getEmbedInfo(message: OptimizedMessage) {
+        return {
+            embed_title: message.embeds?.[0]?.title || '',
+            embed_description: message.embeds?.[0]?.description || ''
+        };
+    }
+
     async processMessage(message: OptimizedMessage, topicId: string): Promise<MessageProcessingResult> {
         try {
             // Extract source information
@@ -21,8 +28,7 @@ export class MessageProcessor {
                 console.log('No source found for message:', message.id);
                 return {
                     messageId: message.id,
-                    embed_title: message.embeds?.[0]?.title || '',
-                    embed_description: message.embeds?.[0]?.description || '',
+                    ...this.getEmbedInfo(message),
                     success: false,
                     error: 'No source found'
                 };
@@ -38,8 +44,7 @@ export class MessageProcessor {
                 topic_id: topicId,
                 source_id: source.id,
                 content: message.content,
-                embed_title: message.embeds?.[0]?.title || '',
-                embed_description: message.embeds?.[0]?.description || '',
+                ...this.getEmbedInfo(message),
                 timestamp: message.timestamp
             };
 
@@ -49,16 +54,14 @@ export class MessageProcessor {
             return {
                 messageId,
                 sourceId: source.id,
-                embed_title: message.embeds?.[0]?.title || '',
-                embed_description: message.embeds?.[0]?.description || '',
+                ...this.getEmbedInfo(message),
                 success: true
             };
         } catch (error) {
             console.error('Error processing message:', error);
             return {
                 messageId: message.id,
-                embed_title: message.embeds?.[0]?.title || '',
-                embed_description: message.embeds?.[0]?.description || '',
+                ...this.getEmbedInfo(message),
                 success: false,
                 error: error instanceof Error ? error.message : 'Unknown error'
             };

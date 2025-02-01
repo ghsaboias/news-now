@@ -28,12 +28,8 @@ export class AnthropicClient implements ClaudeClient {
             });
 
             // Handle the response content safely
-            const text = response.content[0].type === 'text'
-                ? response.content[0].text
-                : '';
-
             return {
-                content: [{ text }],
+                content: [{ text: response.content[0].type === 'text' ? response.content[0].text : '' }],
             };
         },
     };
