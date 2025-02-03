@@ -16,7 +16,6 @@ export class ReportContextManager {
 
     // Initialize indexes from reports with validation
     initialize(reports: Report[]) {
-        console.log(`[ReportContextManager] Initializing with ${reports.length} reports`);
         this.indexes = { byChannel: {} };
 
         // Validate reports before indexing
@@ -55,14 +54,10 @@ export class ReportContextManager {
                 );
             });
         });
-
-        console.log(`[ReportContextManager] Indexed reports for ${Object.keys(this.indexes.byChannel).length} channels`);
     }
 
     // Core method to find context reports with enhanced validation
     findContextReports(channelId: string, timeframe: TimeframeType): ReportContext {
-        console.log(`[ReportContextManager] Finding context for channel ${channelId}, timeframe ${timeframe}`);
-
         // Validate input parameters
         this.validateChannelId(channelId);
         this.validateTimeframeType(timeframe);
@@ -140,7 +135,6 @@ export class ReportContextManager {
     private findCandidateReports(channelId: string, rules: TimeframeRules): Report[] {
         const channelReports = this.indexes.byChannel[channelId];
         if (!channelReports) {
-            console.log(`[ReportContextManager] No reports found for channel ${channelId}`);
             return [];
         }
 

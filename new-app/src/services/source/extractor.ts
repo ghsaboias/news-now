@@ -11,11 +11,7 @@ export class SourceExtractor {
     }
 
     extractFromMessage(message: DiscordMessage): Promise<ExtractedSource | null> {
-        console.log('Attempting to extract source from message:', {
-            content: message.content,
-            hasEmbeds: (message.embeds?.length || 0) > 0
-        });
-
+        console.log("MESSAGE EXAMPLE", message)
         // Only process messages with embeds
         if (!message.embeds?.length) {
             return Promise.resolve(null);

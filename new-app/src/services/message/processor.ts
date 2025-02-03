@@ -70,7 +70,6 @@ export class MessageProcessor {
 
     async processBatch(messages: OptimizedMessage[], topicId: string): Promise<ProcessedMessage[]> {
         const results: ProcessedMessage[] = [];
-        console.log(`Starting to process batch of ${messages.length} messages for topic ${topicId}`);
 
         for (const message of messages) {
             try {

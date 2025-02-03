@@ -19,19 +19,14 @@ const SUPPORTED_LANGUAGES = [
   { code: 'hi', name: 'Hindi' }
 ] as const;
 
-interface ReportViewProps {
-  report?: Report | null;
-}
-
 interface SourceBlock {
-  platform: string;
+  url: string;
+  platform: 'X' | 'Telegram';
   handle: string;
   references: {
     number: string;
     time: string;
     quote: string;
-    original: string;
-    link?: string;
   }[];
 }
 
@@ -47,68 +42,68 @@ const LANGUAGE_NAMES: Record<string, string> = {
 };
 
 function parseSourceBlocks(sources: string[]): SourceBlock[] {
+  console.log("[parseSourceBlocks] Input sources:", sources);
   const blocks: SourceBlock[] = [];
   let currentBlock: SourceBlock | null = null;
 
   for (const source of sources) {
     const lines = source.split('\n');
+    console.log('[parseSourceBlocks] Processing source:', {
+      source,
+      lines
+    });
 
-    // Check if this is a platform header line
-    const platformMatch = lines[0].match(/^\[(\w+)\] @(\w+)/);
+    // First line should be the platform and handle
+    const platformMatch = lines[0].match(/^\[(\w+)\]\s*@(\w+)/);
     if (platformMatch) {
+      const [_, platform, handle] = platformMatch;
+      console.log('[parseSourceBlocks] Found platform match:', { platform, handle });
+
+      // Start a new block
       if (currentBlock) {
         blocks.push(currentBlock);
       }
+
+      // Find the URL in the Original line
+      const originalLine = lines.find(l => l.trim().startsWith('Original:'))?.trim();
+      const url = originalLine?.replace('Original:', '').trim() || '';
+      console.log('[parseSourceBlocks] Found URL:', { originalLine, url });
+
       currentBlock = {
-        platform: platformMatch[1],
-        handle: platformMatch[2],
+        url,
+        platform: platform === 'X' || platform === 'Twitter' ? 'X' : 'Telegram',
+        handle,
         references: []
       };
 
-      // Process the reference that follows
-      const referenceMatch = lines[1]?.match(/^([¹²³⁴⁵⁶⁷⁸⁹])\[(\d{2}:\d{2})\] (.+)/);
-      if (referenceMatch) {
-        const [_, number, time, quote] = referenceMatch;
-        const original = lines.find(l => l.startsWith('  Original:'))?.replace('  Original:', '').trim() || '';
-        const link = lines.find(l => l.startsWith('  Link:'))?.replace('  Link:', '').trim();
+      // Process all lines after the header
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
 
-        currentBlock.references.push({
-          number,
-          time,
-          quote,
-          original,
-          link
-        });
-      }
-    }
-    // If it starts with a superscript, it's a reference in the current block
-    else if (currentBlock && lines[0].match(/^[¹²³⁴⁵⁶⁷⁸⁹]\[/)) {
-      const referenceMatch = lines[0].match(/^([¹²³⁴⁵⁶⁷⁸⁹])\[(\d{2}:\d{2})\] (.+)/);
-      if (referenceMatch) {
-        const [_, number, time, quote] = referenceMatch;
-        const original = lines.find(l => l.startsWith('  Original:'))?.replace('  Original:', '').trim() || '';
-        const link = lines.find(l => l.startsWith('  Link:'))?.replace('  Link:', '').trim();
-
-        currentBlock.references.push({
-          number,
-          time,
-          quote,
-          original,
-          link
-        });
+        // Check for reference line (starts with superscript)
+        const referenceMatch = line.match(/^([¹²³⁴⁵⁶⁷⁸⁹])\[(\d{2}:\d{2})\]\s*"(.+)"/);
+        if (referenceMatch) {
+          const [_, number, time, quote] = referenceMatch;
+          console.log('[parseSourceBlocks] Found reference:', { number, time, quote });
+          currentBlock.references.push({
+            number,
+            time,
+            quote: quote.trim()
+          });
+        }
       }
     }
   }
 
-  // Add the last block
   if (currentBlock) {
     blocks.push(currentBlock);
   }
 
+  console.log('[parseSourceBlocks] Final blocks:', blocks);
   return blocks;
 }
 
-function ReportViewContent({ report }: ReportViewProps) {
+function ReportViewContent({ report }: { report: Report }) {
   const { deleteReport, setCurrentReport, updateReport } = useReports();
   const toast = useAppToast();
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
@@ -276,8 +271,6 @@ function ReportViewContent({ report }: ReportViewProps) {
     </div>
   );
 
-  console.log(report.summary.sources)
-
   return (
     <div className="relative min-h-full bg-gray-900">
       {/* Translation Banner */}
@@ -372,35 +365,41 @@ function ReportViewContent({ report }: ReportViewProps) {
                 Sources ({report.messageCount} messages)
               </h3>
               <div className="space-y-6">
-                {parseSourceBlocks(report.summary.sources).map((block, blockIndex) => (
-                  <div key={`block-${blockIndex}`} className="space-y-3">
-                    <a
-                      href={`https://${block.platform === 'Telegram' ? `t.me/${block.handle}` : `twitter.com/${block.handle}`}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 text-sm font-medium text-gray-300 hover:text-gray-100 group transition-colors"
-                    >
-                      <span className="px-2 py-1 rounded bg-gray-800 group-hover:bg-gray-700">[{block.platform}]</span>
-                      <span className="group-hover:underline">@{block.handle}</span>
-                    </a>
-                    <div className="space-y-4 pl-4 border-l border-gray-800">
-                      {block.references.map((ref, refIndex) => (
-                        <div key={`ref-${blockIndex}-${refIndex}`} className="space-y-2">
-                          <div className="flex items-baseline gap-2 text-sm">
-                            <span className="text-gray-300">{ref.number}[{ref.time}]</span>
-                            <span className="text-gray-100">{ref.quote}</span>
-                          </div>
-                          {ref.original && (
-                            <div className="text-sm text-gray-400 pl-8">
-                              <span className="font-medium text-gray-500">Original: </span>
-                              {ref.original}
+                {parseSourceBlocks(report.summary.sources).map((block, blockIndex) => {
+                  console.log('[Rendering source block]', block);
+                  return (
+                    <div key={`block-${blockIndex}`} className="space-y-3">
+                      <div className="inline-flex items-center gap-2 text-sm font-medium text-gray-300">
+                        <span className="px-2 py-1 rounded bg-gray-800">[{block.platform === 'X' ? 'Twitter' : 'Telegram'}]</span>
+                        <a
+                          href={block.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-blue-400 hover:underline"
+                        >
+                          @{block.handle}
+                        </a>
+                      </div>
+                      <div className="space-y-4 pl-4 border-l border-gray-800">
+                        {block.references.map((ref, refIndex) => (
+                          <div key={`ref-${blockIndex}-${refIndex}`} className="space-y-2">
+                            <div className="flex items-baseline gap-2 text-sm">
+                              <span className="text-gray-300">{ref.number}[{ref.time}]</span>
+                              <a
+                                href={block.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-gray-100 hover:text-blue-400 hover:underline"
+                              >
+                                {ref.quote}
+                              </a>
                             </div>
-                          )}
-                        </div>
-                      ))}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -410,10 +409,11 @@ function ReportViewContent({ report }: ReportViewProps) {
   );
 }
 
-export function ReportView(props: ReportViewProps) {
+export function ReportView({ report }: { report: Report | null }) {
+  if (!report) return null;
   return (
     <ErrorBoundary>
-      <ReportViewContent {...props} />
+      <ReportViewContent report={report} />
     </ErrorBoundary>
   );
 } 

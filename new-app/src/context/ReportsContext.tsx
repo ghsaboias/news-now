@@ -5,7 +5,7 @@ import { createContext, ReactNode, useCallback, useContext, useState } from 'rea
 
 interface ReportsContextType {
   reports: ReportGroup[];
-  currentReport: Report | null;
+  currentReport: Report | null
   loading: boolean;
   error: string | null;
   setCurrentReport: (report: Report | null) => void;

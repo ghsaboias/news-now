@@ -12,60 +12,37 @@ export class ReportGenerator {
     ) { }
 
     private formatMessagesForClaude(messages: OptimizedMessage[]): string {
+        console.log("MESSAGES", messages)
         return PerformanceTracker.track('report.formatMessages', () => {
             const sortedMessages = messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
             return sortedMessages
                 .map((msg) => {
                     const timestamp = new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' });
-
                     const parts = [`[${timestamp}]`];
 
-                    // Extract platform and handle from content
-                    let platform = '';
-                    let handle = '';
-
-                    if (msg.content.includes('twitter.com/')) {
-                        platform = 'X';
-                        const match = msg.content.match(/twitter\.com\/([^\/]+)/);
-                        if (match) handle = match[1];
-                    } else if (msg.content.includes('t.me/')) {
-                        platform = 'Telegram';
-                        const match = msg.content.match(/t\.me\/([^\/]+)/);
-                        if (match) handle = match[1];
-                    }
-
-                    // If not found in content, try embed title
-                    if (!platform && msg.embeds?.[0]?.title) {
-                        const title = msg.embeds[0].title.toLowerCase();
-                        if (title.includes('telegram:')) {
-                            platform = 'Telegram';
-                            const match = title.replace(/telegram:\s*/i, '').match(/@?([a-zA-Z0-9_]+)/);
-                            if (match) handle = match[1];
-                        } else if (title.includes('x:') || title.includes('twitter:')) {
-                            platform = 'X';
-                            const match = title.replace(/(?:x|twitter):\s*/i, '').match(/@?([a-zA-Z0-9_]+)/);
-                            if (match) handle = match[1];
+                    if (msg.content && msg.content.startsWith('http')) {
+                        try {
+                            const url = new URL(msg.content);
+                            let platform = '';
+                            let handle = '';
+                            if (url.host.includes('twitter.com')) {
+                                platform = 'X';
+                                handle = url.pathname.split('/')[1];
+                            } else if (url.host.includes('t.me')) {
+                                platform = 'Telegram';
+                                handle = url.pathname.split('/')[1];
+                            }
+                            if (platform && handle) {
+                                parts.push(`[${platform}] @${url}`);
+                            }
+                        } catch (e) {
+                            console.error("Error parsing URL", e)
                         }
+                    } else {
                     }
 
-                    // Add platform and handle if found
-                    if (platform && handle) {
-                        parts.push(`[${platform}] @${handle.replace(/^@/, '')}`);
-                    }
-
-                    // Add URL (from content)
-                    if (msg.content) {
-                        parts.push(`Original: ${msg.content}`);
-                    }
-
-                    // Add embed information
-                    if (msg.embeds?.[0]?.title) parts.push(`Embed Title: ${msg.embeds[0].title}`);
-                    if (msg.embeds?.[0]?.description) parts.push(`Embed Description: ${msg.embeds[0].description}`);
-
-                    // Add link if available
-                    if (msg.content) {
-                        parts.push(`Link: ${msg.content}`);
-                    }
+                    if (msg.embeds?.[0]?.title) parts.push(`  Embed Title: ${msg.embeds[0].title}`);
+                    if (msg.embeds?.[0]?.description) parts.push(`  Embed Description: ${msg.embeds[0].description}`);
 
                     return parts.join('\n');
                 })
@@ -183,11 +160,9 @@ export class ReportGenerator {
     ): Promise<AISummary | null> {
         return PerformanceTracker.track('report.createSummary', async () => {
             if (!messages.length) return null;
-            console.log("MESSAGESSS", messages)
 
             const formattedText = this.formatMessagesForClaude(messages);
             const prompt = this.createPrompt(formattedText, previousSummary);
-
             try {
                 const response = await PerformanceTracker.track('report.claudeRequest', () =>
                     this.claudeClient.messages.create({
@@ -207,6 +182,7 @@ export class ReportGenerator {
                     this.logger.error('Claude returned empty response');
                     return null;
                 }
+                console.log("RESPONSE", response.content[0].text)
 
                 return this.parseAISummary(response.content[0].text);
             } catch (error) {
@@ -261,13 +237,12 @@ export class ReportGenerator {
 
               [Platform] @handle
               ¹[HH:mm] Quote used in summary
-                Original: Full message content
-                Link: t.me/post or twitter.com/post
+              Link: https://twitter.com/user/status/postId
 
               [Platform] @handle
               ²[HH:mm] Quote used in summary
-                Original: Full message content
-                Link: t.me/post or twitter.com/post
+              Link: https://twitter.com/user/status/postId
+
             - For each source, include:
               1. The superscript number used in the report
               2. The time in 24-hour format [HH:mm]

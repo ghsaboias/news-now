@@ -15,7 +15,6 @@ import { ChannelSelect } from '@/components/controls/ChannelSelect';
 import { ControlsContainer } from '@/components/controls/ControlsContainer';
 import { TimeSelect, TimeframeOption } from '@/components/controls/TimeSelect';
 import { ErrorBoundary } from '@/components/error/ErrorBoundary';
-import { SplitView } from '@/components/layout/SplitView';
 import { RecentReports } from '@/components/reports/RecentReports';
 import { ReportView } from '@/components/reports/ReportView';
 import { Button } from '@/components/ui/button';
@@ -315,7 +314,6 @@ const useProgress = () => {
 const MemoizedChannelSelect = memo(ChannelSelect);
 const MemoizedTimeSelect = memo(TimeSelect);
 const MemoizedProgress = memo(Progress);
-const MemoizedReportView = memo(ReportView);
 const MemoizedRecentReports = memo(RecentReports);
 
 function SummarizerContent() {
@@ -606,16 +604,14 @@ function SummarizerContent() {
     ]);
 
     return (
-        <SplitView
-            sidebarContent={
-                <ControlsContainer
-                    mainControls={controls}
-                    bulkControls={<BulkGenerateButton />}
-                    recentReports={<MemoizedRecentReports />}
-                />
-            }
-            mainContent={<MemoizedReportView report={currentReport} />}
-        />
+        <div className='w-[80%] mx-auto'>
+            <ControlsContainer
+                mainControls={controls}
+                bulkControls={<BulkGenerateButton />}
+                recentReports={<MemoizedRecentReports />}
+            />
+            <ReportView report={currentReport} />
+        </div>
     );
 }
 
