@@ -1,6 +1,4 @@
 import { DiscordMessage } from '@/types/discord';
-import { ExtractedSource } from '@/types/source';
-import { v4 as uuidv4 } from 'uuid';
 import { SourceService } from '../redis/sources';
 
 export class SourceExtractor {
@@ -10,25 +8,26 @@ export class SourceExtractor {
         this.sourceService = sourceService;
     }
 
-    extractFromMessage(message: DiscordMessage): Promise<ExtractedSource | null> {
-        console.log("MESSAGE EXAMPLE", message)
+    async extractFromMessage(message: DiscordMessage): Promise<boolean> {
         // Only process messages with embeds
         if (!message.embeds?.length) {
-            return Promise.resolve(null);
+            return false;
         }
 
         // Extract from URL in content
         if (message.content.includes('twitter.com/')) {
             const match = message.content.match(/twitter\.com\/([^\/]+)/);
             if (match) {
-                return this.processSource('x', match[1], message.timestamp);
+                await this.processSource(message, 'x', match[1]);
+                return true;
             }
         }
 
         if (message.content.includes('t.me/')) {
             const match = message.content.match(/t\.me\/([^\/]+)/);
             if (match) {
-                return this.processSource('telegram', match[1], message.timestamp);
+                await this.processSource(message, 'telegram', match[1]);
+                return true;
             }
         }
 
@@ -42,7 +41,8 @@ export class SourceExtractor {
                 const attribution = field.name.replace(/quote from:?\s*/i, '').trim();
                 if (attribution) {
                     // Default to X/Twitter if no platform specified since most quotes are from there
-                    return this.processSource('x', attribution.replace(/^@/, ''), message.timestamp);
+                    await this.processSource(message, 'x', attribution.replace(/^@/, ''));
+                    return true;
                 }
             }
         }
@@ -65,64 +65,44 @@ export class SourceExtractor {
             }
 
             if (platform && handle) {
-                return this.processSource(platform, handle, message.timestamp);
+                await this.processSource(message, platform, handle);
+                return true;
             }
         }
 
         console.log('No source URL found in content');
-        return Promise.resolve(null);
+        return false;
     }
 
-    private async processSource(platform: 'telegram' | 'x', handle: string, timestamp: string): Promise<ExtractedSource> {
+    private async processSource(message: DiscordMessage, platform: 'telegram' | 'x', handle: string): Promise<void> {
         // Remove @ prefix if present
         handle = handle.replace(/^@/, '');
 
         // Try to find existing source
         const existingSource = await this.sourceService.getByHandle(platform, handle);
 
+        // Update message with source info
+        message.platform = platform;
+        message.handle = handle;
+
         if (existingSource) {
             // Update last_seen_at if the message is newer
-            if (timestamp > existingSource.last_seen_at) {
+            if (message.timestamp > existingSource.last_seen_at) {
                 await this.sourceService.create({
                     ...existingSource,
-                    last_seen_at: timestamp
+                    timestamp: message.timestamp
                 });
             }
-            return {
-                id: existingSource.id,
-                platform,
-                handle,
-                timestamp
-            };
+            return;
         }
 
-        // Create or update source
+        // Create new source
         const source = {
-            id: `src_${platform}_${handle}_${uuidv4()}`,
             platform,
             handle,
-            first_seen_at: timestamp,
-            last_seen_at: timestamp
+            timestamp: message.timestamp
         };
 
         await this.sourceService.create(source);
-        return {
-            id: source.id,
-            platform,
-            handle,
-            timestamp
-        };
-    }
-
-    async getSourceById(id: string): Promise<ExtractedSource | null> {
-        const source = await this.sourceService.getById(id);
-        if (!source) return null;
-
-        return {
-            id: source.id,
-            platform: source.platform,
-            handle: source.handle,
-            timestamp: source.last_seen_at
-        };
     }
 } 

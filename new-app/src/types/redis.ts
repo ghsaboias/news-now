@@ -15,8 +15,9 @@ export interface Source {
 export interface Message {
     id: string;
     topic_id: string;
-    source_id: string;
     content: string;
+    platform?: 'telegram' | 'x';
+    handle?: string;
     embed_title?: string;
     embed_description?: string;
     timestamp: string;

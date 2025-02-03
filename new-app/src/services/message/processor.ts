@@ -1,5 +1,5 @@
-import { MessageProcessingResult, OptimizedMessage, ProcessedMessage } from '@/types/discord';
-import { v4 as uuidv4 } from 'uuid';
+import { DiscordMessage, MessageProcessingResult } from '@/types/discord';
+import { Message } from '@/types/redis';
 import { MessageService } from '../redis/messages';
 import { SourceService } from '../redis/sources';
 import { SourceExtractor } from '../source/extractor';
@@ -13,96 +13,78 @@ export class MessageProcessor {
         this.messageService = messageService;
     }
 
-    private getEmbedInfo(message: OptimizedMessage) {
-        return {
-            embed_title: message.embeds?.[0]?.title || '',
-            embed_description: message.embeds?.[0]?.description || ''
-        };
-    }
-
-    async processMessage(message: OptimizedMessage, topicId: string): Promise<MessageProcessingResult> {
+    async processMessage(message: DiscordMessage, topicId: string): Promise<MessageProcessingResult> {
         try {
-            // Extract source information
-            const source = await this.sourceExtractor.extractFromMessage(message);
-            if (!source) {
+            message.status = 'processing';
+
+            // Extract source information (modifies message directly)
+            const hasSource = await this.sourceExtractor.extractFromMessage(message);
+            if (!hasSource) {
                 console.log('No source found for message:', message.id);
+                message.status = 'error';
                 return {
                     messageId: message.id,
-                    ...this.getEmbedInfo(message),
                     success: false,
                     error: 'No source found'
                 };
             }
 
             // Get topic prefix from topic_id for message ID
-            const topicPrefix = topicId.split('_')[1] || 'unknown'; // Gets the channel name part
-            const messageId = `msg_${topicPrefix}_${message.id}_${uuidv4()}`;
+            const topicPrefix = topicId.split('_')[1] || 'unknown';
+            const messageId = `msg_${topicPrefix}_${message.id}`;
 
             // Create message record
             const storedMessage = {
                 id: messageId,
                 topic_id: topicId,
-                source_id: source.id,
                 content: message.content,
-                ...this.getEmbedInfo(message),
+                platform: message.platform,
+                handle: message.handle,
+                embed_title: message.embeds?.[0]?.title || '',
+                embed_description: message.embeds?.[0]?.description || '',
                 timestamp: message.timestamp
             };
 
-            // Store message in Redis (without fields since OptimizedMessage doesn't have them)
-            await this.messageService.create(storedMessage, []);
+            // Store message in Redis
+            await this.messageService.create(storedMessage as Message, []);
+            message.status = 'success';
 
             return {
                 messageId,
-                sourceId: source.id,
-                ...this.getEmbedInfo(message),
+                platform: message.platform as 'telegram' | 'x',
+                handle: message.handle,
                 success: true
             };
         } catch (error) {
             console.error('Error processing message:', error);
+            message.status = 'error';
             return {
                 messageId: message.id,
-                ...this.getEmbedInfo(message),
                 success: false,
                 error: error instanceof Error ? error.message : 'Unknown error'
             };
         }
     }
 
-    async processBatch(messages: OptimizedMessage[], topicId: string): Promise<ProcessedMessage[]> {
-        const results: ProcessedMessage[] = [];
+    async processBatch(messages: DiscordMessage[], topicId: string): Promise<DiscordMessage[]> {
+        const results: DiscordMessage[] = [];
 
         for (const message of messages) {
             try {
-                const result = await this.processMessage(message, topicId);
-                const sourceInfo = result.sourceId ? await this.sourceExtractor.getSourceById(result.sourceId) : undefined;
-
-                results.push({
-                    id: result.messageId,
-                    content: message.content,
-                    hasEmbeds: (message.embeds?.length || 0) > 0,
-                    embed_title: message.embeds?.[0]?.title || '',
-                    embed_description: message.embeds?.[0]?.description || '',
-                    sourceInfo: sourceInfo || undefined,
-                    status: result.success ? 'success' : 'error'
-                });
+                await this.processMessage(message, topicId);
+                results.push(message);
 
                 if (results.length % 10 === 0) {
                     console.log(`Processed ${results.length}/${messages.length} messages`);
                 }
             } catch (error) {
                 console.error('Error processing message:', error);
-                results.push({
-                    id: message.id,
-                    content: message.content,
-                    hasEmbeds: (message.embeds?.length || 0) > 0,
-                    embed_title: message.embeds?.[0]?.title || '',
-                    embed_description: message.embeds?.[0]?.description || '',
-                    status: 'error'
-                });
+                message.status = 'error';
+                results.push(message);
             }
         }
 
-        const successCount = results.filter(r => r.status === 'success').length;
+        const successCount = results.filter(m => m.status === 'success').length;
         console.log(`Completed processing batch. Successfully processed ${successCount}/${messages.length} messages`);
         return results;
     }

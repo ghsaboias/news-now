@@ -22,7 +22,7 @@ import { Progress } from '@/components/ui/progress';
 import { Toaster } from '@/components/ui/toaster';
 import { useReports } from '@/context/ReportsContext';
 import { useAppToast } from '@/hooks/useAppToast';
-import type { DiscordChannel, OptimizedMessage } from '@/types/discord';
+import type { DiscordChannel, DiscordMessage } from '@/types/discord';
 import type { AISummary } from '@/types/report';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
@@ -40,7 +40,7 @@ async function fetchMessagesAction(
     channelName: string,
     timeframe: string,
     onProgress?: (messageCount: number) => void
-): Promise<OptimizedMessage[]> {
+): Promise<DiscordMessage[]> {
     console.log(`[fetchMessagesAction] Fetching messages for channel ${channelName} (${channelId}) with timeframe ${timeframe}`);
 
     const response = await fetch(`/api/discord/messages?channelId=${channelId}&channelName=${encodeURIComponent(channelName)}&timeframe=${timeframe}`);
@@ -55,7 +55,7 @@ async function fetchMessagesAction(
     }
 
     const decoder = new TextDecoder();
-    let messages: OptimizedMessage[] = [];
+    let messages: DiscordMessage[] = [];
     let buffer = '';
 
     try {
@@ -109,8 +109,8 @@ async function fetchMessagesAction(
 }
 
 // Helper functions for message validation
-function validateAndSortMessages(messages: OptimizedMessage[], timeframe: string): {
-    validMessages: OptimizedMessage[];
+function validateAndSortMessages(messages: DiscordMessage[], timeframe: string): {
+    validMessages: DiscordMessage[];
     warnings: string[];
 } {
     const warnings: string[] = [];
@@ -177,7 +177,7 @@ async function generateSummaryAction(
     channelId: string,
     channelName: string,
     timeframe: string,
-    messages: OptimizedMessage[],
+    messages: DiscordMessage[],
     previousReport?: AISummary
 ): Promise<AISummary> {
     // Validate and sort messages
@@ -484,6 +484,7 @@ function SummarizerContent() {
                 },
                 messageCount: messages.length,
                 summary,
+                messages
             };
 
             // Save to cache through API
@@ -610,7 +611,7 @@ function SummarizerContent() {
                 bulkControls={<BulkGenerateButton />}
                 recentReports={<MemoizedRecentReports />}
             />
-            <ReportView report={currentReport} />
+            {currentReport && <ReportView report={currentReport} />}
         </div>
     );
 }

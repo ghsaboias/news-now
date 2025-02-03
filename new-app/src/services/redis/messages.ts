@@ -6,7 +6,7 @@ const KEYS = {
         SINGLE: (id: string) => `message:${id}`,
         FIELDS: (id: string) => `message:${id}:fields`,
         BY_TOPIC: (topicId: string) => `messages:by-topic:${topicId}`,
-        BY_SOURCE: (sourceId: string) => `messages:by-source:${sourceId}`,
+        BY_PLATFORM_HANDLE: (platform: 'telegram' | 'x', handle: string) => `messages:by-source:${platform}:${handle}`,
     }
 } as const;
 
@@ -19,8 +19,9 @@ export class MessageService {
             KEYS.MESSAGE.SINGLE(message.id),
             {
                 topic_id: message.topic_id,
-                source_id: message.source_id,
                 content: message.content,
+                platform: message.platform || '',
+                handle: message.handle || '',
                 embed_title: message.embed_title || '',
                 embed_description: message.embed_description || '',
                 timestamp: message.timestamp
@@ -44,12 +45,14 @@ export class MessageService {
             message.id
         );
 
-        // Add to source index
-        pipeline.zadd(
-            KEYS.MESSAGE.BY_SOURCE(message.source_id),
-            new Date(message.timestamp).getTime(),
-            message.id
-        );
+        // Add to platform/handle index if both exist
+        if (message.platform && message.handle) {
+            pipeline.zadd(
+                KEYS.MESSAGE.BY_PLATFORM_HANDLE(message.platform, message.handle),
+                new Date(message.timestamp).getTime(),
+                message.id
+            );
+        }
 
         await pipeline.exec();
     }
@@ -61,8 +64,9 @@ export class MessageService {
         return {
             id,
             topic_id: data.topic_id,
-            source_id: data.source_id,
             content: data.content,
+            platform: (data.platform || undefined) as 'telegram' | 'x' | undefined,
+            handle: data.handle || undefined,
             embed_title: data.embed_title || undefined,
             embed_description: data.embed_description || undefined,
             timestamp: data.timestamp
@@ -97,10 +101,10 @@ export class MessageService {
         return messages.filter((message): message is Message => message !== null);
     }
 
-    async getBySource(sourceId: string, limit = 100): Promise<Message[]> {
-        // Get message IDs from source index, ordered by timestamp desc
+    async getBySource(platform: 'telegram' | 'x', handle: string, limit = 100): Promise<Message[]> {
+        // Get message IDs from platform/handle index, ordered by timestamp desc
         const messageIds = await redisClient.redis.zrevrange(
-            KEYS.MESSAGE.BY_SOURCE(sourceId),
+            KEYS.MESSAGE.BY_PLATFORM_HANDLE(platform, handle),
             0,
             limit - 1
         );

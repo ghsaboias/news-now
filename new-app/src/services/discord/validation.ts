@@ -1,4 +1,4 @@
-import { OptimizedMessage } from '@/types/discord';
+import { DiscordMessage } from '@/types/discord';
 import { BaseValidator, TIMEFRAME_HOURS, TimeframeType, TimeframeWindow, ValidationError } from '../validation/base';
 
 // Validation error types
@@ -22,9 +22,9 @@ export interface MessageValidationResult {
     isValid: boolean;
     errors: string[];
     warnings: string[];
-    validMessages: OptimizedMessage[];
+    validMessages: DiscordMessage[];
     skippedMessages: Array<{
-        message: OptimizedMessage;
+        message: DiscordMessage;
         reason: string;
     }>;
 }
@@ -84,11 +84,11 @@ export class MessageValidator extends BaseValidator {
         };
     }
 
-    static validateMessages(messages: OptimizedMessage[], timeframe: TimeframeWindow): MessageValidationResult {
+    static validateMessages(messages: DiscordMessage[], timeframe: TimeframeWindow): MessageValidationResult {
         const errors: string[] = [];
         const warnings: string[] = [];
-        const validMessages: OptimizedMessage[] = [];
-        const skippedMessages: Array<{ message: OptimizedMessage; reason: string }> = [];
+        const validMessages: DiscordMessage[] = [];
+        const skippedMessages: Array<{ message: DiscordMessage; reason: string }> = [];
 
         if (!messages.length) {
             errors.push('No messages to validate');
@@ -130,7 +130,7 @@ export class MessageValidator extends BaseValidator {
         };
     }
 
-    private static validateMessage(message: OptimizedMessage, timeframe: TimeframeWindow): void {
+    private static validateMessage(message: DiscordMessage, timeframe: TimeframeWindow): void {
         if (!message.id) {
             throw new MessageValidationError('Message ID is required', 'INVALID_MESSAGE_ID');
         }

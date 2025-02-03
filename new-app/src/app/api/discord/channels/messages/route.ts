@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { DiscordClient } from '@/services/discord/client';
-import { OptimizedMessage } from '@/types/discord';
+import { DiscordMessage } from '@/types/discord';
 
 const TIME_PERIODS = ['1h', '4h', '24h'] as const;
 type TimePeriod = typeof TIME_PERIODS[number];
@@ -13,6 +13,24 @@ interface FetchTask {
     channelId: string;
     period: string;
     hours: number;
+}
+
+interface ChannelUpdate {
+    channelId: string;
+    period: string;
+    count: number;
+    error: boolean;
+    errorMessage?: string;
+    messages?: DiscordMessage[];
+}
+
+interface StreamUpdate {
+    type: 'update' | 'complete' | 'error';
+    results?: ChannelUpdate[];
+    error?: string;
+    progress?: number;
+    totalChannels?: number;
+    completedChannels?: number;
 }
 
 // Group tasks by channel for better parallelization
@@ -32,13 +50,15 @@ function groupTasksByChannel(tasks: FetchTask[]): FetchTask[][] {
 async function processChannel(
     channelTasks: FetchTask[],
     client: DiscordClient,
-    writer: WritableStreamDefaultWriter<Uint8Array>
+    writer: WritableStreamDefaultWriter<Uint8Array>,
+    totalChannels: number,
+    completedChannels: number
 ): Promise<void> {
     const encoder = new TextEncoder();
 
     // Sort tasks by hours descending to fetch longest timeframe first
     const sortedTasks = [...channelTasks].sort((a, b) => b.hours - a.hours);
-    let cachedMessages: OptimizedMessage[] | undefined;
+    let cachedMessages: DiscordMessage[] | undefined;
 
     // Process all periods for this channel, reusing messages where possible
     for (const task of sortedTasks) {
@@ -56,30 +76,40 @@ async function processChannel(
                 cachedMessages = messages;
             }
 
-            await writer.write(
-                encoder.encode(`data: ${JSON.stringify({
-                    type: 'update',
-                    results: [{
-                        channelId: task.channelId,
-                        period: task.period,
-                        count: messages.length,
-                        error: false
-                    }]
-                })}\n\n`)
-            );
+            const update: StreamUpdate = {
+                type: 'update',
+                results: [{
+                    channelId: task.channelId,
+                    period: task.period,
+                    count: messages.length,
+                    error: false,
+                    messages: messages.slice(0, 10) // Send first 10 messages for preview
+                }],
+                progress: Math.round((completedChannels / totalChannels) * 100),
+                totalChannels,
+                completedChannels
+            };
+
+            await writer.write(encoder.encode(`data: ${JSON.stringify(update)}\n\n`));
         } catch (error) {
             console.error(`Error fetching messages for channel ${task.channelId} (${task.period}):`, error);
-            await writer.write(
-                encoder.encode(`data: ${JSON.stringify({
-                    type: 'update',
-                    results: [{
-                        channelId: task.channelId,
-                        period: task.period,
-                        count: 0,
-                        error: true
-                    }]
-                })}\n\n`)
-            );
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+            const update: StreamUpdate = {
+                type: 'update',
+                results: [{
+                    channelId: task.channelId,
+                    period: task.period,
+                    count: 0,
+                    error: true,
+                    errorMessage
+                }],
+                progress: Math.round((completedChannels / totalChannels) * 100),
+                totalChannels,
+                completedChannels
+            };
+
+            await writer.write(encoder.encode(`data: ${JSON.stringify(update)}\n\n`));
         }
     }
 }
@@ -119,6 +149,8 @@ export async function GET(request: Request) {
 
                 // Group tasks by channel
                 const channelGroups = groupTasksByChannel(fetchTasks);
+                const totalChannels = channelGroups.length;
+                let completedChannels = 0;
 
                 // Process channels in parallel with controlled concurrency
                 const queue = [...channelGroups];
@@ -128,7 +160,7 @@ export async function GET(request: Request) {
                     // Fill up to MAX_CONCURRENT_CHANNELS
                     while (queue.length > 0 && inProgress.size < MAX_CONCURRENT_CHANNELS) {
                         const channelTasks = queue.shift()!;
-                        const promise = processChannel(channelTasks, client, writer)
+                        const promise = processChannel(channelTasks, client, writer, totalChannels, ++completedChannels)
                             .finally(() => {
                                 inProgress.delete(promise);
                             });
@@ -140,17 +172,24 @@ export async function GET(request: Request) {
                     }
                 }
 
-                await writer.write(
-                    encoder.encode(`data: ${JSON.stringify({ type: 'complete' })}\n\n`)
-                );
+                const finalUpdate: StreamUpdate = {
+                    type: 'complete',
+                    progress: 100,
+                    totalChannels,
+                    completedChannels
+                };
+
+                await writer.write(encoder.encode(`data: ${JSON.stringify(finalUpdate)}\n\n`));
             } catch (error) {
                 console.error('Error processing messages:', error);
-                await writer.write(
-                    encoder.encode(`data: ${JSON.stringify({
-                        type: 'error',
-                        error: 'Failed to process messages'
-                    })}\n\n`)
-                );
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+                const errorUpdate: StreamUpdate = {
+                    type: 'error',
+                    error: `Failed to process messages: ${errorMessage}`
+                };
+
+                await writer.write(encoder.encode(`data: ${JSON.stringify(errorUpdate)}\n\n`));
             } finally {
                 await writer.close();
             }
@@ -165,8 +204,9 @@ export async function GET(request: Request) {
         });
     } catch (error) {
         console.error('Error in /api/discord/channels/messages:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return new Response(
-            JSON.stringify({ error: 'Failed to setup message counting' }),
+            JSON.stringify({ error: `Failed to setup message counting: ${errorMessage}` }),
             { status: 500 }
         );
     }

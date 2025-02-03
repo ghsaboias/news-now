@@ -1,16 +1,22 @@
 import { ChannelInfo } from "@/types/discord";
-import { Translation } from "@/types/translation";
+import { DiscordMessage } from './discord';
 
 export interface AISummary {
     headline: string;
     location: string;
     body: string;
-    sources: string[];
     raw_response: string;
     timestamp: string;
+    warnings?: string[];
+    translations?: Array<{
+        language: string;
+        headline: string;
+        location: string;
+        body: string;
+        timestamp: string;
+    }>;
     period_start?: string;
     period_end?: string;
-    translations?: Translation[];
 }
 
 export interface Timeframe {
@@ -27,6 +33,7 @@ export interface Report {
     timeframe: Timeframe;
     messageCount: number;
     summary: AISummary;
+    messages: DiscordMessage[];
 }
 
 export interface ReportGroup {
@@ -74,3 +81,12 @@ export interface QueuedChannel {
     error?: string;
     report?: Report;
 }
+
+export interface ReportContent {
+    headline: string;
+    location: string;
+    body: string;
+    raw_response?: string;
+}
+
+

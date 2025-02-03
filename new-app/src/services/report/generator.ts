@@ -1,5 +1,5 @@
 import { ClaudeClient } from '@/types/claude';
-import { OptimizedMessage } from '@/types/discord';
+import { DiscordMessage } from '@/types/discord';
 import { AISummary } from '@/types/report';
 import { PerformanceTracker } from '@/utils/performance';
 
@@ -11,7 +11,7 @@ export class ReportGenerator {
         private readonly logger: Console = console
     ) { }
 
-    private formatMessagesForClaude(messages: OptimizedMessage[]): string {
+    private formatMessagesForClaude(messages: DiscordMessage[]): string {
         console.log("MESSAGES", messages)
         return PerformanceTracker.track('report.formatMessages', () => {
             const sortedMessages = messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
@@ -50,110 +50,8 @@ export class ReportGenerator {
         });
     }
 
-    private parseAISummary(text: string): AISummary {
-        return PerformanceTracker.track('report.parseSummary', () => {
-            const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
-
-            if (lines.length < 3) {
-                throw new Error('Invalid summary format: insufficient lines');
-            }
-
-            // Find the headline (first line in ALL CAPS)
-            const headlineIndex = lines.findIndex(line =>
-                line === line.toUpperCase() && line.length > 0
-            );
-
-            if (headlineIndex === -1) {
-                throw new Error('Invalid summary format: no headline found');
-            }
-
-            // Location should be the line immediately after headline
-            const locationIndex = headlineIndex + 1;
-            const location = lines[locationIndex].trim();
-
-            // Find the sources section
-            const sourcesIndex = lines.findIndex((line, index) =>
-                index > locationIndex && line.toLowerCase().startsWith('sources')
-            );
-
-            if (sourcesIndex === -1) {
-                throw new Error('Invalid summary format: no sources section found');
-            }
-
-            const headline = lines[headlineIndex];
-            const body = lines.slice(locationIndex + 1, sourcesIndex).join('\n');
-
-            // Parse sources section
-            const sources: string[] = [];
-            let currentSource = '';
-            let isInSourceBlock = false;
-
-            for (let i = sourcesIndex + 1; i < lines.length; i++) {
-                const line = lines[i];
-
-                // Skip empty lines between source blocks
-                if (!line && !isInSourceBlock) continue;
-
-                // Start of a new source block
-                if (line.match(/^\[\w+\] @\w+/)) {
-                    if (currentSource) {
-                        sources.push(currentSource.trim());
-                    }
-                    currentSource = line;
-                    isInSourceBlock = true;
-                }
-                // Source reference line (starts with superscript)
-                else if (line.match(/^[¹²³⁴⁵⁶⁷⁸⁹]\[/)) {
-                    if (currentSource) {
-                        currentSource += '\n' + line;
-                    } else {
-                        currentSource = line;
-                    }
-                    isInSourceBlock = true;
-                }
-                // Additional source information (indented)
-                else if (line.startsWith('  ') && isInSourceBlock) {
-                    currentSource += '\n' + line;
-                }
-                // End of a source block
-                else if (!line && isInSourceBlock) {
-                    if (currentSource) {
-                        sources.push(currentSource.trim());
-                        currentSource = '';
-                    }
-                    isInSourceBlock = false;
-                }
-            }
-
-            // Add the last source if any
-            if (currentSource) {
-                sources.push(currentSource.trim());
-            }
-
-            // Validate sources
-            if (!sources.length) {
-                throw new Error('Invalid summary format: no valid sources found');
-            }
-
-            if (!headline || !location || !body) {
-                throw new Error('Invalid summary format: missing required components');
-            }
-
-            const summaryObj = {
-                headline,
-                location,
-                body,
-                sources,
-                raw_response: text,
-                timestamp: new Date().toISOString()
-            };
-            this.logger.log(`[Report Generator] Parsed summary: Headline: ${headline}, Location: ${location}, Body length: ${body.length}, Sources count: ${sources.length}`);
-            return summaryObj;
-        });
-    }
-
     async createAISummary(
-        messages: OptimizedMessage[],
+        messages: DiscordMessage[],
         channelName: string,
         requestedHours: number,
         previousSummary?: AISummary
@@ -182,9 +80,24 @@ export class ReportGenerator {
                     this.logger.error('Claude returned empty response');
                     return null;
                 }
-                console.log("RESPONSE", response.content[0].text)
 
-                return this.parseAISummary(response.content[0].text);
+                const text = response.content[0].text;
+                console.log("RESPONSE", text);
+
+                // Parse the response into headline, location, and body
+                const lines = text.split('\n').filter(line => line.trim());
+                const headline = lines[0];
+                const location = lines[1];
+                const body = lines.slice(2).join('\n').trim();
+
+                return {
+                    headline,
+                    location,
+                    body,
+                    raw_response: text,
+                    timestamp: new Date().toISOString(),
+                };
+
             } catch (error) {
                 this.logger.error('Error generating summary:', error);
                 return null;
@@ -229,28 +142,6 @@ export class ReportGenerator {
             - NO analysis, commentary, or speculation
             - NO use of terms like "likely", "appears to", or "is seen as"
             - Remove any # that might be in the developments
-            - For each factual claim, add a superscript number (e.g. "text¹") that references the source
-            - At the end of the report, add a "Sources:" section listing all referenced sources
-            - Group sources by platform (Telegram/X) and handle
-            - Format sources as follows:
-              Sources (N messages):
-
-              [Platform] @handle
-              ¹[HH:mm] Quote used in summary
-              Link: https://twitter.com/user/status/postId
-
-              [Platform] @handle
-              ²[HH:mm] Quote used in summary
-              Link: https://twitter.com/user/status/postId
-
-            - For each source, include:
-              1. The superscript number used in the report
-              2. The time in 24-hour format [HH:mm]
-              3. The quote or content used in the summary
-              4. The original full message content
-              5. A link to the original post when available
-            - Group all sources from the same platform and handle together
-            - Show the total number of messages processed in the Sources header
         `;
     }
 } 

@@ -127,7 +127,7 @@ function RecentReportsContent() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          const text = `${report.summary.headline}\n\n${report.summary.location}\n\n${report.summary.body}\n\n${report.summary.sources ? 'Sources:\n' + report.summary.sources.join('\n') : ''}`;
+                          const text = `${report.summary.headline}\n\n${report.summary.location}\n\n${report.summary.body}`;
                           navigator.clipboard.writeText(text);
                           toast.success('Report copied to clipboard');
                         }}

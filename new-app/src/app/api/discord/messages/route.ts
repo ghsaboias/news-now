@@ -2,7 +2,7 @@ import { DiscordClient } from '@/services/discord/client';
 import { MessageService } from '@/services/redis/messages';
 import { SourceService } from '@/services/redis/sources';
 import { TopicService } from '@/services/redis/topics';
-import { OptimizedMessage } from '@/types/discord';
+import { DiscordMessage } from '@/types/discord';
 import { NextRequest } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -34,7 +34,7 @@ interface StreamUpdate {
     batchCount?: number;
     batchSize?: number;
     progress?: number;
-    messages?: OptimizedMessage[];
+    messages?: DiscordMessage[];
     totalMessages?: number;
     error?: string;
     status?: string;
@@ -62,13 +62,13 @@ export async function GET(request: NextRequest) {
     const startTime = Date.now();
     const milestones: { [key: string]: number } = {};
     let messageCount = 0;
-    let optimizedMessages: OptimizedMessage[] = [];
+    let messages: DiscordMessage[] = [];
 
-    // New inner processBatch function that accepts only new optimized messages
-    async function processBatch(newMessages: OptimizedMessage[]): Promise<void> {
-        optimizedMessages.push(...newMessages);
-        if (optimizedMessages.length > MAX_MESSAGES_IN_MEMORY) {
-            optimizedMessages = optimizedMessages.slice(-MAX_MESSAGES_IN_MEMORY);
+    // Process new batch of messages
+    async function processBatch(newMessages: DiscordMessage[]): Promise<void> {
+        messages.push(...newMessages);
+        if (messages.length > MAX_MESSAGES_IN_MEMORY) {
+            messages = messages.slice(-MAX_MESSAGES_IN_MEMORY);
             if (global.gc) {
                 global.gc();
             }
@@ -161,7 +161,7 @@ export async function GET(request: NextRequest) {
             });
 
             // Override message batch handler with memory-efficient processing
-            client.onMessageBatch = async (batchSize: number, botMessages: number, messages: OptimizedMessage[]) => {
+            client.onMessageBatch = async (batchSize: number, botMessages: number, messages: DiscordMessage[]) => {
                 const now = Date.now();
                 const batchDuration = now - lastBatchTime;
                 lastBatchTime = now;
@@ -187,7 +187,7 @@ export async function GET(request: NextRequest) {
                     batchSize,
                     progress: fetchProgress,
                     status: `Processing batch ${batchCount} (${messageCount} messages)`,
-                    messages: optimizedMessages.slice(-batchSize),
+                    messages: messages.slice(-batchSize),
                     totalMessages: messageCount
                 });
             };
@@ -220,7 +220,7 @@ export async function GET(request: NextRequest) {
                         stage: 'complete',
                         progress: 100,
                         status: `Completed - ${messageCount} messages processed`,
-                        messages: optimizedMessages,
+                        messages,
                         totalMessages: messageCount,
                         batchCount
                     });
@@ -262,8 +262,8 @@ export async function GET(request: NextRequest) {
                 error: 'Failed to fetch messages: ' + (error as Error).message
             });
         } finally {
-            // Clear optimized messages before cleanup
-            optimizedMessages = [];
+            // Clear messages before cleanup
+            messages = [];
             if (global.gc) {
                 global.gc();
             }
