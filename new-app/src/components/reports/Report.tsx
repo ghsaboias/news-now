@@ -258,86 +258,164 @@ const ReportHeader = ({
     );
 };
 
-const SourceReference = ({ ref, blockIndex, refIndex }: { ref: any, blockIndex: number, refIndex: number }) => (
-    <div key={`ref-${blockIndex}-${refIndex}`} className="mb-4">
-        <div className="flex flex-col gap-2">
-            {/* Header with timestamp and author info */}
-            <div className="flex items-center gap-2 text-sm">
-                <span className="text-gray-300">[{ref.time}]</span>
+const getMediaType = (att: DiscordMessage['attachments'][0]) => {
+    // First try with content_type if available
+    if (att.content_type?.startsWith('image/')) return 'image';
+    if (att.content_type?.startsWith('video/')) return 'video';
 
-            </div>
+    // Fallback to extension check
+    const ext = att.filename.split('.').pop()?.toLowerCase();
+    if (ext && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'image';
+    if (ext && ['mp4', 'webm', 'mov'].includes(ext)) return 'video';
 
-            {/* Main content */}
+    return null;
+};
+
+const extractUrls = (text: string): string[] => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    return text.match(urlRegex) || [];
+};
+
+const SourceReference = ({ source, blockIndex, refIndex }: { source: any, blockIndex: number, refIndex: number }) => {
+    console.log('SourceReference rendering:', {
+        blockIndex,
+        refIndex,
+        attachments: source.attachments
+    });
+
+    const urls = source.url ? extractUrls(source.url) : [];
+
+    return (
+        <div key={`ref-${blockIndex}-${refIndex}`} className="mb-4">
             <div className="flex flex-col gap-2">
-                {/* Main quote with URL */}
-                <div className="text-gray-100">
-                    {ref.url ? (
-                        <a
-                            href={ref.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="group flex items-start gap-2 hover:text-blue-400"
-                        >
-                            <span className="flex-grow">{ref.quote}</span>
-                            <Globe
-                                size={14}
-                                className="mt-1 flex-shrink-0 text-gray-400 group-hover:text-blue-400 transition-colors"
-                            />
-                        </a>
-                    ) : (
-                        <span>{ref.quote}</span>
-                    )}
+                {/* Header with timestamp and author info */}
+                <div className="flex items-center gap-2 text-sm">
+                    <span className="text-gray-300">[{source.time}]</span>
                 </div>
 
-                {/* Embed information */}
-                {ref.embed && (
-                    <div className="mt-1 text-sm">
-                        {ref.embed.title && (
-                            <div className="font-medium text-gray-300">{ref.embed.title}</div>
-                        )}
-                        {ref.embed.description && (
-                            <div className="text-gray-400 mt-1">{ref.embed.description}</div>
-                        )}
-                        {ref.embed.translatedFrom && (
-                            <div className="text-xs text-gray-500 mt-1">
-                                Translated from {ref.embed.translatedFrom}
+                {/* Main content */}
+                <div className="flex flex-col gap-2">
+                    {/* Main quote with URLs */}
+                    <div className="text-gray-100">
+                        {urls.length > 0 ? (
+                            <div className="flex flex-col gap-1">
+                                <div className="flex items-start gap-2">
+                                    <span className="flex-grow">{source.quote}</span>
+                                    {urls.length > 0 && (
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                            {urls.map((url, idx) => (
+                                                <a
+                                                    key={idx}
+                                                    href={url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="p-1 hover:bg-blue-900/20 rounded-md group"
+                                                    title={url}
+                                                >
+                                                    <Globe
+                                                        size={14}
+                                                        className="text-gray-400 group-hover:text-blue-400 transition-colors"
+                                                    />
+                                                </a>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                {urls.length > 1 && (
+                                    <div className="flex flex-wrap gap-2 text-xs text-gray-400">
+                                        {urls.map((url, idx) => (
+                                            <a
+                                                key={idx}
+                                                href={url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="hover:text-blue-400 truncate max-w-[300px]"
+                                            >
+                                                {url}
+                                            </a>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
+                        ) : (
+                            <span>{source.quote}</span>
                         )}
                     </div>
-                )}
 
-                {/* Attachments grid */}
-                {ref.attachments && ref.attachments.length > 0 && (
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                        {ref.attachments.map((att: DiscordMessage['attachments'][0], index: number) => (
-                            <div key={index} className="relative group">
-                                {att.content_type?.startsWith('image/') ? (
-                                    <img
-                                        src={att.url}
-                                        alt={att.filename}
-                                        className="rounded-md max-h-48 object-cover w-full"
-                                    />
-                                ) : att.content_type?.startsWith('video/') ? (
-                                    <video
-                                        src={att.url}
-                                        className="rounded-md max-h-48 object-cover w-full"
-                                        controls
-                                    />
-                                ) : null}
-                            </div>
-                        ))}
-                    </div>
-                )}
+                    {/* Embed information */}
+                    {source.embed && (
+                        <div className="mt-1 text-sm">
+                            {source.embed.title && (
+                                <div className="font-medium text-gray-300">{source.embed.title}</div>
+                            )}
+                            {source.embed.description && (
+                                <div className="text-gray-400 mt-1">{source.embed.description}</div>
+                            )}
+                            {source.embed.translatedFrom && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                    Translated from {source.embed.translatedFrom}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Attachments grid */}
+                    {source.attachments && source.attachments.length > 0 && (
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                            {source.attachments.map((att: DiscordMessage['attachments'][0], index: number) => {
+                                console.log('Processing attachment:', {
+                                    url: att.url,
+                                    type: att.content_type,
+                                    filename: att.filename
+                                });
+
+                                const mediaType = getMediaType(att);
+
+                                return (
+                                    <div key={index} className="relative group">
+                                        {mediaType === 'image' ? (
+                                            <img
+                                                src={att.url}
+                                                alt={att.filename}
+                                                className="rounded-md max-h-48 object-cover w-full"
+                                                onError={(e) => {
+                                                    console.error(`Error loading image: ${att.url}`, e);
+                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                    (e.target as HTMLImageElement).parentElement?.classList.add('bg-red-900/20', 'p-4', 'rounded-md', 'flex', 'items-center', 'justify-center');
+                                                    (e.target as HTMLImageElement).parentElement!.innerHTML = `<span class="text-sm text-red-400">Failed to load image</span>`;
+                                                }}
+                                                onLoad={() => console.log(`Successfully loaded image: ${att.url}`)}
+                                            />
+                                        ) : mediaType === 'video' ? (
+                                            <video
+                                                src={att.url}
+                                                className="rounded-md max-h-48 object-cover w-full"
+                                                controls
+                                                onError={(e) => {
+                                                    console.error(`Error loading video: ${att.url}`, e);
+                                                    (e.target as HTMLVideoElement).style.display = 'none';
+                                                    (e.target as HTMLVideoElement).parentElement?.classList.add('bg-red-900/20', 'p-4', 'rounded-md', 'flex', 'items-center', 'justify-center');
+                                                    (e.target as HTMLVideoElement).parentElement!.innerHTML = `<span class="text-sm text-red-400">Failed to load video</span>`;
+                                                }}
+                                                onLoadedData={() => console.log(`Successfully loaded video: ${att.url}`)}
+                                            />
+                                        ) : null}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 const SourceBlockComponent = ({ block, blockIndex }: { block: SourceBlockType, blockIndex: number }) => (
     <div key={`block-${blockIndex}`} className="mb-6">
         <div className="pl-4 border-l border-gray-800">
-            {block.references.map((ref, refIndex) => (
-                <SourceReference key={refIndex} ref={ref} blockIndex={blockIndex} refIndex={refIndex} />
+            {block.references.map((reference, refIndex) => (
+                <SourceReference key={refIndex} source={reference} blockIndex={blockIndex} refIndex={refIndex} />
             ))}
         </div>
     </div>
