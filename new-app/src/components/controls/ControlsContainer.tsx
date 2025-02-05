@@ -8,17 +8,14 @@ interface ControlsContainerProps {
   mainControls?: ReactNode;
   /** Bulk generation controls */
   bulkControls?: ReactNode;
-  /** Recent reports section */
-  recentReports?: ReactNode;
 }
 
 export function ControlsContainer({
   mainControls,
   bulkControls,
-  recentReports
 }: ControlsContainerProps) {
   return (
-    <Stack className="h-full">
+    <Stack>
       {/* Sticky Header */}
       <div className="flex-none">
         <div className="flex items-center justify-center p-4">
@@ -39,32 +36,17 @@ export function ControlsContainer({
           </div>
         )}
 
-        {/* Scrollable Sections */}
-        <div className="flex-1 overflow-y-auto min-h-0">
-          <Stack spacing="relaxed">
-            {/* Bulk Generate Section */}
-            {bulkControls && (
-              <Section
-                title="Bulk Generation"
-                collapsible
-                defaultExpanded={false}
-                variant="raised"
-              >
-                {bulkControls}
-              </Section>
-            )}
-
-            {/* Recent Reports Section */}
-            {recentReports && (
-              <Section
-                title="Recent Reports"
-                variant="raised"
-              >
-                {recentReports}
-              </Section>
-            )}
-          </Stack>
-        </div>
+        {/* Bulk Generate Section */}
+        {bulkControls && (
+          <Section
+            title="Bulk Generation"
+            collapsible
+            defaultExpanded={false}
+            variant="raised"
+          >
+            {bulkControls}
+          </Section>
+        )}
       </div>
     </Stack>
   );

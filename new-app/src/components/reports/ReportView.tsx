@@ -48,7 +48,7 @@ function ReportViewContent({ report }: { report: ReportType }) {
   }
 
   return (
-    <div className="relative min-h-full bg-gray-900">
+    <div className="relative min-h-full bg-gray-900 mt-4">
       <ReportComponent
         report={report}
         content={content}

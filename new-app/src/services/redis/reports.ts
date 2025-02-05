@@ -3,15 +3,16 @@ import { Report, ReportGroup } from '@/types/report';
 import { redisClient } from './client';
 import { ReportValidationError, ReportValidator } from './validation';
 
-const REPORT_PREFIX = 'reports';
-const REPORT_KEY = (id: string) => `${REPORT_PREFIX}:${id}`;
-const REPORT_DATE_KEY = (date: string) => `${REPORT_PREFIX}:date:${date}`;
-const REPORT_CHANNEL_KEY = (channelId: string) => `${REPORT_PREFIX}:channel:${channelId}`;
+const REPORT_PREFIX = 'newsnow:report';
+const REPORT_KEY = (id: string) => `${REPORT_PREFIX}:data:${id}`;
+const REPORT_DATE_KEY = (date: string) => `${REPORT_PREFIX}:date:${date}:index`;
+const REPORT_CHANNEL_KEY = (channelId: string) => `${REPORT_PREFIX}:channel:${channelId}:index`;
+const REPORT_ALL_KEY = `${REPORT_PREFIX}:index:all`;
 
 export class ReportService {
     // Get all reports grouped by date
     static async getAllReports(): Promise<ReportGroup[]> {
-        const reports: string[] = await redisClient.redis.zrange(`${REPORT_PREFIX}:all`, 0, -1);
+        const reports: string[] = await redisClient.redis.zrange(REPORT_ALL_KEY, 0, -1);
         const groupedReports: { [date: string]: Report[] } = {};
 
         for (const reportId of reports) {
@@ -72,7 +73,7 @@ export class ReportService {
                 transaction.set(REPORT_KEY(report.id), JSON.stringify(report));
 
                 // Add to sorted set of all reports
-                transaction.zadd(`${REPORT_PREFIX}:all`, new Date(report.timestamp).getTime(), report.id);
+                transaction.zadd(REPORT_ALL_KEY, new Date(report.timestamp).getTime(), report.id);
 
                 // Add to channel set
                 transaction.zadd(REPORT_CHANNEL_KEY(report.channelId), new Date(report.timestamp).getTime(), report.id);
@@ -181,13 +182,17 @@ export class ReportService {
         pipeline.del(REPORT_KEY(reportId));
 
         // Remove from all sets
-        pipeline.zrem(`${REPORT_PREFIX}:all`, reportId);
+        pipeline.zrem(REPORT_ALL_KEY, reportId);
         pipeline.zrem(REPORT_CHANNEL_KEY(report.channelId), reportId);
         pipeline.zrem(REPORT_DATE_KEY(date), reportId);
 
         try {
-            await pipeline.exec();
+            const results = await pipeline.exec();
+            if (!results || results.some(([err]) => err !== null)) {
+                throw new Error('Failed to delete report: Transaction failed');
+            }
         } catch (error) {
+            console.error('Redis deletion error:', error);
             throw new ReportValidationError(
                 'Failed to delete report',
                 'STORAGE_ERROR'
@@ -278,7 +283,7 @@ export class ReportService {
             pipeline.del(REPORT_KEY(report.id));
 
             // Remove from all sets
-            pipeline.zrem(`${REPORT_PREFIX}:all`, report.id);
+            pipeline.zrem(REPORT_ALL_KEY, report.id);
             pipeline.zrem(REPORT_CHANNEL_KEY(report.channelId), report.id);
             pipeline.zrem(REPORT_DATE_KEY(date), report.id);
         }

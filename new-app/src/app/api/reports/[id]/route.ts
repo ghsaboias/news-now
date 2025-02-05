@@ -74,7 +74,7 @@ export async function DELETE(
         if (error instanceof ReportValidationError) {
             if (error.code === 'REPORT_NOT_FOUND') {
                 return Response.json(
-                    { error: error.message, code: error.code },
+                    { error: 'Report not found', code: 'REPORT_NOT_FOUND' },
                     { status: 404 }
                 );
             }

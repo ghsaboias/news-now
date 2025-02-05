@@ -72,7 +72,7 @@ export function Section({
             <Button
               variant="secondary"
               onClick={onToggle}
-              className="w-full justify-between !p-4"
+              className="w-full justify-between !p-4 !bg-gray-100"
             >
               <span className="text-sm font-medium">{title}</span>
             </Button>

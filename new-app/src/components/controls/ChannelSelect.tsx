@@ -80,7 +80,7 @@ export function ChannelSelect({
           aria-invalid={!!validateChannel(selectedChannelId)}
         >
           <option value="">Select a channel</option>
-          {channels.map((channel) => (
+          {channels.filter(channel => !channel.name.includes('the-gulag')).map((channel) => (
             <option
               key={channel.id}
               value={channel.id}

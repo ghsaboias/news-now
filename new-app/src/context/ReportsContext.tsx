@@ -49,11 +49,16 @@ export function ReportsProvider({ children }: { children: ReactNode }) {
       const response = await fetch(`/api/reports/${id}`, {
         method: 'DELETE'
       });
-      if (!response.ok) throw new Error('Failed to delete report');
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete report');
+      }
+
       await fetchReports(); // Refresh the reports list
     } catch (error) {
       console.error('Failed to delete report:', error);
-      throw error;
+      throw error; // Re-throw to let the component handle the error
     }
   }, [fetchReports]);
 

@@ -7,7 +7,7 @@ import { ReportContent, Report as ReportType } from "@/types/report";
 import { SourceBlock as SourceBlockType } from "@/types/source";
 import { Translation } from "@/types/translation";
 import { formatReportDate } from "@/utils/date";
-import { Book, Globe } from "lucide-react";
+import { Book, Copy, Globe, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { MessageCountBadge } from "../common/badges/MessageCountBadge";
 import { Button } from "../ui/button";
@@ -233,22 +233,30 @@ const ReportHeader = ({
                                     isTranslating={isTranslating}
                                     handleTranslate={handleTranslate}
                                 />
-                                <Button
+                                <button
                                     onClick={handleCopy}
-                                    variant="secondary"
                                     title="Copy Report"
-                                    className="!p-2"
+                                    className="
+                                    p-2 text-gray-400 rounded-lg 
+                                    transition-colors duration-DEFAULT
+                                    hover:text-gray-50 hover:bg-gray-700
+                                    focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800
+                                  "
                                 >
-                                    <span className="sr-only">Copy Report</span>
-                                </Button>
-                                <Button
+                                    <Copy size={16} />
+                                </button>
+                                <button
                                     onClick={handleDelete}
-                                    variant="destructive"
                                     title="Delete Report"
-                                    className="!p-2"
+                                    className="
+                                    p-2 text-gray-400 rounded-lg 
+                                    transition-colors duration-DEFAULT
+                                    hover:text-error-500 hover:bg-gray-700
+                                    focus:outline-none focus-visible:ring-2 focus-visible:ring-error-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800
+                                    "
                                 >
-                                    <span className="sr-only">Delete Report</span>
-                                </Button>
+                                    <Trash2 size={16} />
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -511,16 +519,12 @@ export function Report({
         if (!confirm('Are you sure you want to delete this report?')) return;
 
         try {
-            const response = await fetch(`/api/reports/${report.id}`, {
-                method: 'DELETE',
-            });
-            if (!response.ok) throw new Error('Failed to delete report');
-
-            deleteReport(report.id);
+            await deleteReport(report.id);
             setCurrentReport(null);
+            toast.success('Report deleted successfully');
         } catch (err) {
             console.error('Error deleting report:', err);
-            toast.error('Failed to delete report');
+            toast.error(err instanceof Error ? err.message : 'Failed to delete report');
         }
     };
 

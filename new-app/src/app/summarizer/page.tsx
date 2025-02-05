@@ -22,8 +22,10 @@ import { Progress } from '@/components/ui/progress';
 import { Toaster } from '@/components/ui/toaster';
 import { useReports } from '@/context/ReportsContext';
 import { useAppToast } from '@/hooks/useAppToast';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import type { DiscordChannel, DiscordMessage } from '@/types/discord';
 import type { AISummary } from '@/types/report';
+import { Menu, X } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -323,6 +325,8 @@ function SummarizerContent() {
     const [selectedTimeframe, setSelectedTimeframe] = useState<'1h' | '4h' | '24h'>('1h');
     const [isGenerating, setIsGenerating] = useState(false);
     const [forceRefresh, setForceRefresh] = useState(false);
+    const [isReportsVisible, setIsReportsVisible] = useState(true);
+    const isMobile = useMediaQuery("(max-width: 768px)");
     const toast = useAppToast();
 
     const { setCurrentReport, fetchReports, currentReport, findReportContext } = useReports();
@@ -605,13 +609,64 @@ function SummarizerContent() {
     ]);
 
     return (
-        <div className='w-[80%] mx-auto'>
-            <ControlsContainer
-                mainControls={controls}
-                bulkControls={<BulkGenerateButton />}
-                recentReports={<MemoizedRecentReports />}
-            />
-            {currentReport && <ReportView report={currentReport} />}
+        <div className='flex h-full'>
+            {/* Main Content */}
+            <div className={`
+                flex-1 px-8 transition-[margin] duration-300
+                ${!isMobile && isReportsVisible ? 'mr-96' : 'mr-0'}
+            `}>
+                <ControlsContainer
+                    mainControls={controls}
+                    bulkControls={<BulkGenerateButton />}
+                />
+                {currentReport && <ReportView report={currentReport} />}
+
+                {/* Toggle Button */}
+                <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setIsReportsVisible(prev => !prev)}
+                    className={`
+                        fixed z-50
+                        ${isMobile ? 'bottom-4 right-4' : 'top-4 right-4'}
+                        hover:bg-gray-800 hover:text-gray-100
+                        bg-gray-900/90 backdrop-blur-sm
+                        border-gray-700 hover:border-gray-600
+                        text-gray-100
+                    `}
+                >
+                    {isReportsVisible ? (
+                        <>
+                            <X className="h-4 w-4" />
+                            <span className="sr-only">Close Recent Reports</span>
+                        </>
+                    ) : (
+                        <>
+                            <Menu className="h-4 w-4" />
+                            <span className="sr-only">Show Recent Reports</span>
+                        </>
+                    )}
+                </Button>
+            </div>
+
+            {/* Recent Reports Section */}
+            <div className={`
+                fixed top-0 right-0 h-full w-96 
+                border-l border-gray-800 bg-gray-900/50 backdrop-blur-sm
+                transition-transform duration-300
+                ${isMobile ? 'w-full' : 'w-96'}
+                ${isReportsVisible ? 'translate-x-0' : 'translate-x-full'}
+                ${isMobile ? 'h-[80vh] bottom-0 top-auto rounded-t-xl border-t' : 'h-full'}
+            `}>
+                <div className="p-4 border-b border-gray-800">
+                    <h2 className="text-lg font-semibold text-gray-100">Recent Reports</h2>
+                </div>
+                <div className="overflow-y-auto h-[calc(100%-4rem)]">
+                    <div className="p-4">
+                        <RecentReports />
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
