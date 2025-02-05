@@ -182,7 +182,8 @@ export async function GET(request: NextRequest) {
 
                 // Fetch and validate channels
                 const channels = await discordClient.fetchChannels();
-                const channelValidation = BulkGenerationValidator.validateChannels(channels);
+                const filteredChannels = channels.filter(channel => !channel.name.includes('the-gulag'));
+                const channelValidation = BulkGenerationValidator.validateChannels(filteredChannels);
 
                 if (!channelValidation.isValid) {
                     throw new BulkGenerationError(

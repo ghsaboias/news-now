@@ -18,7 +18,7 @@ function ChannelStatus({ channel }: { channel: ChannelActivity }) {
   }
 
   if (channel.status === 'skipped') {
-    return <span>0 messages</span>;
+    return <span>{messageText}</span>;
   }
 
   if (channel.status === 'processing') {

@@ -17,7 +17,20 @@ const KEYS = {
 export class SourceService {
     async create(source: { platform: 'telegram' | 'x', handle: string, timestamp: string }): Promise<void> {
         const key = KEYS.SOURCE.BY_HANDLE(source.platform, source.handle);
-        const existing = await redisClient.redis.hgetall(key);
+
+        // Check key type first
+        const keyType = await redisClient.redis.type(key);
+        if (keyType !== 'none' && keyType !== 'hash') {
+            // If key exists but is wrong type, delete it
+            await redisClient.redis.del(key);
+        }
+
+        let existing: Partial<SourceInfo> = {};
+        try {
+            existing = await redisClient.redis.hgetall(key);
+        } catch (error) {
+            console.warn(`Failed to get existing source data for ${key}, starting fresh`);
+        }
 
         const data = {
             platform: source.platform,
@@ -42,15 +55,30 @@ export class SourceService {
     }
 
     async getByHandle(platform: 'telegram' | 'x', handle: string): Promise<SourceInfo | null> {
-        const data = await redisClient.redis.hgetall(KEYS.SOURCE.BY_HANDLE(platform, handle));
-        if (!data || !Object.keys(data).length) return null;
+        const key = KEYS.SOURCE.BY_HANDLE(platform, handle);
 
-        return {
-            platform: platform,
-            handle: handle,
-            first_seen_at: data.first_seen_at,
-            last_seen_at: data.last_seen_at
-        };
+        try {
+            // Check key type first
+            const keyType = await redisClient.redis.type(key);
+            if (keyType !== 'none' && keyType !== 'hash') {
+                // If key exists but is wrong type, delete it
+                await redisClient.redis.del(key);
+                return null;
+            }
+
+            const data = await redisClient.redis.hgetall(key);
+            if (!data || !Object.keys(data).length) return null;
+
+            return {
+                platform: platform,
+                handle: handle,
+                first_seen_at: data.first_seen_at,
+                last_seen_at: data.last_seen_at
+            };
+        } catch (error) {
+            console.warn(`Error getting source ${platform}:${handle}, will be recreated: ${error}`);
+            return null;
+        }
     }
 
     async getAll(): Promise<SourceInfo[]> {

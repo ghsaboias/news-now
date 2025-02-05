@@ -2,7 +2,6 @@ import { useReports } from '@/context/ReportsContext';
 import { ChannelActivity } from '@/types/discord';
 import { Report } from '@/types/report';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useLoadingState } from './useLoadingState';
 
 interface BulkGenerateState {
     status: 'idle' | 'processing' | 'complete' | 'error';
@@ -25,7 +24,6 @@ interface BulkGenerateOptions {
 
 export function useBulkGenerate() {
     const { fetchReports, setCurrentReport, addReport } = useReports();
-    const { isLoading, withLoading } = useLoadingState();
     const [state, setState] = useState<BulkGenerateState>({
         status: 'idle',
         channels: [],
@@ -33,6 +31,7 @@ export function useBulkGenerate() {
     });
     const hasSetFirstReport = useRef(false);
     const [eventSource, setEventSource] = useState<EventSource | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     // Handle report updates outside of render cycle
     useEffect(() => {
@@ -58,97 +57,110 @@ export function useBulkGenerate() {
     }, [eventSource]);
 
     const generate = useCallback(async ({ timeframe, minMessages }: BulkGenerateOptions) => {
-        // Reset state
-        hasSetFirstReport.current = false;
+        try {
+            setIsLoading(true);
+            // Reset state
+            hasSetFirstReport.current = false;
 
-        // Close any existing connection
-        if (eventSource) {
-            eventSource.close();
-        }
+            // Close any existing connection
+            if (eventSource) {
+                eventSource.close();
+            }
 
-        setState({ status: 'processing', channels: [], error: undefined });
+            setState({ status: 'processing', channels: [], error: undefined });
 
-        const es = new EventSource(
-            `/api/reports/bulk-generate?timeframe=${timeframe}&minMessages=${minMessages}`
-        );
+            const es = new EventSource(
+                `/api/reports/bulk-generate?timeframe=${timeframe}&minMessages=${minMessages}`
+            );
 
-        setEventSource(es);
+            setEventSource(es);
 
-        es.addEventListener('channels', ((event: MessageEvent) => {
-            const data = JSON.parse(event.data);
-            setState(prev => ({
-                ...prev,
-                channels: data.channels
-            }));
-        }) as EventListener);
+            es.addEventListener('channels', ((event: MessageEvent) => {
+                const data = JSON.parse(event.data);
+                setState(prev => ({
+                    ...prev,
+                    channels: data.channels
+                }));
+            }) as EventListener);
 
-        es.addEventListener('status', ((event: MessageEvent) => {
-            const status = JSON.parse(event.data);
-            setState(prev => ({
-                ...prev,
-                queueStatus: {
-                    total: status.total,
-                    pending: status.pending,
-                    processing: status.processing,
-                    completed: status.completed,
-                    error: status.error
-                }
-            }));
-        }) as EventListener);
+            es.addEventListener('status', ((event: MessageEvent) => {
+                const status = JSON.parse(event.data);
+                setState(prev => ({
+                    ...prev,
+                    queueStatus: {
+                        total: status.total,
+                        pending: status.pending,
+                        processing: status.processing,
+                        completed: status.completed,
+                        error: status.error
+                    }
+                }));
+            }) as EventListener);
 
-        es.addEventListener('progress', ((event: MessageEvent) => {
-            const update = JSON.parse(event.data);
-            setState(prev => {
-                const updatedChannels = prev.channels.map(channel =>
-                    channel.channelId === update.channelId
-                        ? { ...channel, ...update }
-                        : channel
-                );
+            es.addEventListener('progress', ((event: MessageEvent) => {
+                const update = JSON.parse(event.data);
+                setState(prev => {
+                    const updatedChannels = prev.channels.map(channel =>
+                        channel.channelId === update.channelId
+                            ? { ...channel, ...update }
+                            : channel
+                    );
 
-                // Queue report for processing in useEffect
-                if (update.status === 'success' && update.report) {
+                    // Queue report for processing in useEffect
+                    if (update.status === 'success' && update.report) {
+                        return {
+                            ...prev,
+                            channels: updatedChannels,
+                            pendingReport: update.report
+                        };
+                    }
+
                     return {
                         ...prev,
-                        channels: updatedChannels,
-                        pendingReport: update.report
+                        channels: updatedChannels
                     };
-                }
+                });
+            }) as EventListener);
 
-                return {
+            es.addEventListener('complete', ((event: MessageEvent) => {
+                setState(prev => ({
                     ...prev,
-                    channels: updatedChannels
-                };
-            });
-        }) as EventListener);
+                    status: 'complete'
+                }));
+                es.close();
+                setIsLoading(false);
+            }) as EventListener);
 
-        es.addEventListener('complete', ((event: MessageEvent) => {
-            setState(prev => ({
-                ...prev,
-                status: 'complete'
-            }));
-            es.close();
-        }) as EventListener);
+            es.addEventListener('error', ((event: MessageEvent) => {
+                const data = event.data ? JSON.parse(event.data) : { error: 'Connection error' };
+                setState(prev => ({
+                    ...prev,
+                    status: 'error',
+                    error: data.error
+                }));
+                es.close();
+                setIsLoading(false);
+            }) as EventListener);
 
-        es.addEventListener('error', ((event: MessageEvent) => {
-            const data = event.data ? JSON.parse(event.data) : { error: 'Connection error' };
+            // Handle connection errors
+            es.onerror = () => {
+                setState(prev => ({
+                    ...prev,
+                    status: 'error',
+                    error: 'Connection error'
+                }));
+                es.close();
+                setIsLoading(false);
+            };
+        } catch (error) {
             setState(prev => ({
                 ...prev,
                 status: 'error',
-                error: data.error
+                error: error instanceof Error ? error.message : 'Unknown error'
             }));
-            es.close();
-        }) as EventListener);
-
-        // Handle connection errors
-        es.onerror = () => {
-            setState(prev => ({
-                ...prev,
-                status: 'error',
-                error: 'Connection error'
-            }));
-            es.close();
-        };
-    }, []);
+            setIsLoading(false);
+        }
+    }, [eventSource]);
 
     return {
         ...state,
