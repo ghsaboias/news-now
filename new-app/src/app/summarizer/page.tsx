@@ -628,7 +628,7 @@ function SummarizerContent() {
                     onClick={() => setIsReportsVisible(prev => !prev)}
                     className={`
                         fixed z-50
-                        ${isMobile ? 'bottom-4 right-4' : 'top-4 right-4'}
+                        ${isMobile ? 'top-4 right-4' : 'top-4 right-4'}
                         hover:bg-gray-800 hover:text-gray-100
                         bg-gray-900/90 backdrop-blur-sm
                         border-gray-700 hover:border-gray-600
