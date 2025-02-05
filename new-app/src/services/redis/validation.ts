@@ -55,9 +55,6 @@ export class ReportValidator extends BaseValidator {
             if (!report.summary.body) {
                 errors.push('Summary body is required');
             }
-            if (!report.summary.sources || report.summary.sources.length === 0) {
-                warnings.push('Summary has no sources');
-            }
         }
 
         return {

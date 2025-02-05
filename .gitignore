@@ -93,3 +93,6 @@ new-app/app-aiworld.service
 
 # Structure
 structure.json
+
+# Deployment
+deploy.log

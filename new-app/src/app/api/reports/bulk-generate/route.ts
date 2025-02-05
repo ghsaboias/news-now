@@ -120,6 +120,7 @@ async function processChannel(
             },
             messageCount: validMessages.length,
             summary,
+            messages: validMessages
         };
 
         // Validate and save report
