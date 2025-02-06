@@ -1,6 +1,7 @@
 'use client';
 
 import { usePerformanceMonitor } from '@/hooks/usePerformanceMonitor';
+import { ArrowUpRightIcon } from 'lucide-react';
 import Link from "next/link";
 
 export default function HomeContent() {
@@ -31,12 +32,12 @@ export default function HomeContent() {
                     <div className="flex flex-col items-center gap-2">
                         <Link
                             href="https://trump-tracker.aiworld.com.br/"
-                            className="group inline-block p-3 text-lg font-medium rounded-md text-gray-50 bg-blue-600 hover:bg-blue-700 transition-colors"
+                            className="group inline-block p-3 text-lg font-medium rounded-md text-gray-50 bg-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2"
                             target="_blank"
                             rel="noopener noreferrer"
                             title="View Trump's Executive Orders Tracker"
                         >
-                            Explore Orders
+                            Explore Orders <ArrowUpRightIcon className="w-4 h-4" />
                         </Link>
                         <Link
                             href="https://github.com/ghsaboias/trump-tracker"
@@ -59,10 +60,10 @@ export default function HomeContent() {
                     <div className="flex flex-col items-center gap-2">
                         <Link
                             href="/summarizer"
-                            className="group inline-block p-3 text-lg font-medium rounded-md text-gray-50 bg-blue-600 hover:bg-blue-700 transition-colors"
+                            className="group inline-block p-3 text-lg font-medium rounded-md text-gray-50 bg-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2"
                             title="View NewsNow Topics Tracker"
                         >
-                            Explore Topics
+                            Explore Topics <ArrowUpRightIcon className="w-4 h-4" />
                         </Link>
                         <Link
                             href="https://github.com/ghsaboias/news-now"
@@ -89,7 +90,7 @@ export default function HomeContent() {
             <main className="flex-grow flex flex-col justify-center items-center gap-4">
                 {introductionSection}
             </main>
-            <footer className="pb-8 w-full">
+            <footer className="mt-8 mb-8 w-full">
                 <div className="text-center text-gray-400 text-sm">
                     © 2024 NewsNow. All rights reserved.
                 </div>
