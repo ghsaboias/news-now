@@ -132,7 +132,7 @@ export class ReportGenerator {
 
             Requirements:
             - Start with ONE clear and specific headline in ALL CAPS
-            - Second line must be in format: "City" (just the location name, no date)
+            - Second line must be just the report's main city name (e.g. "Moscow")
             - First paragraph must summarize the most important verified development, including key names, numbers, locations, dates, etc.
             - Subsequent paragraphs should cover other significant developments
             - Do NOT include additional headlines - weave all events into a cohesive narrative
