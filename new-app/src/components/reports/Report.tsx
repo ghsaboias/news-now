@@ -202,7 +202,7 @@ const ReportHeader = ({
     const { full: date, time } = formatReportDate(report.timeframe.start);
 
     return (
-        <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-md supports-[backdrop-filter]:bg-gray-900/75">
+        <div className="top-0 z-10 bg-gray-900/95 backdrop-blur-md supports-[backdrop-filter]:bg-gray-900/75">
             <div className="border-b border-gray-800 p-4">
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div className="min-w-0 flex-1">
@@ -282,6 +282,27 @@ const getMediaType = (att: DiscordMessage['attachments'][0]) => {
 const extractUrls = (text: string): string[] => {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     return text.match(urlRegex) || [];
+};
+
+const ImageWithFallback = ({ url, filename }: { url: string; filename: string }) => {
+    const [hasError, setHasError] = useState(false);
+
+    if (hasError) {
+        return (
+            <div className="bg-red-900/20 p-4 rounded-md flex items-center justify-center">
+                <span className="text-sm text-red-400">Failed to load image</span>
+            </div>
+        );
+    }
+
+    return (
+        <img
+            src={url}
+            alt={filename}
+            className="rounded-md max-h-48 object-cover w-full"
+            onError={() => setHasError(true)}
+        />
+    );
 };
 
 const SourceReference = ({ source, blockIndex, refIndex }: { source: any, blockIndex: number, refIndex: number }) => {
@@ -382,18 +403,7 @@ const SourceReference = ({ source, blockIndex, refIndex }: { source: any, blockI
                                 return (
                                     <div key={index} className="relative group">
                                         {mediaType === 'image' ? (
-                                            <img
-                                                src={att.url}
-                                                alt={att.filename}
-                                                className="rounded-md max-h-48 object-cover w-full"
-                                                onError={(e) => {
-                                                    console.error(`Error loading image: ${att.url}`, e);
-                                                    (e.target as HTMLImageElement).style.display = 'none';
-                                                    (e.target as HTMLImageElement).parentElement?.classList.add('bg-red-900/20', 'p-4', 'rounded-md', 'flex', 'items-center', 'justify-center');
-                                                    (e.target as HTMLImageElement).parentElement!.innerHTML = `<span class="text-sm text-red-400">Failed to load image</span>`;
-                                                }}
-                                                onLoad={() => console.log(`Successfully loaded image: ${att.url}`)}
-                                            />
+                                            <ImageWithFallback url={att.url} filename={att.filename} />
                                         ) : mediaType === 'video' ? (
                                             <video
                                                 src={att.url}
@@ -402,8 +412,15 @@ const SourceReference = ({ source, blockIndex, refIndex }: { source: any, blockI
                                                 onError={(e) => {
                                                     console.error(`Error loading video: ${att.url}`, e);
                                                     (e.target as HTMLVideoElement).style.display = 'none';
-                                                    (e.target as HTMLVideoElement).parentElement?.classList.add('bg-red-900/20', 'p-4', 'rounded-md', 'flex', 'items-center', 'justify-center');
-                                                    (e.target as HTMLVideoElement).parentElement!.innerHTML = `<span class="text-sm text-red-400">Failed to load video</span>`;
+                                                    (e.target as HTMLVideoElement).parentElement?.classList.add(
+                                                        'bg-red-900/20',
+                                                        'p-4',
+                                                        'rounded-md',
+                                                        'flex',
+                                                        'items-center',
+                                                        'justify-center'
+                                                    );
+                                                    // Instead of innerHTML manipulation, consider showing a fallback UI here as well.
                                                 }}
                                                 onLoadedData={() => console.log(`Successfully loaded video: ${att.url}`)}
                                             />
@@ -420,7 +437,7 @@ const SourceReference = ({ source, blockIndex, refIndex }: { source: any, blockI
 };
 
 const SourceBlockComponent = ({ block, blockIndex }: { block: SourceBlockType, blockIndex: number }) => (
-    <div key={`block-${blockIndex}`} className="mb-6">
+    <div key={`block-${blockIndex}`} className="mb-6 break-all">
         <div className="pl-4 border-l border-gray-800">
             {block.references.map((reference, refIndex) => (
                 <SourceReference key={refIndex} source={reference} blockIndex={blockIndex} refIndex={refIndex} />
