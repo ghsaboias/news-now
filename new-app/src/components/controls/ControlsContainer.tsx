@@ -1,22 +1,12 @@
 import Link from 'next/link';
 import { ReactNode } from 'react';
-import { Section } from '../layout/Section';
 import { Stack } from '../layout/Stack';
 
 interface ControlsContainerProps {
-  /** Main controls that are always visible (channel select, time select, etc.) */
-  mainControls?: ReactNode;
-  /** Bulk generation controls */
-  bulkControls?: ReactNode;
-  /** Recent reports section */
-  recentReports?: ReactNode;
+  children: ReactNode;
 }
 
-export function ControlsContainer({
-  mainControls,
-  bulkControls,
-  recentReports
-}: ControlsContainerProps) {
+export function ControlsContainer({ children }: ControlsContainerProps) {
   return (
     <Stack className="h-full">
       {/* Sticky Header */}
@@ -28,44 +18,10 @@ export function ControlsContainer({
         </div>
       </div>
 
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-        {/* Main Controls - Always Visible */}
-        {mainControls && (
-          <div className="flex-none bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 mb-6">
-            <Stack spacing="default">
-              {mainControls}
-            </Stack>
-          </div>
-        )}
-
-        {/* Scrollable Sections */}
-        <div className="flex-1 overflow-y-auto min-h-0">
-          <Stack spacing="relaxed">
-            {/* Bulk Generate Section */}
-            {bulkControls && (
-              <Section
-                title="Bulk Generation"
-                collapsible
-                defaultExpanded={false}
-                variant="raised"
-              >
-                {bulkControls}
-              </Section>
-            )}
-
-            {/* Recent Reports Section */}
-            {recentReports && (
-              <Section
-                title="Recent Reports"
-                variant="raised"
-              >
-                {recentReports}
-              </Section>
-            )}
-          </Stack>
-        </div>
+      {/* Controls */}
+      <div className="flex-none bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 mb-6">
+        <Stack spacing="default">{children}</Stack>
       </div>
     </Stack>
   );
-} 
+}

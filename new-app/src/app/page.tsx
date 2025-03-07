@@ -1,18 +1,9 @@
 'use client';
 
-import { Grid } from '@/components/layout/Grid';
 import { Stack } from '@/components/layout/Stack';
-import { usePerformanceMonitor } from '@/hooks/usePerformanceMonitor';
 import Link from "next/link";
 
-function HomeContent() {
-    // Monitor performance on the client side only
-    usePerformanceMonitor('HomeContent', {
-        logMemory: true,
-        logRenderCount: true,
-        logMountTime: true
-    });
-
+export default function Home() {
     const hero = (
         <div className="text-center flex flex-col items-center gap-4">
             <h1 className="text-3xl sm:text-4xl md:text-5xl tracking-tight font-medium text-gray-50 leading-tight">
@@ -37,13 +28,13 @@ function HomeContent() {
 
     const features = (
         <section className="my-8 w-[90%] mx-auto flex flex-col items-center">
-            <Grid columns={{ sm: 1, md: 3 }} spacing="relaxed">
-                < div className="bg-gray-800 rounded-lg p-4 lg:p-6" >
+            <Stack spacing="relaxed">
+                <div className="bg-gray-800 rounded-lg p-4 lg:p-6">
                     <Stack spacing="default" className="items-center">
                         <h3 className="text-base sm:text-lg font-medium text-blue-400 leading-snug">Real-Time Intelligence</h3>
                         <p className="text-sm sm:text-base text-gray-300 leading-normal text-center">Transform live discussions into clear, actionable insights</p>
                     </Stack>
-                </div >
+                </div>
                 <div className="bg-gray-800 rounded-lg p-4 lg:p-6">
                     <Stack spacing="default" className="items-center">
                         <h3 className="text-base sm:text-lg font-medium text-blue-400 leading-snug">Seamless Integration</h3>
@@ -53,13 +44,11 @@ function HomeContent() {
                 <div className="bg-gray-800 rounded-lg p-4 lg:p-6">
                     <Stack spacing="default" className="items-center">
                         <h3 className="text-base sm:text-lg font-medium text-blue-400 leading-snug">Periodic Updates</h3>
-                        <p className="text-sm sm:text-base text-gray-300 leading-normal text-center">
-                            Get live updates on your favorite topics
-                        </p>
+                        <p className="text-sm sm:text-base text-gray-300 leading-normal text-center">Get live updates on your favorite topics</p>
                     </Stack>
                 </div>
-            </Grid >
-        </section >
+            </Stack>
+        </section>
     );
 
     return (
@@ -94,8 +83,4 @@ function HomeContent() {
             </footer>
         </div>
     );
-}
-
-export default function Home() {
-    return <HomeContent />;
 }
